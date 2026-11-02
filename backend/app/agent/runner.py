@@ -418,7 +418,7 @@ class AgentRunner:
                 confidence=conf,
                 rationale=str(d.get("rationale", ""))[:2000],
                 evidence=evidence,
-                created_at=datetime.now(UTC),
+                created_at=self.clock.now(),
             )
             s.add(row)
             s.flush()
