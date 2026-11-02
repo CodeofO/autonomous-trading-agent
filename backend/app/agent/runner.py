@@ -165,8 +165,11 @@ class AgentRunner:
         since_raw = self.settings.get("account_source").get("since")
         with self.db.session() as s:
             q = select(AgentRun).where(AgentRun.status == "DONE")
-            if since_raw:  # 계좌를 새로 시작한 이후 기록만 (예전 가상 시장 기록 차단)
-                q = q.where(AgentRun.started_at >= datetime.fromisoformat(since_raw))
+            if since_raw:  # 계좌를 새로 시작한 이후~현재 기록만 (예전 가상 시장·미래 날짜 기록 차단)
+                q = q.where(
+                    AgentRun.started_at >= datetime.fromisoformat(since_raw),
+                    AgentRun.started_at <= self.clock.now(),
+                )
             runs = list(s.scalars(q.order_by(AgentRun.id.desc()).limit(3)))
             lines = []
             for r in runs:

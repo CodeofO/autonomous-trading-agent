@@ -407,7 +407,6 @@ def test_account_resets_once_when_leaving_mock(tmp_path: Path) -> None:
         )
         s.add(run)
         s.flush()
-        s.add(AgentDecision(run_id=run.id, symbol="MOCK01", name="가온전자", action="BUY", created_at=old))
         o = Order(
             client_order_id="x",
             symbol="MOCK01",
@@ -422,11 +421,39 @@ def test_account_resets_once_when_leaving_mock(tmp_path: Path) -> None:
         s.add(o)
         s.flush()
         s.add(Fill(order_id=o.id, symbol="MOCK01", side="BUY", quantity=1, price=1.0, filled_at=old))
+        s.add(
+            AgentDecision(
+                run_id=run.id, symbol="MOCK01", name="가온전자", action="BUY", order_id=o.id, created_at=old
+            )
+        )
+        future = first.clock.now() + timedelta(days=10)  # 가속 시뮬레이션이 남긴 미래 날짜 기록
+        s.add(
+            AgentRun(
+                trigger="hourly",
+                mode="llm-tools",
+                status="DONE",
+                started_at=future,
+                summary="한빛반도체 매도",
+            )
+        )
+        near = AgentRun(
+            trigger="hourly",
+            mode="rule",
+            status="DONE",
+            started_at=first.clock.now() + timedelta(minutes=70),
+            summary="규칙 점검",
+        )
+        s.add(near)
+        s.flush()
+        s.add(
+            AgentDecision(run_id=near.id, symbol="MOCK05", name="미래에너지", action="HOLD", created_at=old)
+        )
     assert "가온전자" in first.runner._memory()
     real = make_container(
         tmp_path, datetime(2026, 11, 2, 11, 0, tzinfo=KST), database_url=url, create_schema=False
     )
-    assert "가온전자" not in real.runner._memory()  # 예전 기록이 LLM 컨텍스트로 새지 않음
+    mem = real.runner._memory()
+    assert "가온전자" not in mem and "한빛반도체" not in mem  # 예전 기록이 LLM 컨텍스트로 새지 않음
     with real.db.session() as s:
         assert s.query(AgentRun).count() == 0 and s.query(Order).count() == 0 and s.query(Fill).count() == 0
     assert (

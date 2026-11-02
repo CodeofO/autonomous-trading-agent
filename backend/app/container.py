@@ -9,11 +9,11 @@ from __future__ import annotations
 import logging
 import secrets
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import and_, delete, func, or_, select
 
 from app.agent.llm import LLMClient
 from app.agent.runner import AgentRunner
@@ -117,17 +117,45 @@ def purge_legacy(db: Database, since: datetime | None) -> datetime:
             since = s.scalar(
                 select(func.max(AuditEvent.ts)).where(AuditEvent.type == "ACCOUNT_RESET")
             ) or datetime.now(UTC)
-        old_runs = select(AgentRun.id).where(AgentRun.started_at < since)
-        old_orders = select(Order.id).where(
-            or_(Order.created_at < since, Order.symbol.like("MOCK%"), Order.run_id.in_(old_runs))
+        # 가속 시뮬레이션 시절 기록은 미래 날짜로 찍혀 있을 수 있다 → 실제 현재 이후도 목업으로 본다
+        future = datetime.now(UTC) + timedelta(hours=1)
+
+        def stale(col: Any) -> Any:
+            return or_(col < since, col > future)
+
+        mock_runs = select(AgentDecision.run_id).where(AgentDecision.symbol.like("MOCK%"))
+        old_run_ids = list(
+            s.scalars(
+                select(AgentRun.id).where(
+                    or_(
+                        stale(AgentRun.started_at),
+                        AgentRun.id.in_(mock_runs),
+                        # 결정·채팅이 하나도 남지 않은 빈 세션(이전 정리에서 내용만 지워진 경우)
+                        and_(
+                            AgentRun.id.not_in(select(AgentDecision.run_id)),
+                            AgentRun.id.not_in(
+                                select(ChatMessage.run_id).where(ChatMessage.run_id.is_not(None))
+                            ),
+                        ),
+                    )
+                )
+            )
         )
-        s.execute(delete(AgentDecision).where(AgentDecision.run_id.in_(old_runs)))
+        old_orders = select(Order.id).where(
+            or_(stale(Order.created_at), Order.symbol.like("MOCK%"), Order.run_id.in_(old_run_ids))
+        )
+        # 외래키 순서: 결정(→주문·세션) → 체결(→주문) → 주문(→세션) → 세션
+        s.execute(
+            delete(AgentDecision).where(
+                or_(AgentDecision.run_id.in_(old_run_ids), AgentDecision.order_id.in_(old_orders))
+            )
+        )
         s.execute(delete(Fill).where(Fill.order_id.in_(old_orders)))
         s.execute(delete(Order).where(Order.id.in_(old_orders)))
-        s.execute(delete(AgentRun).where(AgentRun.started_at < since))
-        s.execute(delete(AuditEvent).where(AuditEvent.ts < since, AuditEvent.type != "ACCOUNT_RESET"))
-        s.execute(delete(ChatMessage).where(ChatMessage.ts < since))
-        s.execute(delete(EquitySnapshot).where(EquitySnapshot.ts < since))
+        s.execute(delete(AgentRun).where(AgentRun.id.in_(old_run_ids)))
+        s.execute(delete(AuditEvent).where(stale(AuditEvent.ts), AuditEvent.type != "ACCOUNT_RESET"))
+        s.execute(delete(ChatMessage).where(stale(ChatMessage.ts)))
+        s.execute(delete(EquitySnapshot).where(stale(EquitySnapshot.ts)))
         s.execute(delete(DailyReport).where(DailyReport.created_at < since))
         s.execute(delete(DailyPrice).where(DailyPrice.symbol.like("MOCK%")))
         s.execute(delete(WatchlistItem).where(WatchlistItem.symbol.like("MOCK%")))
@@ -141,9 +169,13 @@ def _reset_on_source_change(db: Database, kv: SettingsStore, broker: PaperBroker
     state = kv.get("account_source")
     prev = state.get("source")
     if prev == SOURCE:
-        if "since" not in state:  # 이전 버전에서 이미 전환된 DB → 남아 있는 목업 기록만 정리
-            since = purge_legacy(db, None)
-            kv.set("account_source", {"source": SOURCE, "since": since.isoformat()})
+        if state.get("purged") != 4:  # 이전 버전에서 이미 전환된 DB → 남아 있는 목업 기록 정리 (정리 규칙 v4)
+            try:
+                since = purge_legacy(db, None)
+            except Exception:  # 정리 실패가 기동을 막지 않게 (다음 기동 때 다시 시도)
+                log.exception("목업 기록 정리 실패")
+                return
+            kv.set("account_source", {"source": SOURCE, "since": since.isoformat(), "purged": 4})
         return
     since = hub.clock.now()
     if prev is not None:
@@ -157,7 +189,7 @@ def _reset_on_source_change(db: Database, kv: SettingsStore, broker: PaperBroker
             "text",
             f"🔄 토스증권 실제 시세로 전환했어요. 모의계좌를 새로 시작합니다 (초기 자금 {broker.state['initial_cash']:,.0f}원).",
         )
-    kv.set("account_source", {"source": SOURCE, "since": since.isoformat()})
+    kv.set("account_source", {"source": SOURCE, "since": since.isoformat(), "purged": 4})
 
 
 def build_container(
