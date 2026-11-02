@@ -12,8 +12,9 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import func, select
 
+from app.agent.activity import TOOL_GROUPS
 from app.agent.prompts import DEFAULT_PERSONA, DEFAULT_POLICY
-from app.agent.tools import TERMINAL_TOOL, openai_tools
+from app.agent.tools import openai_tools
 from app.api.auth import hash_password, issue_token, verify_password, verify_token
 from app.backtest.engine import run_backtest
 from app.container import Container
@@ -344,21 +345,10 @@ def agent_decisions(
         return [_decision_dict(d) for d in s.scalars(q)]
 
 
-# 도구 → (분류, 데이터 출처). 에이전트 구조 화면에서 묶어 보여준다.
-TOOL_GROUPS: dict[str, tuple[str, str]] = {
-    "get_portfolio": ("portfolio", "모의계좌"),
-    "get_trade_history": ("portfolio", "모의계좌"),
-    "screen_stocks": ("market", "토스증권"),
-    "get_price_history": ("market", "토스증권"),
-    "get_market_overview": ("market", "토스증권"),
-    "explore_sector": ("market", "토스증권"),
-    "get_supply_demand": ("market", "토스증권"),
-    "get_stock_status": ("market", "토스증권"),
-    "get_financials": ("research", "DART"),
-    "get_disclosures": ("research", "DART"),
-    "search_news": ("research", "NAVER"),
-    TERMINAL_TOOL: ("decision", "모의계좌"),
-}
+@router.get("/agent/progress")
+def agent_progress(c: C, _: U) -> dict[str, Any]:
+    """진행 중인 판단 세션의 현재 단계 (트레이딩 룸 활동 패널을 새로고침 직후에도 채우기 위함)."""
+    return c.runner.progress
 
 
 @router.get("/agent/structure")

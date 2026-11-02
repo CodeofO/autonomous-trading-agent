@@ -1,0 +1,145 @@
+/* 트레이딩 룸 도구 호출 칩: styles.css 의 .tool-row/.tool-chip 을 확장 (styles.css 가 나중에 로드되므로 한 단계 높은 선택자 사용) */
+.tool-row {
+  --src-toss: #3182f6;
+  --src-dart: #7048e8;
+  --src-naver: #03a94d;
+  --src-account: #e8590c;
+  min-width: 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .tool-row {
+    --src-toss: #5b9dff;
+    --src-dart: #9775fa;
+    --src-naver: #38d27a;
+    --src-account: #ffa94d;
+  }
+}
+
+.tool-row .tool-chip {
+  max-width: 100%;
+  min-width: 0;
+  text-align: left;
+}
+.tool-row .tool-chip > span {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.tool-row .tool-chip .tool-line {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.85;
+}
+.tool-row .tool-chip .tool-line::before {
+  content: "→ ";
+}
+.tool-row .tool-chip .tool-ms {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+.tool-row .tool-chip[aria-expanded="true"] {
+  border-style: solid;
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.tool-row .tool-src {
+  --c: var(--text-dim);
+  color: var(--c);
+  background: color-mix(in srgb, var(--c) 14%, transparent);
+  border-radius: 6px;
+  padding: 0 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 17px;
+}
+.tool-row .tool-src.toss {
+  --c: var(--src-toss);
+}
+.tool-row .tool-src.dart {
+  --c: var(--src-dart);
+}
+.tool-row .tool-src.naver {
+  --c: var(--src-naver);
+}
+.tool-row .tool-src.account {
+  --c: var(--src-account);
+}
+
+/* 실패: 점선 테두리와 요약을 위험 색으로 */
+.tool-row.fail .tool-chip {
+  border-color: color-mix(in srgb, var(--danger) 55%, transparent);
+}
+.tool-row.fail .tool-chip .tool-line {
+  color: var(--danger);
+  opacity: 1;
+}
+.tool-row.fail .tool-chip .tool-line::before {
+  content: "⚠ ";
+}
+
+.tool-row .tool-detail {
+  margin: 6px 0 2px;
+  max-width: 560px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  display: grid;
+  gap: 10px;
+}
+.tool-row .tool-sec-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+.tool-row .tool-detail dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 3px 12px;
+}
+.tool-row .tool-detail dl > div {
+  display: contents;
+}
+.tool-row .tool-detail dt {
+  color: var(--text-dim);
+}
+.tool-row .tool-detail dd {
+  margin: 0;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.tool-row .tool-list {
+  margin: 0;
+  padding-left: 16px;
+}
+.tool-row .tool-list li + li {
+  margin-top: 2px;
+}
+.tool-row .tool-tech {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.tool-row .tool-tech code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* 좁은 화면: 칩 안에서 줄바꿈 허용 */
+@media (max-width: 760px) {
+  .tool-row .tool-chip {
+    flex-wrap: wrap;
+    row-gap: 2px;
+    border-radius: 12px;
+  }
+  .tool-row .tool-chip .tool-line {
+    white-space: normal;
+  }
+}

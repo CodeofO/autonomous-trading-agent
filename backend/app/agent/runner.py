@@ -10,12 +10,14 @@ import json
 import logging
 import math
 import re
+import time
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import select
 
+from app.agent.activity import preview, result_line, tool_source
 from app.agent.llm import LLMClient, LLMError, ToolsUnsupportedError, extract_json
 from app.agent.prompts import (
     ACCOUNT_DESC,
@@ -77,10 +79,64 @@ class AgentRunner:
         self.strategies = strategies or (lambda: [])
         self.names = names or (lambda s: s)
         self._lock = asyncio.Lock()
+        self._reply_lock = asyncio.Lock()
+        self._handled_question = 0  # 마지막으로 답하기 시작한 질문 id (같은 질문에 두 번 답하지 않음)
+        self._typing_slots: dict[str, str | None] = {"session": None, "reply": None}
+        self._run: dict[str, Any] = {"active": False}
 
     @property
     def running(self) -> bool:
         return self._lock.locked()
+
+    # ================================================================ 활동 표시
+    @property
+    def progress(self) -> dict[str, Any]:
+        """지금 하는 일: 판단 세션 진행 상황 + '생각 중…' 표시. 새로고침·재접속 때 화면을 복원하는 데 쓴다."""
+        return {**self._run, "typing": self._typing_label(), "replying": self._reply_lock.locked()}
+
+    def _typing_label(self) -> str | None:
+        return self._typing_slots["reply"] or self._typing_slots["session"]
+
+    def _typing(self, slot: str, label: str | None) -> None:
+        """세션과 답장이 겹쳐도 한쪽이 끝날 때 다른 쪽 표시를 지우지 않는다."""
+        self._typing_slots[slot] = label
+        cur = self._typing_label()
+        self.hub.typing(ANALYST, cur is not None, cur or "")
+        self.hub.progress(self.progress)
+
+    def _step(self, label: str, **changes: Any) -> None:
+        """세션 진행 단계 갱신 → 트레이딩 룸 활동 패널·'생각 중' 표시."""
+        self._run.update(changes, label=label)
+        self._typing("session", label)
+
+    async def _tool(
+        self, run_id: int, name: str, args: dict[str, Any], step: int | None = None
+    ) -> dict[str, Any]:
+        """도구 실행 + 채팅 표시 (데이터 출처·소요 시간·결과 한 줄 요약)."""
+        label = tool_label(name, args, self.names)
+        source = tool_source(name, self.live)
+        self._step(label, phase="tool", tool=name, source=source)
+        t0 = time.monotonic()
+        result = await self.tb.call(name, args)
+        ms = round((time.monotonic() - t0) * 1000)
+        sources = dict(self._run.get("sources") or {})
+        sources[source] = sources.get(source, 0) + 1
+        self._run.update(tools=int(self._run.get("tools") or 0) + 1, sources=sources)
+        self.hub.chat(
+            ANALYST,
+            "tool",
+            label,
+            run_id=run_id,
+            tool=name,
+            args=args,
+            source=source,
+            ms=ms,
+            step=step,
+            ok="error" not in result,
+            line=result_line(name, result),
+            preview=preview(name, result),
+        )
+        return result
 
     def persona(self) -> dict[str, str]:
         return {**DEFAULT_PERSONA, **self.settings.get("agent_persona")}
@@ -116,6 +172,19 @@ class AgentRunner:
                 trigger=trigger,
             )
             self.hub.state({"agent_running": True, "run_id": run_id})
+            self._run = {
+                "active": True,
+                "run_id": run_id,
+                "trigger": trigger,
+                "mode": mode,
+                "started_at": self.clock.now().isoformat(),
+                "step": 0,
+                "max_steps": self.max_steps,
+                "tools": 0,
+                "sources": {},
+                "tokens": 0,
+            }
+            self._step("출근 준비 중…", phase="start")
             usage: dict[str, int] = {}
             try:
                 if self.llm is None:
@@ -150,7 +219,8 @@ class AgentRunner:
                     run_id=run_id,
                 )
             finally:
-                self.hub.typing(ANALYST, False)
+                self._run = {"active": False, "run_id": run_id}
+                self._typing("session", None)
                 self.hub.state({"agent_running": False, "run_id": run_id})
             with self.db.session() as s:
                 done = s.get(AgentRun, run_id)
@@ -228,13 +298,14 @@ class AgentRunner:
         resubmitted = False
         for step in range(self.max_steps):
             force = force_submit or step == self.max_steps - 1
-            self.hub.typing(ANALYST, True, "생각 중…")
+            self._step("생각 중…", phase="thinking", step=step + 1, tool=None, source=None)
             res = await self.llm.chat(
                 messages,
                 tools,
                 {"type": "function", "function": {"name": TERMINAL_TOOL}} if force else None,
             )
             _acc(usage, res.usage)
+            self._run["tokens"] = usage.get("total_tokens", 0)
             if res.content:
                 self.hub.chat(ANALYST, "text", res.content[:1500], run_id=run_id)
             if not res.tool_calls:
@@ -301,18 +372,7 @@ class AgentRunner:
                     )
                     force_submit = True
                     continue  # 같은 묶음의 다른 도구 호출에도 응답해야 하므로 계속 진행
-                label = tool_label(call.name, call.arguments, self.names)
-                self.hub.typing(ANALYST, True, label)
-                result = await self.tb.call(call.name, call.arguments)
-                self.hub.chat(
-                    ANALYST,
-                    "tool",
-                    label,
-                    run_id=run_id,
-                    tool=call.name,
-                    args=call.arguments,
-                    preview=_preview(call.name, result),
-                )
+                result = await self._tool(run_id, call.name, call.arguments, step=step + 1)
                 messages.append({"role": "tool", "tool_call_id": call.id, "content": self.tb.dumps(result)})
             if step == self.max_steps - 2:
                 messages.append(
@@ -329,13 +389,7 @@ class AgentRunner:
         dossier: dict[str, Any] = {}
 
         async def gather(name: str, args: dict[str, Any]) -> dict[str, Any]:
-            label = tool_label(name, args, self.names)
-            self.hub.typing(ANALYST, True, label)
-            res = await self.tb.call(name, args)
-            self.hub.chat(
-                ANALYST, "tool", label, run_id=run_id, tool=name, args=args, preview=_preview(name, res)
-            )
-            return res
+            return await self._tool(run_id, name, args)
 
         dossier["portfolio"] = await gather("get_portfolio", {})
         scr = await gather("screen_stocks", {"sort_by": "market_cap", "limit": 12})
@@ -352,7 +406,7 @@ class AgentRunner:
                 "financials": await gather("get_financials", {"symbol": sym}),
                 "news": await gather("search_news", {"query": name, "limit": 4}),
             }
-        self.hub.typing(ANALYST, True, "자료 종합 중…")
+        self._step("자료 종합 중…", phase="thinking", tool=None, source=None)
         content = (
             self._user_context("json")
             + "\n\n"
@@ -364,6 +418,7 @@ class AgentRunner:
             [{"role": "system", "content": self._system()}, {"role": "user", "content": content}]
         )
         _acc(usage, res.usage)
+        self._run["tokens"] = usage.get("total_tokens", 0)
         data = extract_json(res.content)
         if not data or "decisions" not in data:
             raise LLMError("JSON 결정을 해석하지 못했습니다")
@@ -374,13 +429,14 @@ class AgentRunner:
     # ================================================================ 모드: 규칙
     async def _run_rules(self, run_id: int) -> dict[str, Any]:
         async def say(kind: str, text: str, payload: dict[str, Any]) -> None:
-            self.hub.typing(ANALYST, True, text if kind == "tool" else "생각 중…")
+            self._step(text if kind == "tool" else "생각 중…", phase="tool" if kind == "tool" else "thinking")
             self.hub.chat(ANALYST, kind, text, run_id=run_id, **payload)
 
         return await rule_based_decisions(self.tb, self.strategies(), say)
 
     # ================================================================ 실행
     async def _execute(self, run_id: int, payload: dict[str, Any]) -> None:
+        self._step("리스크 점검·주문 처리 중…", phase="executing", tool=None, source=None)
         pf = await self.tb.call("get_portfolio", {})
         equity = float(pf.get("equity") or 0)
         held = {p["symbol"]: p for p in pf.get("positions", [])}
@@ -536,21 +592,40 @@ class AgentRunner:
     # ================================================================ 채팅 Q&A
     async def answer(self, question: str) -> None:
         self.hub.chat(USER, "text", question[:1000])
-        await self._reply(question)
+        await self._drain_replies()
 
     async def resume_pending(self) -> None:
         """재시작으로 답을 못 받은 오늘 질문이 있으면 이어서 답한다 (대화는 하루 단위로 이어진다)."""
+        await self._drain_replies()
+
+    async def _drain_replies(self) -> None:
+        """답장은 한 번에 하나만 쓴다. 답하는 동안 들어온 질문은 끝난 뒤 한 번에 이어서 답한다 (중복 답장 방지)."""
+        if self._reply_lock.locked():
+            return  # 진행 중인 답장 루프가 이어서 처리한다
+        async with self._reply_lock:
+            while (pending := self._pending_question()) is not None:
+                self._handled_question, question = pending
+                await self._reply(question, pending[0])
+
+    def _pending_question(self) -> tuple[int, str] | None:
+        """오늘 마지막 질문이 아직 답을 못 받았으면 (id, 내용)."""
         with self.db.session() as s:
-            last = s.scalars(
-                select(ChatMessage)
-                .where(ChatMessage.ts >= _today_start(self.clock.now()))
-                .where(ChatMessage.role.in_([USER, ANALYST]), ChatMessage.kind == "text")
-                .order_by(ChatMessage.id.desc())
-                .limit(1)
-            ).first()
-            question = last.content if last is not None and last.role == USER else None
-        if question:
-            await self._reply(question)
+            rows = list(
+                s.scalars(
+                    select(ChatMessage)
+                    .where(ChatMessage.ts >= _today_start(self.clock.now()))
+                    .where(ChatMessage.role.in_([USER, ANALYST]), ChatMessage.kind == "text")
+                    .order_by(ChatMessage.id.desc())
+                    .limit(50)
+                )
+            )
+        # 답장마다 어느 질문까지 보고 답했는지(question_id)를 남긴다. 답하는 동안 들어온 질문은 그보다 뒤라 남는다.
+        answered = self._handled_question
+        for m in rows:
+            if m.role == ANALYST and (m.payload or {}).get("reply_to") == "user":
+                answered = max(answered, int((m.payload or {}).get("question_id") or m.id))
+        newest = next((m for m in rows if m.role == USER), None)
+        return (newest.id, newest.content) if newest is not None and newest.id > answered else None
 
     def _today_chat(self, limit: int = 30) -> list[dict[str, str]]:
         """오늘(KST) 트레이딩 룸 대화: 사용자 질문·매니저 답변·세션 요약. DB 에서 읽으므로 재시작해도 이어진다."""
@@ -577,7 +652,7 @@ class AgentRunner:
                 out.append({"role": "assistant", "content": m.content[:600]})
         return out
 
-    async def _reply(self, question: str) -> None:
+    async def _reply(self, question: str, question_id: int | None = None) -> None:
         p = self.persona()
         if self.llm is None:
             self.hub.chat(
@@ -587,7 +662,7 @@ class AgentRunner:
                 ".env 에 LLM_BASE_URL·LLM_MODEL·LLM_API_KEY 를 넣으면 대화할 수 있어요.",
             )
             return
-        self.hub.typing(ANALYST, True, "답장 쓰는 중…")
+        self._typing("reply", "답장 쓰는 중…")
         try:
             pf = await self.tb.call("get_portfolio", {})
             trades = await self.tb.call("get_trade_history", {"limit": 20})
@@ -617,11 +692,13 @@ class AgentRunner:
                 ]
             )
             text = strip_disclaimers(res.content)[:2000]
-            self.hub.chat(ANALYST, "text", text or "음… 잘 모르겠어요 🤔", reply_to="user")
+            self.hub.chat(
+                ANALYST, "text", text or "음… 잘 모르겠어요 🤔", reply_to="user", question_id=question_id
+            )
         except Exception as e:
             self.hub.chat(SYSTEM, "text", f"⚠️ 답장 중 오류: {type(e).__name__}")
         finally:
-            self.hub.typing(ANALYST, False)
+            self._typing("reply", None)
 
 
 # ==================================================================== 유틸
@@ -720,39 +797,3 @@ def _to_float(v: Any) -> float | None:
 def _kst(t: datetime) -> str:
     t = t if t.tzinfo else t.replace(tzinfo=UTC)
     return f"{t.astimezone(KST):%m/%d %H:%M}"
-
-
-def _preview(name: str, result: dict[str, Any]) -> dict[str, Any]:
-    """채팅 카드에 띄울 짧은 결과 요약."""
-    if "error" in result:
-        return {"error": result["error"]}
-    if name == "search_news":
-        return {
-            "titles": [i.get("title", "")[:60] for i in result.get("items", [])[:3]],
-            "count": result.get("count"),
-        }
-    if name == "get_price_history":
-        return {
-            "close": (result.get("last") or {}).get("close"),
-            "returns_pct": result.get("returns_pct"),
-            "rsi14": result.get("rsi14"),
-        }
-    if name == "get_financials":
-        r0 = (result.get("reports") or [{}])[0]
-        return {
-            "period": r0.get("period"),
-            "revenue": r0.get("revenue"),
-            "op_margin_pct": r0.get("op_margin_pct"),
-            **{k: (result.get("valuation") or {}).get(k) for k in ("per", "pbr", "roe_pct")},
-        }
-    if name == "screen_stocks":
-        return {"top": [f"{r['name']}" for r in result.get("results", [])[:5]], "as_of": result.get("as_of")}
-    if name == "get_disclosures":
-        return {"items": [i.get("report_nm") for i in result.get("items", [])[:3]]}
-    if name == "get_portfolio":
-        return {
-            "equity": result.get("equity"),
-            "cash": result.get("cash"),
-            "positions": len(result.get("positions", [])),
-        }
-    return {}

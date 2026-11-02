@@ -1,12 +1,13 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { errorText, post } from "../../api/client";
-import type { ChatMsg, Role } from "../../api/types";
+import type { AgentProgress, ChatMsg, Role } from "../../api/types";
 import { ChatMessage, roleMeta, type Persona } from "./ChatMessage";
 
 interface Props {
   messages: ChatMsg[];
   typing: { role: Role; label: string } | null;
+  progress?: AgentProgress | null;
   persona: Persona;
   showInput?: boolean;
   showTools?: boolean;
@@ -20,7 +21,15 @@ const QUICK = [
   "다음엔 반도체 좀 더 봐줘",
 ];
 
-export function ChatFeed({ messages, typing, persona, showInput = true, showTools = true, height }: Props) {
+export function ChatFeed({
+  messages,
+  typing,
+  progress,
+  persona,
+  showInput = true,
+  showTools = true,
+  height,
+}: Props) {
   const box = useRef<HTMLDivElement>(null);
   const [stick, setStick] = useState(true);
   const [text, setText] = useState("");
@@ -55,6 +64,7 @@ export function ChatFeed({ messages, typing, persona, showInput = true, showTool
 
   return (
     <div className="chat" style={height ? { height } : undefined}>
+      {progress?.active && <ActivityPanel progress={progress} />}
       <div className="chat-scroll" ref={box} data-testid="chat-scroll">
         {visible.length === 0 && (
           <div className="chat-empty">
@@ -93,7 +103,11 @@ export function ChatFeed({ messages, typing, persona, showInput = true, showTool
             <input
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder={`${persona.name} 매니저에게 물어보기… (메모는 다음 판단에 참고돼요)`}
+              placeholder={
+                progress?.replying
+                  ? "답장 쓰는 중이에요 — 지금 보내면 이어서 함께 답해요"
+                  : `${persona.name} 매니저에게 물어보기… (메모는 다음 판단에 참고돼요)`
+              }
               maxLength={1000}
               aria-label="메시지 입력"
             />
@@ -102,6 +116,69 @@ export function ChatFeed({ messages, typing, persona, showInput = true, showTool
             </button>
           </form>
           {send.isError && <p className="error">{errorText(send.error)}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const PHASE_ICON: Record<string, string> = { start: "☕", thinking: "🧠", tool: "🔎", executing: "🛡️" };
+// 도구 라벨은 "📰 뉴스 검색"처럼 이모지로 시작한다 — 아이콘 자리로 옮기고 본문에서는 뺀다
+const LEAD_EMOJI = /^(\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic})*)\s*/u;
+
+function fmtTokens(n: number): string {
+  return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
+}
+
+function fmtElapsed(ms: number): string | null {
+  if (!Number.isFinite(ms) || ms < 0 || ms > 6 * 3600_000) return null;
+  const s = Math.floor(ms / 1000);
+  return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+}
+
+/** 판단 세션이 도는 동안 채팅 위에 고정되는 진행 표시 (서버 상태 그대로 — 새로고침해도 복원) */
+function ActivityPanel({ progress }: { progress: AgentProgress }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(t);
+  }, []);
+
+  const phase = progress.phase ?? "thinking";
+  const raw = progress.label ?? "";
+  const lead = raw.match(LEAD_EMOJI);
+  const icon = (phase === "tool" && lead?.[1]) || PHASE_ICON[phase] || "🧠";
+  const label = (lead ? raw.slice(lead[0].length) : raw) || "작업 중…";
+  const elapsed = progress.started_at ? fmtElapsed(now - new Date(progress.started_at).getTime()) : null;
+  const sources = Object.entries(progress.sources ?? {}).filter(([, n]) => n > 0);
+
+  return (
+    <div className={`activity ${phase}`} data-testid="activity">
+      <div className="activity-meta">
+        <span className="live-dot" aria-hidden />
+        <b>세션 #{progress.run_id ?? "—"}</b>
+        {!!progress.step && (
+          <span>
+            단계 {progress.step}/{progress.max_steps ?? "?"}
+          </span>
+        )}
+        {elapsed && <span className="activity-time">{elapsed}</span>}
+        <span>도구 {progress.tools ?? 0}회</span>
+        {!!progress.tokens && <span>{fmtTokens(progress.tokens)} 토큰</span>}
+      </div>
+      <div className="activity-now" role="status" aria-live="polite">
+        <span className="activity-icon" aria-hidden>
+          {icon}
+        </span>
+        <span className="activity-label">{label}</span>
+      </div>
+      {sources.length > 0 && (
+        <div className="activity-sources">
+          {sources.map(([name, n]) => (
+            <span key={name} className={`source-chip ${name === progress.source ? "on" : ""}`}>
+              {name} <b>{n}</b>
+            </span>
+          ))}
         </div>
       )}
     </div>

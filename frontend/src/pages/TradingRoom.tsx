@@ -4,7 +4,7 @@ import { errorText, get, post } from "../api/client";
 import type { AgentRun } from "../api/types";
 import { ChatFeed } from "../components/chat/ChatFeed";
 import { useEvents } from "../events";
-import { DEFAULT_PERSONA, useSystem } from "../hooks";
+import { DEFAULT_PERSONA, useShowTools, useSystem } from "../hooks";
 import { fmtDateTime } from "../utils/format";
 
 const TRIGGER_KO: Record<string, string> = { morning: "장전", afternoon: "오후", manual: "수동" };
@@ -12,8 +12,8 @@ const TRIGGER_KO: Record<string, string> = { morning: "장전", afternoon: "오�
 export function TradingRoom() {
   const qc = useQueryClient();
   const { data: sys } = useSystem();
-  const { messages, typing } = useEvents();
-  const [showTools, setShowTools] = useState(true);
+  const { messages, typing, progress } = useEvents();
+  const [showTools, setShowTools] = useShowTools();
   const [runFilter, setRunFilter] = useState<number | null>(null);
   const runs = useQuery({ queryKey: ["runs"], queryFn: () => get<AgentRun[]>("/api/agent/runs?limit=20") });
   const run = useMutation({
@@ -51,6 +51,7 @@ export function TradingRoom() {
         <ChatFeed
           messages={shown}
           typing={typing}
+          progress={progress}
           persona={persona}
           showTools={showTools}
           height="calc(100vh - 260px)"

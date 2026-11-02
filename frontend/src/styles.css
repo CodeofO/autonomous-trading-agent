@@ -105,10 +105,11 @@ small {
 }
 
 /* ---------- 레이아웃 ---------- */
+/* 창 높이에 고정: 페이지(body)는 스크롤하지 않고 본문(.content)만 스크롤한다 */
 .app {
   display: grid;
   grid-template-columns: 220px 1fr;
-  min-height: 100%;
+  height: 100%;
 }
 .sidebar {
   background: var(--panel);
@@ -170,6 +171,7 @@ small {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
 }
 .topbar {
   display: flex;
@@ -193,6 +195,9 @@ small {
 .content {
   padding: 20px 22px;
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .disclaimer {
   padding: 10px 22px 16px;
@@ -785,6 +790,92 @@ label.toggle input {
   color: var(--text-dim);
   font-size: 13px;
 }
+/* 진행 표시: 판단 세션 동안 채팅 위에 고정 (스크롤되지 않음) */
+.activity {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 6px;
+  padding: 8px 11px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  background: linear-gradient(90deg, var(--accent-soft), transparent 70%), var(--panel-2);
+  font-size: 12px;
+  animation: pop-in 0.25s ease-out;
+}
+.activity.executing {
+  border-left-color: var(--warn);
+}
+.activity-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px 10px;
+  flex-wrap: wrap;
+  color: var(--text-dim);
+}
+.activity-meta b {
+  color: var(--text);
+}
+.activity-time {
+  font-variant-numeric: tabular-nums;
+}
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  animation: pulse 1.4s infinite;
+}
+.activity.executing .live-dot {
+  background: var(--warn);
+}
+.activity-now {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--text);
+}
+.activity-icon {
+  flex: none;
+}
+.activity-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.activity-sources {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.source-chip {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text-dim);
+  border-radius: 999px;
+  padding: 0 8px;
+  font-size: 11px;
+  line-height: 18px;
+}
+.source-chip b {
+  color: var(--text);
+  font-weight: 700;
+}
+.source-chip.on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-dot,
+  .activity {
+    animation: none;
+  }
+}
 .jump {
   position: absolute;
   bottom: 120px;
@@ -929,6 +1020,29 @@ label.toggle input {
 }
 .chat-scroll {
   min-height: 0;
+  overscroll-behavior: contain;
+}
+/* 넓은 화면: 대시보드가 창에 딱 맞는다 — 왼쪽 열만 따로 스크롤, 채팅은 오른쪽 열을 채움 */
+@media (min-width: 1101px) {
+  .dashboard {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 620px;
+  }
+  .dash-grid {
+    flex: 1;
+    min-height: 0;
+  }
+  .dash-left {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+  .room-mini .chat {
+    min-height: 0;
+  }
 }
 .runs {
   display: flex;
@@ -1276,8 +1390,14 @@ label.toggle input {
   }
 }
 @media (max-width: 760px) {
+  /* 좁은 화면은 사이드바가 위로 올라가므로 평소처럼 페이지 전체가 스크롤 */
   .app {
     grid-template-columns: 1fr;
+    height: auto;
+    min-height: 100%;
+  }
+  .content {
+    overflow-y: visible;
   }
   .tool-groups {
     grid-template-columns: 1fr;

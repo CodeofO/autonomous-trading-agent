@@ -50,9 +50,10 @@ describe("트레이딩 룸 메시지", () => {
       payload: { tool: "get_financials", preview: { per: 8.2 } },
     };
     renderWithProviders(<ChatMessage msg={tool} persona={persona} />);
-    expect(screen.queryByText(/"per": 8.2/)).not.toBeInTheDocument();
+    expect(screen.queryByText("PER")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /재무제표 분석/ }));
-    expect(screen.getByText(/"per": 8.2/)).toBeInTheDocument();
+    expect(screen.getByText("PER")).toBeInTheDocument();
+    expect(screen.getByText("8.2")).toBeInTheDocument();
   });
 
   it("리스크봇 차단 메시지와 시스템 구분선을 역할별로 그린다", () => {

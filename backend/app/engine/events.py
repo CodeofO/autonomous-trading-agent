@@ -98,5 +98,9 @@ class EventHub:
         """'입력 중…' 표시용 (DB 에 남기지 않음)."""
         self.broadcast({"channel": "typing", "data": {"role": role, "active": active, "label": label}})
 
+    def progress(self, data: dict[str, Any]) -> None:
+        """판단 세션 진행 상황 (단계·도구 사용 수 등, DB 에 남기지 않음)."""
+        self.broadcast({"channel": "progress", "data": _ser(data)})
+
     def state(self, data: dict[str, Any]) -> None:
         self.broadcast({"channel": "state", "data": _ser(data)})

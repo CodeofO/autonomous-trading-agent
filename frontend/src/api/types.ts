@@ -11,6 +11,26 @@ export interface ChatMsg {
   payload: Record<string, unknown>;
 }
 
+// 판단 세션·채팅 답장 진행 상황 (서버가 기준, 새로고침해도 그대로 복원)
+export interface AgentProgress {
+  active: boolean;
+  run_id?: number;
+  trigger?: string;
+  mode?: string;
+  started_at?: string;
+  phase?: "start" | "thinking" | "tool" | "executing";
+  label?: string;
+  step?: number;
+  max_steps?: number;
+  tools?: number;
+  sources?: Record<string, number>;
+  tokens?: number;
+  tool?: string | null;
+  source?: string | null;
+  typing: string | null;
+  replying: boolean;
+}
+
 export interface Position {
   symbol: string;
   name: string;

@@ -4,7 +4,7 @@ import { errorText, get, post } from "../api/client";
 import { ChatFeed } from "../components/chat/ChatFeed";
 import { EquityChart } from "../components/charts";
 import { useEvents } from "../events";
-import { DEFAULT_PERSONA, usePortfolio, useSystem } from "../hooks";
+import { DEFAULT_PERSONA, usePortfolio, useShowTools, useSystem } from "../hooks";
 import { fmtDateTime, fmtPct, fmtWon, signClass } from "../utils/format";
 import { HoldingsTable } from "./Portfolio";
 
@@ -18,7 +18,8 @@ export function Dashboard() {
   const qc = useQueryClient();
   const { data: sys } = useSystem();
   const { data: pf } = usePortfolio();
-  const { messages, typing } = useEvents();
+  const { messages, typing, progress } = useEvents();
+  const [showTools, setShowTools] = useShowTools();
   const equity = useQuery({
     queryKey: ["equity"],
     queryFn: () => get<{ ts: string; equity: number }[]>("/api/equity?limit=1000"),
@@ -117,9 +118,21 @@ export function Dashboard() {
         <section className="card room-mini">
           <div className="card-head">
             <h2>💬 트레이딩 룸</h2>
-            <Link to="/room">크게 보기 →</Link>
+            <div className="btn-row">
+              <label className="toggle">
+                <input type="checkbox" checked={showTools} onChange={(e) => setShowTools(e.target.checked)} />
+                리서치 과정 보기
+              </label>
+              <Link to="/room">크게 보기 →</Link>
+            </div>
           </div>
-          <ChatFeed messages={messages} typing={typing} persona={persona} showTools={false} />
+          <ChatFeed
+            messages={messages}
+            typing={typing}
+            progress={progress}
+            persona={persona}
+            showTools={showTools}
+          />
         </section>
       </div>
     </div>
