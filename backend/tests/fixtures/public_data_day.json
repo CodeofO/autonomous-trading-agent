@@ -1,0 +1,12 @@
+{"response": {"header": {"resultCode": "00", "resultMsg": "NORMAL SERVICE."},
+ "body": {"numOfRows": 3, "pageNo": 1, "totalCount": 3, "items": {"item": [
+  {"basDt": "20261030", "srtnCd": "005930", "isinCd": "KR7005930003", "itmsNm": "삼성전자", "mrktCtg": "KOSPI",
+   "clpr": "72000", "vs": "500", "fltRt": "0.70", "mkp": "71500", "hipr": "72300", "lopr": "71200",
+   "trqu": "15234567", "trPrc": "1093000000000", "lstgStCnt": "5969782550", "mrktTotAmt": "429824343600000"},
+  {"basDt": "20261030", "srtnCd": "091990", "isinCd": "KR7091990002", "itmsNm": "가상바이오", "mrktCtg": "KOSDAQ",
+   "clpr": "58000", "vs": "-1200", "fltRt": "-2.03", "mkp": "59000", "hipr": "59500", "lopr": "57800",
+   "trqu": "320000", "trPrc": "18700000000", "lstgStCnt": "100000000", "mrktTotAmt": "5800000000000"},
+  {"basDt": "20261030", "srtnCd": "999999", "isinCd": "KR7999999999", "itmsNm": "코넥스종목", "mrktCtg": "KONEX",
+   "clpr": "1000", "vs": "0", "fltRt": "0", "mkp": "1000", "hipr": "1000", "lopr": "1000",
+   "trqu": "10", "trPrc": "10000", "lstgStCnt": "1000000", "mrktTotAmt": "1000000000"}
+ ]}}}}

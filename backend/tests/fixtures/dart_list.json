@@ -1,0 +1,4 @@
+{"status": "000", "message": "정상", "page_no": 1, "page_count": 30, "total_count": 2, "total_page": 1, "list": [
+ {"corp_cls": "Y", "corp_name": "삼성전자", "corp_code": "00126380", "stock_code": "005930", "report_nm": "단일판매ㆍ공급계약체결", "rcept_no": "20261028000456", "flr_nm": "삼성전자", "rcept_dt": "20261028", "rm": "유"},
+ {"corp_cls": "Y", "corp_name": "삼성전자", "corp_code": "00126380", "stock_code": "005930", "report_nm": "[기재정정]반기보고서 (2026.06)", "rcept_no": "20261001000111", "flr_nm": "삼성전자", "rcept_dt": "20261001", "rm": "정"}
+]}
