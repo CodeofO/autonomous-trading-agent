@@ -1,7 +1,7 @@
 [project]
-name = "toss-paper-trader"
+name = "ai-paper-fund-manager"
 version = "0.1.0"
-description = "토스증권 시세 + 자체 모의투자(PaperBroker) 자동매매 시스템"
+description = "LLM 자산운용 에이전트 — 국내 주식 공식 데이터 + 자체 모의계좌(PaperBroker)"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "fastapi==0.115.12",
