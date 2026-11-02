@@ -12,6 +12,7 @@ from sqlalchemy import select
 from app.brokers.base import (
     TERMINAL,
     BrokerInterface,
+    FillInfo,
     OrderRequest,
     OrderResult,
     OrderSide,
@@ -38,6 +39,21 @@ _REJECT_KO = {
     "canceled-by-user": "취소 요청으로 취소됐어요",
     "day-order-expired": "오늘 장중에 체결되지 않아 취소됐어요",
     "kill-switch": "킬 스위치로 취소됐어요",
+    "account-switch": "거래 모드(모의/실거래)가 바뀌어 정리했어요",
+    # 실거래(토스증권) — 공식 오류 코드
+    "price-out-of-range": "가격이 상·하한가 범위를 벗어났어요",
+    "stock-restricted": "거래가 제한된 종목이에요",
+    "opposite-pending-order-exists": "같은 종목에 반대 방향 미체결 주문이 있어요",
+    "max-order-amount-exceeded": "토스 1회 주문 한도를 넘었어요",
+    "order-limit-exceeded": "토스 주문 한도를 넘었어요",
+    "investor-exchange-not-integrated": "토스 계좌의 SOR(통합 주문) 설정이 필요해요",
+    "prerequisite-required": "토스에서 먼저 해야 할 절차(약관 동의 등)가 있어요",
+    "account-restricted": "계좌가 거래 제한 상태예요",
+    "invalid-request": "토스가 주문 형식을 거부했어요",
+    "high-value-order-blocked": "1억원 이상 주문은 이 시스템에서 보내지 않아요",
+    "live-daily-buy-limit": "오늘 실거래 매수 총액 상한(LIVE_DAILY_BUY_LIMIT)에 닿았어요",
+    "unknown-submit-state": "주문 접수 여부를 확인하지 못했어요. 토스증권 앱에서 꼭 확인해 주세요",
+    "toss-rejected": "토스증권이 주문을 거부했어요",
 }
 
 
@@ -207,6 +223,10 @@ class OrderManager:
             o.filled_qty = result.filled_qty
             o.avg_fill_price = result.avg_fill_price
             o.updated_at = datetime.now(UTC)
+            if result.cumulative:  # 누적 체결 → 이미 기록된 체결을 뺀 증분만 남긴다
+                result.fills = _delta_fills(
+                    list(s.scalars(select(Fill).where(Fill.order_id == o.id))), result.fills
+                )
             for f in result.fills:
                 s.add(
                     Fill(
@@ -231,7 +251,15 @@ class OrderManager:
         if new == prev and not r.fills:
             return
         self.hub.audit(new.value, f"{o['side']} {o['quantity']}주 → {new.value}", o["symbol"], order=o)
-        if new == OrderStatus.SUBMITTED:
+        if o["fill_basis"] == "LIVE" and prev == OrderStatus.PENDING and new != OrderStatus.REJECTED:
+            self.hub.chat(
+                BROKER,
+                "text",
+                f"📝 {sym} {side} {o['quantity']}주 토스증권에 실제 주문 접수!",
+                symbol=o["symbol"],
+                order=o,
+            )
+        elif new == OrderStatus.SUBMITTED:
             when = {"OPEN": "장 시작 후 시가", "NOW": "현재가 도달 시", "CLOSE": "오늘 종가"}.get(
                 o["fill_basis"], ""
             )
@@ -282,6 +310,8 @@ class OrderManager:
 
     # ------------------------------------------------------------ 체결 확정 / 취소
     async def settle(self) -> int:
+        if self.broker.is_live:
+            return await self._sync_live()
         if not isinstance(self.broker, PaperBroker):
             return 0
         results = await self.broker.settle()
@@ -292,6 +322,28 @@ class OrderManager:
             if oid is not None:
                 self.apply(oid, r)
                 n += 1
+        return n
+
+    async def _sync_live(self) -> int:
+        """실거래: 미체결 주문을 토스 주문 조회로 갱신 (체결·취소·거부 반영)."""
+        with self.db.session() as s:
+            rows = list(
+                s.execute(
+                    select(Order.id, Order.broker_order_id).where(
+                        Order.status.in_(["SUBMITTED", "PARTIALLY_FILLED"]),
+                        Order.broker_order_id.is_not(None),
+                    )
+                )
+            )
+        n = 0
+        for oid, bid in rows:
+            try:
+                r = await self.broker.get_order_status(bid)
+            except Exception as e:  # 한 건 실패가 나머지 동기화를 막지 않게
+                self.hub.audit("ERROR", f"실주문 상태 조회 실패: {type(e).__name__}", None, order_id=oid)
+                continue
+            self.apply(oid, r)
+            n += 1
         return n
 
     async def cancel(self, order_id: int, reason: str = "canceled-by-user") -> Order | None:
@@ -312,6 +364,27 @@ class OrderManager:
             if await self.cancel(i, reason):
                 n += 1
         return n
+
+
+def _delta_fills(recorded: list[Fill], cumulative: list[FillInfo]) -> list[FillInfo]:
+    """누적 체결(수량·평균가·수수료·세금)에서 이미 기록된 체결분을 빼 새 체결 1건으로 만든다."""
+    if not cumulative:
+        return []
+    c = cumulative[-1]
+    prev_qty = sum(f.quantity for f in recorded)
+    qty = c.quantity - prev_qty
+    if qty <= 0:
+        return []
+    amount = c.quantity * c.price - sum(f.quantity * f.price for f in recorded)
+    return [
+        FillInfo(
+            quantity=qty,
+            price=amount / qty,
+            fee=max(0.0, c.fee - sum(f.fee for f in recorded)),
+            tax=max(0.0, c.tax - sum(f.tax for f in recorded)),
+            filled_at=c.filled_at,
+        )
+    ]
 
 
 def _side_ko(side: str) -> str:

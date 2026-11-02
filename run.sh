@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AI 펀드매니저(모의투자) 실행 스크립트
+# AI 펀드매니저 실행 스크립트 (기본 모의투자, TRADING_MODE=live 면 토스증권 실거래)
 #   ./run.sh          Docker 가 켜져 있으면 docker compose, 아니면 로컬(uv + npm)로 실행
 #   ./run.sh docker   docker compose 로 실행 (백엔드 + 프론트 + PostgreSQL)
 #   ./run.sh local    로컬 실행 (SQLite)
@@ -24,11 +24,20 @@ if [[ ! -f .env ]]; then
   warn ".env 에 TOSS_CLIENT_ID / TOSS_CLIENT_SECRET(필수)과 LLM_BASE_URL / LLM_MODEL / LLM_API_KEY 를 채운 뒤 다시 실행하세요."
 fi
 
-# 안전 확인: TRADING_MODE 는 paper 만 허용
-tm="$(grep -E '^[[:space:]]*TRADING_MODE[[:space:]]*=' .env | tail -1 | cut -d= -f2- | tr -d '[:space:]"'"'" || true)"
-if [[ -n "$tm" && "$tm" != "paper" ]]; then
-  die "TRADING_MODE=$tm — 이 시스템은 모의투자(paper) 전용입니다. .env 에서 TRADING_MODE=paper 로 바꾸세요."
-fi
+# 거래 모드: paper(기본, 모의투자) | live(토스증권 실계좌 실제 주문 — 확인 문구 필요)
+tm="$(grep -E '^[[:space:]]*TRADING_MODE[[:space:]]*=' .env | tail -1 | cut -d= -f2- | tr -d '[:space:]"'"'" | tr '[:upper:]' '[:lower:]' || true)"
+tm="${tm:-paper}"
+case "$tm" in
+  paper) ;;
+  live)
+    confirm="$(grep -E '^[[:space:]]*LIVE_TRADING_CONFIRM[[:space:]]*=' .env | tail -1 | cut -d= -f2- | tr -d '[:space:]"'"'" || true)"
+    [[ "$confirm" == "I_UNDERSTAND_REAL_MONEY" ]] \
+      || die "TRADING_MODE=live 는 실제 돈으로 주문합니다. 켜려면 .env 에 LIVE_TRADING_CONFIRM=I_UNDERSTAND_REAL_MONEY 를 함께 넣으세요."
+    printf '\n%s\n' "${RED}${BOLD}🔴 실거래(LIVE) 모드 — 토스증권 실계좌로 실제 주문이 나갑니다.${RESET}"
+    printf '%s\n' "${RED}   하루 매수 상한 LIVE_DAILY_BUY_LIMIT, 1회 주문 한도(설정 화면), 킬 스위치를 확인하세요.${RESET}"
+    ;;
+  *) die "TRADING_MODE=$tm — 'paper'(모의투자) 또는 'live'(실거래)만 쓸 수 있어요." ;;
+esac
 
 # 업데이트(git pull) 후 .env.example 에 새로 생긴 설정 안내 (키 이름만 출력, 값은 건드리지 않음)
 missing=()
@@ -47,7 +56,8 @@ URL="http://localhost:${FRONTEND_PORT}"
 
 filled() { grep -qE "^[[:space:]]*$1[[:space:]]*=[[:space:]]*[^[:space:]#]+" .env; }
 echo
-printf '%s\n' "${BOLD}🦉 AI 펀드매니저 — 모의투자(PAPER)${RESET}"
+if [[ "$tm" == "live" ]]; then printf '%s\n' "${BOLD}🦉 AI 펀드매니저 — ${RED}실거래(LIVE)${RESET}"
+else printf '%s\n' "${BOLD}🦉 AI 펀드매니저 — 모의투자(PAPER)${RESET}"; fi
 if filled LLM_BASE_URL && filled LLM_MODEL && filled LLM_API_KEY; then say "LLM: 설정됨"; else warn "LLM: 미설정 → 규칙 기반 매니저"; fi
 if filled TOSS_CLIENT_ID && filled TOSS_CLIENT_SECRET; then say "시세: 토스증권 Open API (실제 종목·실시간, 조회 전용)"
 else die ".env 에 TOSS_CLIENT_ID / TOSS_CLIENT_SECRET 이 필요합니다 (토스증권 WTS > 설정 > Open API, 허용 IP 등록 필수)"; fi

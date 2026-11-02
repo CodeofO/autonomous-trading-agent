@@ -1,4 +1,4 @@
-"""실거래 차단 가드 테스트 (절대 규칙 2)."""
+"""실거래 차단 가드 테스트: 모의투자 모드에서는 주문·계좌 경로가 어디로도 나가지 않는다."""
 
 from __future__ import annotations
 
@@ -85,12 +85,15 @@ async def test_paper_broker_guard_trips_if_flag_tampered() -> None:
         await env.broker.settle()
 
 
-def test_no_live_broker_implementation_exists() -> None:
+def test_broker_implementations_are_paper_or_guarded_live() -> None:
+    """브로커는 모의계좌이거나, TRADING_MODE=live 에서만 만들 수 있는 토스 실계좌 브로커뿐이다 (D-34)."""
     from app.brokers.base import BrokerInterface
+    from app.brokers.toss_live import TossLiveBroker
 
     def all_subclasses(c: type) -> set[type]:
         return set(c.__subclasses__()).union(*[all_subclasses(s) for s in c.__subclasses__()])
 
     impls = all_subclasses(BrokerInterface)
-    assert impls, "브로커 구현이 있어야 합니다"
-    assert all(getattr(c, "is_paper", False) for c in impls)
+    assert impls == {PaperBroker, TossLiveBroker}
+    assert PaperBroker.is_paper and not PaperBroker.is_live
+    assert TossLiveBroker.is_live and not TossLiveBroker.is_paper

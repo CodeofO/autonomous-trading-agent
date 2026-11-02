@@ -70,6 +70,8 @@ class OrderResult:
     trade_day: date | None = None
     # 이번 갱신에서 거친 중간 상태 (예: PARTIALLY_FILLED → CANCELED)
     path: list[OrderStatus] = field(default_factory=list)
+    # True: fills 가 주문 시작부터의 누적 합계(토스 주문 조회). OrderManager 가 기록된 체결과의 차이만 남긴다
+    cumulative: bool = False
 
 
 @dataclass(frozen=True)
@@ -112,8 +114,10 @@ class Balance:
 
 
 class BrokerInterface(ABC):
-    #: True 인 브로커만 주문을 받는다 (실거래 브로커 구현은 존재하지 않음 — D-01)
+    #: 모의계좌(PaperBroker) 여부
     is_paper: bool = False
+    #: 실계좌(TossLiveBroker) 여부 — TRADING_MODE=live 에서만 생성된다 (D-34)
+    is_live: bool = False
 
     @abstractmethod
     async def get_quote(self, symbol: str) -> Quote | None: ...

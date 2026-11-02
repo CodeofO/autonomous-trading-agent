@@ -15,6 +15,7 @@ from app.api import routes, ws
 from app.container import announce_boot, build_container
 from app.core.config import BACKEND_DIR, Settings, get_settings
 from app.core.logging import setup_logging
+from app.engine.events import SYSTEM
 
 log = logging.getLogger(__name__)
 
@@ -53,10 +54,14 @@ def create_app(settings: Settings | None = None, **container_overrides: Any) -> 
             await c.engine.sync_data()
         except Exception:
             log.exception("초기 시세 동기화 실패")
+        if settings.is_live:
+            await _check_live_account(c)
         if settings.enable_scheduler:
             c.scheduler.start()
+            account = "🔴 토스증권 실계좌(실거래)" if settings.is_live else "모의투자 계좌"
             boot = (
-                f"🟢 시스템 기동 — 시세: 토스증권 실시간, 장중 판단 {settings.agent_interval_minutes}분 간격, "
+                f"🟢 시스템 기동 — 주문: {account}, 시세: 토스증권 실시간, "
+                f"장중 판단 {settings.agent_interval_minutes}분 간격, "
                 f"LLM: {settings.llm_model if settings.has_llm else '미설정(규칙 기반)'}"
             )
             announce_boot(c, boot)
@@ -65,10 +70,12 @@ def create_app(settings: Settings | None = None, **container_overrides: Any) -> 
         if resume is not None and not resume.done():
             resume.cancel()
         c.scheduler.shutdown()
+        if c.trading is not None:
+            await c.trading.aclose()
         await c.toss.client.aclose()
 
     app = FastAPI(
-        title="AI Paper Fund Manager",
+        title="AI Fund Manager",
         version="0.2.0",
         docs_url="/api/docs",
         openapi_url="/api/openapi.json",
@@ -78,3 +85,19 @@ def create_app(settings: Settings | None = None, **container_overrides: Any) -> 
     app.include_router(routes.router)
     app.include_router(ws.router)
     return app
+
+
+async def _check_live_account(c: Any) -> None:
+    """실거래: 주문 계좌를 확인한다. 확인이 안 되면 엔진을 일시정지하고 이유를 알린다(주문 실패 반복 방지)."""
+    try:
+        await c.broker.ensure_account()
+        c.hub.audit("LIVE", "실거래 모드 — 토스증권 계좌 확인 완료", None)
+    except Exception as e:
+        log.warning("실거래 계좌 확인 실패: %s", e)
+        c.engine.pause()
+        c.hub.chat(
+            SYSTEM,
+            "text",
+            f"⚠️ 실거래 계좌를 확인하지 못해 자동매매를 일시정지했어요: {str(e)[:200]} "
+            "(.env 의 TOSS_ACCOUNT_SEQ·허용 IP 를 확인한 뒤 재시작하거나 '재개'를 눌러 주세요)",
+        )

@@ -19,13 +19,13 @@ flowchart LR
     Tools[ToolBox<br/>포트폴리오·스크리닝·시세지표·재무·공시·뉴스]
     Risk[RiskManager<br/>하드 리밋]
     OM[OrderManager<br/>멱등키·상태머신·감사로그]
-    Broker[PaperBroker<br/>가상 계좌]
+    Broker["PaperBroker 가상 계좌 (기본)<br/>또는 TossLiveBroker 실계좌 (TRADING_MODE=live)"]
     Hub[EventHub<br/>감사로그·채팅·상태]
     Store[PriceStore]
     Research[ResearchService]
   end
 
-  subgraph EXT["외부 (조회 전용, 허용목록)"]
+  subgraph EXT["외부 (허용목록 — 주문·계좌 API 는 실거래 모드에서만)"]
     TOSS[(토스증권 Open API<br/>현재가·일봉·종목·랭킹·수급·지수·섹터·캘린더)]
     DART[(OpenDART<br/>재무·공시)]
     NAVER[(네이버 뉴스)]
@@ -72,7 +72,7 @@ backend/app/
   market/      일봉 저장소, 토스증권 조회 전용 클라이언트·시세 공급자(스크리너·실시간 현재가)
   research/    OpenDART, 네이버 뉴스, ResearchService 퍼사드
   agent/       LLM 클라이언트, 도구, 프롬프트, 세션 실행기, 규칙 기반 대체 에이전트
-  brokers/     BrokerInterface, PaperBroker
+  brokers/     BrokerInterface, PaperBroker(모의투자), TossLiveBroker·TossTradingClient(실거래, D-34)
   risk/        RiskConfig / RiskManager
   strategies/  지표, 규칙 전략(MA 크로스, RSI)
   engine/      이벤트 허브, 주문 상태머신, 주문 관리자, 엔진, 스케줄러

@@ -10,8 +10,7 @@ from typing import Any
 from sqlalchemy import select
 
 from app.agent.runner import AgentRunner
-from app.brokers.base import TERMINAL
-from app.brokers.paper import PaperBroker
+from app.brokers.base import BrokerInterface
 from app.core.clock import KST, Clock
 from app.core.market_calendar import MarketCalendar
 from app.db.models import EquitySnapshot, Order, StrategyConfig, WatchlistItem
@@ -36,7 +35,7 @@ class TradingEngine:
         clock: Clock,
         cal: MarketCalendar,
         store: PriceStore,
-        broker: PaperBroker,
+        broker: BrokerInterface,
         hub: EventHub,
         settings: SettingsStore,
         toss: TossMarketProvider | None = None,
@@ -106,6 +105,8 @@ class TradingEngine:
     def order_window(self) -> str:
         now = self.clock.now()
         basis = self.cal.fill_basis(now)
+        if basis and self.broker.is_live:
+            return "지금 주문하면 토스증권 실계좌로 실제 주문이 나가요 (시장가는 바로 체결, 미체결은 당일 장 마감까지 유효)"
         if basis == "OPEN":
             return "지금 주문하면 09:00 장 시작 직후 현재가로 체결 (토스 실시세)"
         if basis == "CLOSE":
@@ -184,7 +185,7 @@ class TradingEngine:
         assert self.toss is not None
         today = self.clock.now().astimezone(KST).date()
         symbols = {p.symbol for p in await self.broker.get_positions()}
-        symbols |= {o["symbol"] for o in self.broker.open_orders()}
+        symbols |= self.orders.open_symbols()
         with self.db.session() as s:
             symbols |= set(s.scalars(select(WatchlistItem.symbol).where(WatchlistItem.active.is_(True))))
         n = 0
@@ -316,4 +317,4 @@ class TradingEngine:
         self.hub.chat(SYSTEM, "text", "⏸️ 자동매매를 잠시 멈췄어요. 미체결 주문은 그대로 둡니다.")
 
     def open_order_count(self) -> int:
-        return sum(1 for o in self.broker.state["orders"].values() if o["status"] not in TERMINAL)
+        return len(self.orders.open_symbols())

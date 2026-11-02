@@ -1,7 +1,8 @@
 """의존성 조립. Settings 하나로 전체 시스템을 만든다.
 
-시세는 토스증권 Open API(조회 전용), 시계는 실제 한국 시각, 주문은 자체 모의계좌(PaperBroker).
-테스트는 `toss_client`·`clock` 을 주입해 네트워크 없이 조립한다.
+시세는 토스증권 Open API, 시계는 실제 한국 시각.
+주문은 TRADING_MODE 에 따라 자체 모의계좌(PaperBroker, 기본) 또는 토스증권 실계좌(TossLiveBroker, D-34).
+테스트는 `toss_client`·`trading_client`·`clock` 을 주입해 네트워크 없이 조립한다.
 """
 
 from __future__ import annotations
@@ -18,7 +19,9 @@ from sqlalchemy import and_, delete, func, or_, select
 from app.agent.llm import LLMClient
 from app.agent.runner import AgentRunner
 from app.agent.tools import ToolBox
+from app.brokers.base import TERMINAL
 from app.brokers.paper import PaperBroker, PaperCosts
+from app.brokers.toss_live import TossLiveBroker, TossTradingClient
 from app.core.clock import KST, Clock, RealClock
 from app.core.config import Settings
 from app.core.logging import register_secret
@@ -51,7 +54,9 @@ from app.risk.rules import RiskConfig
 
 log = logging.getLogger(__name__)
 
-SOURCE = "toss"
+SOURCE = "toss"  # 토스 시세 + 모의계좌
+LIVE_SOURCE = "toss-live"  # 토스 시세 + 토스 실계좌
+_MODE_KO = {SOURCE: "모의투자", LIVE_SOURCE: "실거래"}
 
 
 @dataclass
@@ -61,7 +66,7 @@ class Container:
     clock: Clock
     cal: MarketCalendar
     store: PriceStore
-    broker: PaperBroker
+    broker: PaperBroker | TossLiveBroker
     hub: EventHub
     kv: SettingsStore
     research: ResearchService
@@ -70,6 +75,7 @@ class Container:
     scheduler: Scheduler
     toss: TossMarketProvider
     secret_key: bytes
+    trading: TossTradingClient | None = None  # 실거래 모드의 토스 주문 클라이언트
 
 
 def _secret_key(settings: Settings) -> bytes:
@@ -163,34 +169,67 @@ def purge_legacy(db: Database, since: datetime | None) -> datetime:
     return since
 
 
-def _reset_on_source_change(db: Database, kv: SettingsStore, broker: PaperBroker, hub: EventHub) -> None:
-    """이전 데이터 소스(가상 시장 등)에서 토스 실데이터로 처음 넘어오면 모의계좌를 새로 시작하고 그 이전 기록을
-    전부 지운다(D-25, D-28). LLM 이 예전 가짜 종목 기록을 참고하지 않도록 하기 위함이다.
+def _reset_on_source_change(
+    db: Database, kv: SettingsStore, broker: PaperBroker | TossLiveBroker, hub: EventHub, source: str
+) -> None:
+    """데이터 소스·거래 모드가 바뀌면 계좌 기준 시각(since)을 새로 잡는다.
+
+    - 가상 시장 → 토스: 모의계좌를 새로 시작하고 이전 기록을 지운다(D-25, D-28).
+    - 모의투자 ↔ 실거래: 기록은 남기고 기준 시각만 바꾼다. 에이전트 기억·매매 내역·자산 곡선은 since 이후만 본다.
+      남아 있던 미체결 주문 기록은 '모드 전환'으로 정리한다(D-34).
     """
     state = kv.get("account_source")
     prev = state.get("source")
-    if prev == SOURCE:
+    if prev == source:
         if state.get("purged") != 4:  # 이전 버전에서 이미 전환된 DB → 남아 있는 목업 기록 정리 (정리 규칙 v4)
             try:
                 since = purge_legacy(db, None)
             except Exception:  # 정리 실패가 기동을 막지 않게 (다음 기동 때 다시 시도)
                 log.exception("목업 기록 정리 실패")
                 return
-            kv.set("account_source", {"source": SOURCE, "since": since.isoformat(), "purged": 4})
+            kv.set("account_source", {"source": source, "since": since.isoformat(), "purged": 4})
         return
     since = hub.clock.now()
-    if prev is not None:
-        broker.reset()
-        purge_legacy(db, since)
+    if prev in _MODE_KO:
+        n = _close_open_orders(db, broker)
         kv.set("sod", {})
-        kv.set("sim_clock", {})
-        hub.audit("ACCOUNT_RESET", f"데이터 소스 변경 {prev} → {SOURCE}: 모의계좌 초기화", None)
+        msg = f"거래 모드 전환 {_MODE_KO[prev]} → {_MODE_KO[source]}"
+        hub.audit("ACCOUNT_SWITCH", msg, None, closed_orders=n)
+        extra = (
+            " 토스증권에 남아 있을 수 있는 실제 미체결 주문은 토스 앱에서 확인해 주세요."
+            if prev == LIVE_SOURCE
+            else ""
+        )
         hub.chat(
             SYSTEM,
             "text",
-            f"🔄 토스증권 실제 시세로 전환했어요. 모의계좌를 새로 시작합니다 (초기 자금 {broker.state['initial_cash']:,.0f}원).",
+            f"🔀 {msg}. 이전 모드의 미체결 주문 기록 {n}건을 정리했고, 이제부터 새 계좌 기준으로 판단해요.{extra}",
         )
-    kv.set("account_source", {"source": SOURCE, "since": since.isoformat(), "purged": 4})
+    elif prev is not None:
+        if isinstance(broker, PaperBroker):
+            broker.reset()
+        purge_legacy(db, since)
+        kv.set("sod", {})
+        kv.set("sim_clock", {})
+        hub.audit("ACCOUNT_RESET", f"데이터 소스 변경 {prev} → {source}: 계좌 기록 초기화", None)
+        hub.chat(SYSTEM, "text", f"🔄 토스증권 실제 시세로 전환했어요. ({_MODE_KO[source]})")
+    kv.set("account_source", {"source": source, "since": since.isoformat(), "purged": 4})
+
+
+def _close_open_orders(db: Database, broker: PaperBroker | TossLiveBroker) -> int:
+    """모드 전환 시 이전 모드의 미체결 주문 기록을 취소 상태로 정리한다 (실제 토스 주문은 건드리지 않음)."""
+    with db.session() as s:
+        rows = list(
+            s.scalars(select(Order).where(Order.status.in_(["PENDING", "SUBMITTED", "PARTIALLY_FILLED"])))
+        )
+        for o in rows:
+            o.status, o.reject_reason = "CANCELED", "account-switch"
+    if isinstance(broker, PaperBroker):  # 모의계좌 쪽 미체결도 정리 (다음 체결 처리에서 되살아나지 않게)
+        for po in broker.state["orders"].values():
+            if po["status"] not in TERMINAL:
+                po["status"], po["reject_reason"], po["reserved"] = "CANCELED", "account-switch", 0.0
+        broker._save()
+    return len(rows)
 
 
 def announce_boot(c: Container, text: str) -> bool:
@@ -209,9 +248,13 @@ def build_container(
     *,
     create_schema: bool = False,
     toss_client: Any = None,
+    trading_client: Any = None,
     clock: Clock | None = None,
 ) -> Container:
-    """`toss_client`(테스트용 가짜)를 주지 않으면 .env 의 토스 키가 필요하다."""
+    """`toss_client`(테스트용 가짜)를 주지 않으면 .env 의 토스 키가 필요하다.
+
+    TRADING_MODE=live 이면 토스 실계좌 브로커를 쓴다. `trading_client` 는 테스트용 가짜 주문 클라이언트.
+    """
     if toss_client is None:
         settings.require_toss()
         assert settings.toss_client_id and settings.toss_client_secret
@@ -240,24 +283,48 @@ def build_container(
         )
     research = ResearchService(clock, dart=dart, news=news)
 
-    broker = PaperBroker(
-        db,
-        store,
-        cal,
-        clock,
-        initial_cash=settings.paper_initial_cash,
-        trading_mode=settings.trading_mode,
-        costs=PaperCosts(
-            settings.paper_commission_rate,
-            settings.paper_sell_tax_rate,
-            settings.paper_slippage_bps,
-            settings.paper_max_volume_participation,
-        ),
-        quotes=toss,  # 토스 실시간 현재가로 체결
+    costs = PaperCosts(
+        settings.paper_commission_rate,
+        settings.paper_sell_tax_rate,
+        settings.paper_slippage_bps,
+        settings.paper_max_volume_participation,
     )
+
+    def trades(limit: int = 20) -> dict[str, Any]:
+        since = kv.get("account_source").get("since")
+        return trade_ledger(db, store.name_of, datetime.fromisoformat(since) if since else None, limit)
+
+    broker: PaperBroker | TossLiveBroker
+    trading: TossTradingClient | None = None
+    if settings.is_live:
+        # 실거래: 사용자가 .env 에서 TRADING_MODE=live + 확인 문구를 넣었을 때만 (Settings 가 검증)
+        trading = trading_client or TossTradingClient(toss_client)
+        broker = TossLiveBroker(
+            trading,
+            toss,
+            store,
+            clock,
+            kv,
+            trading_mode=settings.trading_mode,
+            daily_buy_limit=settings.live_daily_buy_limit,
+            account_seq=settings.toss_account_seq,
+            costs=costs,
+            ledger=lambda: trades(1),
+        )
+    else:
+        broker = PaperBroker(
+            db,
+            store,
+            cal,
+            clock,
+            initial_cash=settings.paper_initial_cash,
+            trading_mode=settings.trading_mode,
+            costs=costs,
+            quotes=toss,  # 토스 실시간 현재가로 체결
+        )
     hub = EventHub(db, clock)
     seed_defaults(db, kv)
-    _reset_on_source_change(db, kv, broker, hub)
+    _reset_on_source_change(db, kv, broker, hub, LIVE_SOURCE if settings.is_live else SOURCE)
     engine = TradingEngine(db, clock, cal, store, broker, hub, kv, toss=toss)
 
     llm = None
@@ -273,11 +340,6 @@ def build_container(
         )
     toolbox = ToolBox(engine.portfolio, store, research, clock, screener=toss.screen, quote=broker.get_quote)
     toolbox.toss = toss
-
-    def trades(limit: int = 20) -> dict[str, Any]:
-        since = kv.get("account_source").get("since")
-        return trade_ledger(db, store.name_of, datetime.fromisoformat(since) if since else None, limit)
-
     toolbox.trades = trades
     runner = AgentRunner(
         db,
@@ -291,6 +353,7 @@ def build_container(
         max_steps=settings.llm_max_steps,
         strategies=engine.enabled_strategies,
         names=store.name_of,
+        live=settings.is_live,
     )
     engine.runner = runner
     scheduler = Scheduler(engine, settings.agent_interval_minutes)
@@ -309,4 +372,5 @@ def build_container(
         scheduler,
         toss,
         _secret_key(settings),
+        trading,
     )

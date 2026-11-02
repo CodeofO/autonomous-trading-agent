@@ -1,8 +1,8 @@
 # 토스증권 Open API 노트 — 실제 종목 시세(조회 전용)
 
-> **현재 사용 중**입니다(2026-11-02 사용자 결정, DECISIONS D-03·D-23).
-> 시세·캔들·종목정보·랭킹·장 운영 캘린더만 **조회**합니다. 주문·계좌 API 는 이 시스템에서 호출하지 않으며 네트워크 계층에서 차단합니다.
-> 주문은 자체 모의계좌(PaperBroker)가 토스 실시간 현재가로 체결합니다.
+> **현재 사용 중**입니다(2026-11-02 사용자 결정, DECISIONS D-03·D-23·D-34).
+> - 모의투자 모드(기본): 시세·캔들·종목정보·랭킹·장 운영 캘린더만 **조회**합니다. 주문은 자체 모의계좌(PaperBroker)가 토스 실시간 현재가로 체결하고, 주문·계좌 API 는 네트워크 계층에서 차단합니다.
+> - 실거래 모드(`TRADING_MODE=live` + 확인 문구): §5 의 주문·계좌 API 중 허용목록에 둔 것만 `TossTradingClient` 가 호출합니다.
 
 > 조사일: 2026-11-02 · 대상 문서 버전: OpenAPI `1.2.28`
 > 출처(공식):
@@ -19,7 +19,7 @@
 | 항목 | 확인 결과 |
 |---|---|
 | 공식 모의투자(샌드박스) 환경 | **없음.** OpenAPI `servers` 는 `https://openapi.tossinvest.com` 하나뿐이고, 개요·FAQ·OpenAPI·AsyncAPI 어디에도 모의투자/샌드박스/테스트 환경 언급이 없다. 예시 client_id 도 `tsck_live_...` 형태. |
-| 분기 | **B.** 시세는 토스 API(조회 전용)로 받고, 주문·체결·잔고는 자체 `PaperBroker`(가상 계좌)로 시뮬레이션한다. **토스 주문/조건주문/계좌 API 는 호출하지 않는다.** (한때 공공데이터 일봉으로 바꿨다가, 사용자 결정으로 토스 시세를 다시 채택) |
+| 분기 | **B.** 기본은 시세만 토스 API 로 받고, 주문·체결·잔고는 자체 `PaperBroker`(가상 계좌)로 시뮬레이션한다. 사용자가 실거래 모드를 켜면 토스 주문·계좌 API(§5)로 실제 주문한다(D-34). 조건주문·정정은 어느 모드에서도 호출하지 않는다. |
 
 ## 2. 인증
 
@@ -30,7 +30,7 @@
 - **refresh token 없음.** 만료 시 같은 엔드포인트로 재발급.
 - **클라이언트당 유효 토큰 1개.** 재발급하면 직전 토큰이 즉시 `401 token-revoked`. → 프로세스 간 토큰 공유, 불필요한 재발급 금지.
 - 이후 모든 호출: `Authorization: Bearer {access_token}`
-- 계좌·자산·주문·조건주문 API 는 추가로 `X-Tossinvest-Account: {accountSeq}` 헤더 필요 (본 시스템은 호출하지 않음).
+- 계좌·자산·주문·조건주문 API 는 추가로 `X-Tossinvest-Account: {accountSeq}` 헤더 필요 (int64). `accountSeq` 는 `GET /api/v1/accounts` 에서 얻는다.
 - 키 발급: 토스증권 WTS 로그인 → 설정 > Open API 에서 `client_id`/`client_secret` 발급. **토스증권 계좌 보유자만 발급 가능.**
 - **허용 IP 등록 필수**: 설정 > Open API > 허용 IP 관리. 미등록 IP 는 `403 ip-not-allowed` (토큰 발급은 `access_denied`).
 
@@ -76,19 +76,45 @@
   `integrated` 가 `null` 이면 **휴장일**. `integrated.preMarket|regularMarket|afterMarket` 각 `{startTime, singlePriceAuctionStartTime|EndTime, endTime}` (세션 휴장 시 `null`).
   예시: 정규장 09:00~15:30, 종가 단일가 15:20 시작, 프리마켓 08:00~09:00, 애프터마켓 15:30~20:00 (KRX+NXT 통합).
 
-## 5. 확인했지만 **호출하지 않는** 엔드포인트 (어댑터에서 차단)
+## 5. 주문·계좌 API (실거래 모드에서만 사용)
 
-| 메서드 | 경로 | 비고 |
+| 메서드 | 경로 | 사용 | 비고 |
+|---|---|---|---|
+| GET | `/api/v1/accounts` | ✅ | `[{accountNo, accountSeq, accountType}]`. 현재 `BROKERAGE` 만 반환. `TOSS_ACCOUNT_SEQ` 가 없으면 종합계좌가 하나일 때 자동 선택 |
+| GET | `/api/v1/holdings` | ✅ | `items[]`: `symbol, name, marketCountry, quantity, lastPrice, averagePurchasePrice, marketValue, profitLoss, cost{commission,tax}` (숫자는 문자열) |
+| GET | `/api/v1/buying-power?currency=KRW` | ✅ | `{currency, cashBuyingPower}` — 현금 주문가능금액(신용 제외) |
+| POST | `/api/v1/orders` | ✅ | 아래 본문. 응답 `{orderId, clientOrderId}` |
+| GET | `/api/v1/orders/{orderId}` | ✅ | `status`, `execution{filledQuantity, averageFilledPrice, filledAmount, commission, tax, filledAt}` — 주문 1건 = 1행(부분체결 누적) |
+| POST | `/api/v1/orders/{orderId}/cancel` | ✅ | 본문 `{}`. 응답 `{orderId}` 는 취소 요청의 **새** 번호. 부분 수량 취소 없음 |
+| GET | `/api/v1/sellable-quantity` | 허용만 | `{sellableQuantity}` |
+| GET | `/api/v1/orders?status=OPEN\|CLOSED` | ❌ | 목록 조회(응답에 clientOrderId 없음) |
+| POST | `/api/v1/orders/{orderId}/modify` | ❌ | 정정 — 호출하지 않음(차단) |
+| * | `/api/v1/conditional-orders/**` | ❌ | 조건주문 — 호출하지 않음(차단) |
+| GET | `/api/v1/commissions` | ❌ | 호출하지 않음 |
+
+주문 본문(`OrderCreateQuantityBased`, 국내):
+
+| 필드 | 필수 | 이 시스템이 보내는 값 |
 |---|---|---|
-| POST | `/api/v1/orders` | 주문 생성 (지정가·시장가). `clientOrderId` 멱등키(10분 유효), 1억원 이상은 `confirmHighValueOrder` 필요 |
-| POST | `/api/v1/orders/{orderId}/modify` | 정정 — 새 orderId 발급될 수 있음 |
-| POST | `/api/v1/orders/{orderId}/cancel` | 취소 |
-| GET | `/api/v1/orders`, `/api/v1/orders/{orderId}` | 주문 조회 (주문 1건 = 1행, 부분체결은 평균가 합산) |
-| GET | `/api/v1/buying-power`, `/sellable-quantity`, `/commissions` | 주문 가능 정보 |
-| * | `/api/v1/conditional-orders/**` | 조건주문 (SINGLE/OCO/OTO) |
-| GET | `/api/v1/accounts`, `/api/v1/holdings` | 실계좌 정보 |
+| `clientOrderId` | 선택 | 내부 주문 UUID(32자, `[a-zA-Z0-9-_]`, ≤36). 멱등키 10분 |
+| `symbol` | ✅ | 6자리 종목코드 |
+| `side` | ✅ | `BUY` / `SELL` |
+| `orderType` | ✅ | `MARKET` / `LIMIT` |
+| `timeInForce` | 선택 | `DAY` (`OPG` 장전 동시호가, `CLS` 는 미국 전용 — 쓰지 않음) |
+| `quantity` | ✅ | 정수 문자열 |
+| `price` | LIMIT 만 | 호가단위에 맞춘 정수 문자열. 시장가에는 보내지 않음(보내면 400) |
+| `confirmHighValueOrder` | 선택 | 보내지 않음 → 1억원 이상 주문은 이 시스템이 먼저 막음. 30억원 초과는 토스가 항상 422 |
 
-→ `core/http.check_outbound` 가 주문·계좌 경로를 **어떤 호스트든 허용목록보다 먼저** 차단하고(`LiveOrderBlockedError`), 토스 호스트는 위 조회 경로 외 전부 차단한다(같은 경로라도 GET 외 메서드는 차단). 차단 요청은 네트워크로 나가지 않는다 (`tests/test_toss.py`, `tests/test_guard.py`).
+- 거래소 선택 필드 없음: 스마트 주문 라우팅(SOR)만 지원. 계좌가 SOR 이 아니면 `422 investor-exchange-not-integrated`.
+- 같은 종목 반대 방향 미체결이 있으면 `409 opposite-pending-order-exists`(국내).
+- 주문 상태: `PENDING, PENDING_CANCEL, PENDING_REPLACE, PARTIAL_FILLED, FILLED, CANCELED, REJECTED, CANCEL_REJECTED, REPLACE_REJECTED, REPLACED`.
+  내부 상태로는 대기류 → SUBMITTED(체결분 있으면 PARTIALLY_FILLED), `FILLED` → FILLED, `CANCELED·REPLACED` → CANCELED, `REJECTED` → REJECTED(체결분이 있으면 CANCELED).
+- 주요 오류 코드(422): `insufficient-buying-power`, `insufficient-sellable-quantity`, `order-hours-closed`, `stock-restricted`, `price-out-of-range`, `order-type-not-allowed`, `max-order-amount-exceeded`, `order-limit-exceeded`, `idempotency-key-conflict`, `account-restricted`, `prerequisite-required`.
+- 레이트 리밋(그룹별 초당): `ACCOUNT 1`, `ASSET 5`, `ORDER 10`(생성·정정·취소 합산), `ORDER_HISTORY 5`, `ORDER_INFO 6`(09:00~09:10 은 3). 이 시스템은 80% 로 맞춘다.
+- FAQ: 짧은 시간에 소액 주문을 대량으로 내면 거래가 일시 제한될 수 있다.
+- **명세에 없는 것**: 계좌의 시장 구분, 주문의 거래소 지정, 주문 조회 응답의 clientOrderId, 거부 사유 필드, 부분 수량 취소, 샌드박스.
+
+→ 모의투자 모드에서는 `core/http.check_outbound` 가 주문·계좌 경로를 **어떤 호스트든 허용목록보다 먼저** 차단한다(`LiveOrderBlockedError`). 실거래 모드의 `TossTradingClient`(`allow_trading=True`)만 위 표의 ✅·허용 경로를 정확히 호출할 수 있고, 정정·조건주문·다른 호스트는 여전히 차단된다. 주문 POST 는 자동 재시도하지 않는다(`tests/test_guard.py`, `tests/test_live_broker.py`).
 
 ## 6. 실시간 시세 (WebSocket)
 

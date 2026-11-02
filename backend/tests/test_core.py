@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.clock import KST, SimulatedClock
-from app.core.config import Settings
+from app.core.config import LIVE_CONFIRM_PHRASE, Settings
 from app.core.logging import RedactingFilter, mask, redact, register_secret
 from app.core.market_calendar import MarketCalendar
 from app.core.ticks import round_to_tick, tick_size
@@ -30,16 +30,29 @@ def test_health(tmp_path) -> None:  # type: ignore[no-untyped-def]
     assert r.json()["trading_mode"] == "paper"
 
 
-@pytest.mark.parametrize("value", ["live", "LIVE", "real", "prod"])
-def test_trading_mode_only_paper(value: str) -> None:
+@pytest.mark.parametrize("value", ["real", "prod", "sandbox"])
+def test_trading_mode_unknown_values_rejected(value: str) -> None:
     with pytest.raises(ValueError, match="paper"):
         Settings(trading_mode=value)  # type: ignore[arg-type]
 
 
-def test_trading_mode_env_live_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_trading_mode_defaults_to_paper() -> None:
+    assert Settings().trading_mode == "paper" and not Settings().is_live
+
+
+@pytest.mark.parametrize("confirm", ["", "yes", "i_understand_real_money "])
+def test_live_mode_requires_exact_confirm_phrase(monkeypatch: pytest.MonkeyPatch, confirm: str) -> None:
     monkeypatch.setenv("TRADING_MODE", "live")
-    with pytest.raises(ValueError):
+    monkeypatch.setenv("LIVE_TRADING_CONFIRM", confirm)
+    with pytest.raises(ValueError, match="LIVE_TRADING_CONFIRM"):
         Settings()
+
+
+def test_live_mode_with_confirm_phrase(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TRADING_MODE", "LIVE")
+    monkeypatch.setenv("LIVE_TRADING_CONFIRM", LIVE_CONFIRM_PHRASE)
+    s = Settings()
+    assert s.is_live and s.live_daily_buy_limit == 5_000_000
 
 
 def test_toss_keys_required_and_interval() -> None:

@@ -40,6 +40,8 @@ const STRUCTURE = {
     allow_new_buys: true,
   },
   paper: { initial_cash: 10_000_000, commission_rate: 0.00015, sell_tax_rate: 0.002, slippage_bps: 5 },
+  trading_mode: "paper",
+  live_daily_buy_limit: null,
   engine_status: "RUNNING",
   agent_running: true,
 };
@@ -55,5 +57,17 @@ describe("에이전트 구조", () => {
     expect(screen.getByText("get_supply_demand")).toBeInTheDocument();
     expect(screen.getByText("NAVER · 연결 안 됨")).toBeInTheDocument();
     expect(screen.getByText("진행 중")).toBeInTheDocument(); // 판단 중이면 리서치 단계 강조
+  });
+});
+
+describe("에이전트 구조 (실거래)", () => {
+  it("실거래 모드면 실주문 단계와 매수 상한을 보여준다", async () => {
+    mockFetch({
+      "/api/agent/structure": { ...STRUCTURE, trading_mode: "live", live_daily_buy_limit: 5_000_000 },
+    });
+    renderWithProviders(<AgentPage />);
+    expect(await screen.findByText("토스증권 실주문")).toBeInTheDocument();
+    expect(screen.getByText(/하루 매수 총액 상한 5,000,000원/)).toBeInTheDocument();
+    expect(screen.queryByText("모의 체결")).not.toBeInTheDocument();
   });
 });

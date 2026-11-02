@@ -62,6 +62,8 @@ def _isolate_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "CLOCK_MODE",
         "DATABASE_URL",
         "TRADING_MODE",
+        "LIVE_TRADING_CONFIRM",
+        "TOSS_ACCOUNT_SEQ",
         "APP_SECRET_KEY",
         "AUTH_ENABLED",
     ):

@@ -18,6 +18,7 @@ from sqlalchemy import select
 
 from app.agent.llm import LLMClient, LLMError, ToolsUnsupportedError, extract_json
 from app.agent.prompts import (
+    ACCOUNT_DESC,
     CHAT_SYSTEM_PROMPT,
     DEFAULT_PERSONA,
     DEFAULT_POLICY,
@@ -61,7 +62,9 @@ class AgentRunner:
         max_steps: int = 24,
         strategies: Callable[[], list[Strategy]] | None = None,
         names: Callable[[str], str] | None = None,
+        live: bool = False,
     ) -> None:
+        self.live = live  # 실거래 모드 (프롬프트의 계좌 설명이 달라진다)
         self.db = db
         self.clock = clock
         self.hub = hub
@@ -197,7 +200,9 @@ class AgentRunner:
 
     def _system(self) -> str:
         p = self.persona()
-        return SYSTEM_PROMPT.format(name=p["name"], emoji=p["emoji"], policy=self.policy())
+        return SYSTEM_PROMPT.format(
+            name=p["name"], emoji=p["emoji"], policy=self.policy(), account=ACCOUNT_DESC[self.live]
+        )
 
     def _user_context(self, trigger: str) -> str:
         now = self.clock.now()
@@ -601,7 +606,11 @@ class AgentRunner:
                 [
                     {
                         "role": "system",
-                        "content": CHAT_SYSTEM_PROMPT.format(name=p["name"], emoji=p["emoji"]) + "\n\n" + ctx,
+                        "content": CHAT_SYSTEM_PROMPT.format(
+                            name=p["name"], emoji=p["emoji"], account=ACCOUNT_DESC[self.live]
+                        )
+                        + "\n\n"
+                        + ctx,
                     },
                     *history,
                     {"role": "user", "content": question[:1000]},

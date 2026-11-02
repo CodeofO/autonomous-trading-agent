@@ -37,9 +37,18 @@ from app.risk.rules import RiskConfig
 from app.strategies.rules import REGISTRY, build, param_schema
 
 log = logging.getLogger(__name__)
-DISCLAIMER = (
-    "모의투자(PAPER) 전용 교육·실험 시스템입니다. 에이전트의 판단과 예시 전략은 투자 권유가 아닙니다."
+DISCLAIMER = "모의투자(PAPER) 모드입니다. 에이전트의 판단과 예시 전략은 투자 권유가 아닙니다."
+LIVE_DISCLAIMER = (
+    "실거래(LIVE) 모드: 토스증권 실계좌로 실제 주문이 나갑니다. 에이전트의 판단은 투자 권유가 아니며, "
+    "손실을 포함한 모든 결과는 사용자 책임입니다."
 )
+
+
+def _since(c: Container) -> datetime | None:
+    """현재 계좌(모의/실거래) 기준 시각 — 모드를 바꾸면 이전 모드 기록은 목록에서 빠진다(D-34)."""
+    raw = c.kv.get("account_source").get("since")
+    return datetime.fromisoformat(raw) if raw else None
+
 
 router = APIRouter(prefix="/api")
 _bg: set[asyncio.Task[Any]] = set()
@@ -155,7 +164,7 @@ def system(c: C, _: U) -> dict[str, Any]:
         "latest_price_day": (d.isoformat() if (d := c.store.latest_day()) else None),
         "next_runs": c.scheduler.next_runs(),
         "persona": c.runner.persona(),
-        "disclaimer": DISCLAIMER,
+        "disclaimer": LIVE_DISCLAIMER if s.is_live else DISCLAIMER,
     }
 
 
@@ -166,8 +175,11 @@ async def portfolio(c: C, _: U) -> dict[str, Any]:
 
 @router.get("/equity")
 def equity(c: C, _: U, limit: int = Query(500, ge=1, le=5000)) -> list[dict[str, Any]]:
+    q = select(EquitySnapshot).order_by(EquitySnapshot.id.desc()).limit(limit)
+    if since := _since(c):
+        q = q.where(EquitySnapshot.ts >= since)
     with c.db.session() as s:
-        rows = list(s.scalars(select(EquitySnapshot).order_by(EquitySnapshot.id.desc()).limit(limit)))
+        rows = list(s.scalars(q))
     return [{"ts": _iso(r.ts), "equity": r.equity, "cash": r.cash} for r in reversed(rows)]
 
 
@@ -182,6 +194,8 @@ def orders(
         q = q.where(Order.status.in_(open_states))
     elif status == "closed":
         q = q.where(Order.status.not_in(open_states))
+    if since := _since(c):
+        q = q.where(Order.created_at >= since)
     with c.db.session() as s:
         return [order_dict(o) | {"name": c.store.name_of(o.symbol)} for o in s.scalars(q)]
 
@@ -196,8 +210,11 @@ async def cancel_order(order_id: int, c: C, _: U) -> dict[str, Any]:
 
 @router.get("/fills")
 def fills(c: C, _: U, limit: int = Query(200, ge=1, le=2000)) -> list[dict[str, Any]]:
+    q = select(Fill).order_by(Fill.id.desc()).limit(limit)
+    if since := _since(c):
+        q = q.where(Fill.filled_at >= since)
     with c.db.session() as s:
-        rows = list(s.scalars(select(Fill).order_by(Fill.id.desc()).limit(limit)))
+        rows = list(s.scalars(q))
     return [
         {
             "id": f.id,
@@ -290,8 +307,11 @@ def _decision_dict(d: AgentDecision) -> dict[str, Any]:
 
 @router.get("/agent/runs")
 def agent_runs(c: C, _: U, limit: int = Query(30, ge=1, le=500)) -> list[dict[str, Any]]:
+    q = select(AgentRun).order_by(AgentRun.id.desc()).limit(limit)
+    if since := _since(c):
+        q = q.where(AgentRun.started_at >= since)
     with c.db.session() as s:
-        return [_run_dict(r) for r in s.scalars(select(AgentRun).order_by(AgentRun.id.desc()).limit(limit))]
+        return [_run_dict(r) for r in s.scalars(q)]
 
 
 @router.get("/agent/runs/{run_id}")
@@ -318,6 +338,8 @@ def agent_decisions(
     q = select(AgentDecision).order_by(AgentDecision.id.desc()).limit(limit)
     if symbol:
         q = q.where(AgentDecision.symbol == symbol)
+    if since := _since(c):
+        q = q.where(AgentDecision.created_at >= since)
     with c.db.session() as s:
         return [_decision_dict(d) for d in s.scalars(q)]
 
@@ -343,16 +365,18 @@ TOOL_GROUPS: dict[str, tuple[str, str]] = {
 def agent_structure(c: C, _: U) -> dict[str, Any]:
     """에이전트 구성(도구·데이터 출처·스케줄·리스크 규칙)을 실제 설정값 그대로 돌려준다."""
     s = c.settings
+    account = "토스 실계좌" if s.is_live else "모의계좌"
     ready = {
         "토스증권": c.engine._health[0],
         "DART": c.research.sources["financials"] == "DART",
         "NAVER": c.research.sources["news"] == "NAVER",
-        "모의계좌": True,
+        account: True,
     }
     tools = []
     for t in openai_tools(toss=c.toss is not None):
         f = t["function"]
         group, source = TOOL_GROUPS.get(f["name"], ("market", "토스증권"))
+        source = account if source == "모의계좌" else source
         tools.append(
             {
                 "name": f["name"],
@@ -389,6 +413,8 @@ def agent_structure(c: C, _: U) -> dict[str, Any]:
             "sell_tax_rate": s.paper_sell_tax_rate,
             "slippage_bps": s.paper_slippage_bps,
         },
+        "trading_mode": s.trading_mode,
+        "live_daily_buy_limit": s.live_daily_buy_limit if s.is_live else None,
         "engine_status": c.engine.status,
         "agent_running": c.runner.running,
     }

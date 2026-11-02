@@ -58,6 +58,21 @@ describe("레이아웃", () => {
     expect(screen.getByText("토스 실시세 연결")).toBeInTheDocument();
   });
 
+  it("실거래 모드면 빨간 LIVE 배지로 바뀐다", async () => {
+    mockFetch({ "/api/system": { ...SYSTEM, trading_mode: "live" } });
+    renderWithProviders(
+      <Routes>
+        <Route element={<Layout />}>
+          <Route index element={<div>본문</div>} />
+        </Route>
+      </Routes>,
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("status", { name: "실거래 모드" })).toHaveTextContent("LIVE"),
+    );
+    expect(screen.queryByRole("status", { name: "모의투자 모드" })).not.toBeInTheDocument();
+  });
+
   it("토스 연결 문제를 배너로 알린다", async () => {
     mockFetch({ "/api/system": { ...SYSTEM, toss_ok: false, toss_issue: "허용 IP 미등록" } });
     renderWithProviders(

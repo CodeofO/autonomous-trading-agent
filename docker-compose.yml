@@ -20,7 +20,6 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://trader:${POSTGRES_PASSWORD:-trader-local-only}@db:5432/trader
       DATA_DIR: /data
-      TRADING_MODE: paper
       TZ: Asia/Seoul
     volumes:
       - appdata:/data

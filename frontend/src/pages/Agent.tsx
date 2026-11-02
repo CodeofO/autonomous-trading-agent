@@ -33,6 +33,7 @@ export function AgentPage() {
   const sessions = sc.sessions;
   const llmMode = llm.mode === "rules";
   const terminal = st.tools.find((t) => t.group === "decision");
+  const live = st.trading_mode === "live";
 
   return (
     <div className="agent-page">
@@ -152,17 +153,31 @@ export function AgentPage() {
               </p>
             </Step>
 
-            <Step n={6} icon="🏦" title="모의 체결">
-              <ul className="wf-list">
-                <li>시장가: 토스 현재가 ± 슬리피지 {paper.slippage_bps}bp</li>
-                <li>지정가: 가격에 닿으면 체결 · 장전 주문은 09:00 이후</li>
-                <li>15:20까지 미체결이면 당일 만료</li>
-                <li>
-                  수수료 {pct(paper.commission_rate, 3)} · 매도세 {pct(paper.sell_tax_rate, 2)}
-                </li>
-              </ul>
-              <p className="muted">실제 계좌 주문은 보내지 않아요 (모의투자 전용).</p>
-            </Step>
+            {live ? (
+              <Step n={6} icon="🔴" title="토스증권 실주문">
+                <ul className="wf-list">
+                  <li>토스증권 실계좌로 실제 주문 (시장가 · 지정가는 호가단위에 맞춤)</li>
+                  <li>1분마다 토스 주문 조회로 체결·취소 확인 · 미체결은 당일 장 마감까지 유효</li>
+                  <li>
+                    하루 매수 총액 상한 {fmtWon(st.live_daily_buy_limit)} · 1억원 이상 주문은 보내지 않음
+                  </li>
+                  <li>주문 요청은 자동 재시도하지 않음 (중복 주문 방지)</li>
+                </ul>
+                <p className="muted">킬 스위치를 누르면 토스에 남은 미체결 주문까지 취소해요.</p>
+              </Step>
+            ) : (
+              <Step n={6} icon="🏦" title="모의 체결">
+                <ul className="wf-list">
+                  <li>시장가: 토스 현재가 ± 슬리피지 {paper.slippage_bps}bp</li>
+                  <li>지정가: 가격에 닿으면 체결 · 장전 주문은 09:00 이후</li>
+                  <li>15:20까지 미체결이면 당일 만료</li>
+                  <li>
+                    수수료 {pct(paper.commission_rate, 3)} · 매도세 {pct(paper.sell_tax_rate, 2)}
+                  </li>
+                </ul>
+                <p className="muted">실제 계좌 주문은 보내지 않아요 (모의투자).</p>
+              </Step>
+            )}
 
             <Step n={7} icon="💬" title="기록과 공유" last>
               <p>트레이딩 룸 채팅 · 결정/주문/체결 기록 · 이벤트 로그</p>
@@ -231,10 +246,17 @@ export function AgentPage() {
                 <b>NAVER</b>
                 <span>뉴스 검색</span>
               </li>
-              <li>
-                <b>모의계좌</b>
-                <span>초기 자금 {fmtWon(paper.initial_cash)}</span>
-              </li>
+              {live ? (
+                <li>
+                  <b>토스 실계좌</b>
+                  <span>잔고·주문가능금액·주문·체결 (실제 주문)</span>
+                </li>
+              ) : (
+                <li>
+                  <b>모의계좌</b>
+                  <span>초기 자금 {fmtWon(paper.initial_cash)}</span>
+                </li>
+              )}
             </ul>
           </section>
         </aside>

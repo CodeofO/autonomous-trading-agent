@@ -214,6 +214,10 @@ small {
   letter-spacing: 0.02em;
   box-shadow: 0 4px 14px rgba(255, 120, 40, 0.35);
 }
+.paper-badge.live {
+  background: linear-gradient(135deg, #e03131, #a61e4d);
+  box-shadow: 0 4px 14px rgba(224, 49, 49, 0.45);
+}
 .paper-badge b {
   font-size: 17px;
   letter-spacing: 0.12em;

@@ -1,7 +1,8 @@
 """애플리케이션 설정.
 
 비밀정보(데이터 API 키, LLM 키, APP_SECRET_KEY)는 .env 로만 주입하며 SecretStr 로 보관한다.
-TRADING_MODE 는 "paper" 외의 값을 허용하지 않는다 — 실계좌(live) 주문 코드 경로는 존재하지 않는다(D-01).
+TRADING_MODE 기본은 "paper"(자체 모의계좌). "live"(토스증권 실계좌 주문)는 사용자가 .env 에서
+LIVE_TRADING_CONFIRM 확인 문구까지 넣어야만 켜진다(D-34). 켜는 것은 사용자의 판단이다.
 시세는 토스증권 Open API(조회 전용)만 쓴다. 목업 데이터·가속 시뮬레이션은 없다(D-28).
 """
 
@@ -11,10 +12,12 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
+# 실거래를 켤 때 .env 의 LIVE_TRADING_CONFIRM 에 그대로 적어야 하는 문구 (실수로 켜지는 것 방지)
+LIVE_CONFIRM_PHRASE = "I_UNDERSTAND_REAL_MONEY"
 
 
 def _filled(s: SecretStr | None) -> bool:
@@ -28,8 +31,13 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # --- 안전 장치 -------------------------------------------------------
-    trading_mode: Literal["paper"] = "paper"
+    # --- 거래 모드 -------------------------------------------------------
+    # paper: 자체 모의계좌 (기본) | live: 토스증권 실계좌로 실제 주문
+    trading_mode: Literal["paper", "live"] = "paper"
+    live_trading_confirm: str = ""  # live 일 때 LIVE_CONFIRM_PHRASE 와 같아야 함
+    toss_account_seq: str = ""  # 주문할 계좌. 비우면 계좌가 하나일 때 자동 선택
+    # 실거래 하루 매수 총액 상한(원). 리스크 한도와 별개로 코드가 강제한다
+    live_daily_buy_limit: float = Field(default=5_000_000, gt=0)
 
     # --- 데이터 (토스증권 조회 전용 + DART·네이버) -------------------------
     toss_client_id: SecretStr | None = None
@@ -71,14 +79,26 @@ class Settings(BaseSettings):
 
     @field_validator("trading_mode", mode="before")
     @classmethod
-    def _only_paper(cls, v: object) -> object:
+    def _mode(cls, v: object) -> object:
         if v is None or v == "":
             return "paper"
-        if str(v).strip().lower() != "paper":
+        m = str(v).strip().lower()
+        if m not in ("paper", "live"):
+            raise ValueError("TRADING_MODE 는 'paper'(모의투자) 또는 'live'(실거래)만 쓸 수 있습니다.")
+        return m
+
+    @model_validator(mode="after")
+    def _live_needs_confirm(self) -> Settings:
+        if self.trading_mode == "live" and self.live_trading_confirm.strip() != LIVE_CONFIRM_PHRASE:
             raise ValueError(
-                "TRADING_MODE 는 'paper' 만 허용됩니다. 이 시스템에는 실계좌(live) 주문 경로가 없습니다."
+                "TRADING_MODE=live 는 실제 돈으로 주문합니다. 켜려면 .env 에 "
+                f"LIVE_TRADING_CONFIRM={LIVE_CONFIRM_PHRASE} 를 함께 넣으세요."
             )
-        return "paper"
+        return self
+
+    @property
+    def is_live(self) -> bool:
+        return self.trading_mode == "live"
 
     @field_validator("llm_base_url")
     @classmethod

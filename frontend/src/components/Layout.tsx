@@ -5,7 +5,15 @@ import { useEvents } from "../events";
 import { useSystem } from "../hooks";
 import { KillSwitch } from "./KillSwitch";
 
-export function PaperBadge() {
+export function PaperBadge({ live = false }: { live?: boolean }) {
+  if (live) {
+    return (
+      <div className="paper-badge live" role="status" aria-label="실거래 모드">
+        <span className="dot" />
+        실거래 <b>LIVE</b>
+      </div>
+    );
+  }
   return (
     <div className="paper-badge" role="status" aria-label="모의투자 모드">
       <span className="dot" />
@@ -60,7 +68,7 @@ export function Layout() {
       </aside>
       <div className="main">
         <header className="topbar">
-          <PaperBadge />
+          <PaperBadge live={sys?.trading_mode === "live"} />
           <div className="top-info">
             <KstClock />
             {sys && (

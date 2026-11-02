@@ -204,6 +204,8 @@ export interface AgentStructure {
   };
   risk: RiskConfig;
   paper: { initial_cash: number; commission_rate: number; sell_tax_rate: number; slippage_bps: number };
+  trading_mode: "paper" | "live";
+  live_daily_buy_limit: number | null;
   engine_status: "RUNNING" | "PAUSED" | "KILLED";
   agent_running: boolean;
 }

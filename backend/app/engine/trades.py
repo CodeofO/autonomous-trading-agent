@@ -34,8 +34,10 @@ def trade_ledger(
     pos: dict[str, tuple[int, float]] = {}  # symbol → (수량, 평단)
     trades: list[dict[str, Any]] = []
     by_symbol: dict[str, float] = {}
-    total = 0.0
+    total = fees = taxes = 0.0
     for f, o in rows:
+        fees += f.fee
+        taxes += f.tax
         qty, avg = pos.get(f.symbol, (0, 0.0))
         name = (names(f.symbol) if names else "") or f.symbol
         t: dict[str, Any] = {
@@ -53,6 +55,11 @@ def trade_ledger(
         if f.side == "BUY":
             new_qty = qty + f.quantity
             pos[f.symbol] = (new_qty, (avg * qty + f.price * f.quantity + f.fee) / new_qty)
+        elif qty < f.quantity:
+            # 이 시스템 밖에서 산 주식(실계좌 기존 보유분 등)이 섞인 매도 → 평단을 몰라 계산하지 않는다
+            t["realized_pnl"] = None
+            t["note"] = "매수 기록이 없어 실현손익을 계산할 수 없음 (시스템 밖 보유분)"
+            pos.pop(f.symbol, None)
         else:
             pnl = (f.price - avg) * f.quantity - f.fee - f.tax
             t["avg_cost"] = round(avg)
@@ -69,6 +76,8 @@ def trade_ledger(
     return {
         "realized_pnl_total": round(total),
         "realized_pnl_by_stock": {k: round(v) for k, v in by_symbol.items()},
+        "fees_total": round(fees),
+        "taxes_total": round(taxes),
         "fill_count": len(trades),
         "recent_fills": list(reversed(trades))[:limit],
     }

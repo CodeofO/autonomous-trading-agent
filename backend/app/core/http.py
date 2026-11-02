@@ -2,6 +2,9 @@
 
 - (호스트, 메서드, 경로) **허용목록** 에 있는 요청만 네트워크로 나간다. 나머지는 전송 전에 예외.
 - 증권사 주문 API 호스트는 명시적 차단목록으로도 막는다(이중 방어, D-02).
+- 주문·계좌 경로는 `allow_trading=True` 로 만든 클라이언트(실거래 모드의 토스 주문 클라이언트, D-34)만,
+  그 클라이언트의 허용목록에 정확히 있는 경로로만 나갈 수 있다. 그 밖의 모든 클라이언트에서는 항상 차단.
+- 주문 생성·취소 같은 비조회(POST 등) 주문 요청은 자동 재시도하지 않는다(중복 주문 방지).
 - 토큰 버킷(초당 한도) + 429/5xx 지수 백오프 재시도.
 - 로그에는 쿼리스트링(키 포함)을 남기지 않는다.
 """
@@ -82,10 +85,14 @@ class TokenBucket:
                 await asyncio.sleep((1 - self._tokens) / self.rate)
 
 
-def check_outbound(method: str, url: str, routes: list[Route]) -> None:
+def is_trading_path(path: str) -> bool:
+    return bool(_LIVE_PATH.search(path))
+
+
+def check_outbound(method: str, url: str, routes: list[Route], *, allow_trading: bool = False) -> None:
     parts = urlsplit(url)
     host = (parts.hostname or "").lower()
-    if _LIVE_PATH.search(parts.path):
+    if _LIVE_PATH.search(parts.path) and not allow_trading:
         raise LiveOrderBlockedError(f"주문·계좌 엔드포인트 호출 차단: {method} {host}{parts.path}")
     allowed = any(
         r.host == host and r.method == method.upper() and r.path.fullmatch(parts.path) for r in routes
@@ -109,8 +116,10 @@ class SafeHttpClient:
         max_retries: int = 4,
         transport: httpx.AsyncBaseTransport | None = None,
         backoff_scale: float = 1.0,
+        allow_trading: bool = False,
     ) -> None:
         self.routes = routes
+        self.allow_trading = allow_trading
         self.backoff_scale = backoff_scale
         self.bucket = TokenBucket(rate=rate_per_sec, capacity=max(1.0, rate_per_sec))
         self.max_retries = max_retries
@@ -126,7 +135,9 @@ class SafeHttpClient:
         json: Any = None,
         data: Mapping[str, str] | None = None,
     ) -> httpx.Response:
-        check_outbound(method, url, self.routes)
+        check_outbound(method, url, self.routes, allow_trading=self.allow_trading)
+        # 주문 생성·취소는 재시도하지 않는다: 응답을 못 받았어도 주문이 접수됐을 수 있다
+        retries = 0 if method.upper() != "GET" and is_trading_path(urlsplit(url).path) else self.max_retries
         attempt = 0
         while True:
             await self.bucket.acquire()
@@ -135,14 +146,14 @@ class SafeHttpClient:
                     method, url, params=params, headers=headers, json=json, data=data
                 )
             except (httpx.TransportError, httpx.TimeoutException) as e:
-                if attempt >= self.max_retries:
+                if attempt >= retries:
                     raise
                 await asyncio.sleep(self._backoff(attempt))
                 attempt += 1
                 log.warning("외부 호출 재시도 %s %s (%s)", method, urlsplit(url).path, type(e).__name__)
                 continue
             if resp.status_code == 429 or resp.status_code >= 500:
-                if attempt >= self.max_retries:
+                if attempt >= retries:
                     return resp
                 retry_after = resp.headers.get("Retry-After")
                 delay = (
