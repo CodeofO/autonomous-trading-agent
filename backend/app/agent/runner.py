@@ -421,7 +421,7 @@ class AgentRunner:
         self.hub.chat(
             ANALYST,
             "summary",
-            str(payload.get("summary") or "오늘 점검 끝!")[:1500],
+            strip_disclaimers(str(payload.get("summary") or ""))[:1500] or "오늘 점검 끝!",
             run_id=run_id,
             counts={a: sum(x["action"] == a for x in decisions) for a in ("BUY", "SELL", "HOLD")},
         )
@@ -531,6 +531,48 @@ class AgentRunner:
     # ================================================================ 채팅 Q&A
     async def answer(self, question: str) -> None:
         self.hub.chat(USER, "text", question[:1000])
+        await self._reply(question)
+
+    async def resume_pending(self) -> None:
+        """재시작으로 답을 못 받은 오늘 질문이 있으면 이어서 답한다 (대화는 하루 단위로 이어진다)."""
+        with self.db.session() as s:
+            last = s.scalars(
+                select(ChatMessage)
+                .where(ChatMessage.ts >= _today_start(self.clock.now()))
+                .where(ChatMessage.role.in_([USER, ANALYST]), ChatMessage.kind == "text")
+                .order_by(ChatMessage.id.desc())
+                .limit(1)
+            ).first()
+            question = last.content if last is not None and last.role == USER else None
+        if question:
+            await self._reply(question)
+
+    def _today_chat(self, limit: int = 30) -> list[dict[str, str]]:
+        """오늘(KST) 트레이딩 룸 대화: 사용자 질문·매니저 답변·세션 요약. DB 에서 읽으므로 재시작해도 이어진다."""
+        with self.db.session() as s:
+            rows = list(
+                s.scalars(
+                    select(ChatMessage)
+                    .where(ChatMessage.ts >= _today_start(self.clock.now()))
+                    .where(
+                        (ChatMessage.role == USER)
+                        | ((ChatMessage.role == ANALYST) & ChatMessage.kind.in_(["text", "summary"]))
+                    )
+                    .order_by(ChatMessage.id.desc())
+                    .limit(limit)
+                )
+            )
+        out: list[dict[str, str]] = []
+        for m in reversed(rows):
+            if m.role == USER:
+                out.append({"role": "user", "content": m.content[:600]})
+            elif m.kind == "summary":
+                out.append({"role": "assistant", "content": f"[세션 #{m.run_id} 정리] {m.content[:600]}"})
+            elif (m.payload or {}).get("reply_to") == "user":
+                out.append({"role": "assistant", "content": m.content[:600]})
+        return out
+
+    async def _reply(self, question: str) -> None:
         p = self.persona()
         if self.llm is None:
             self.hub.chat(
@@ -543,17 +585,30 @@ class AgentRunner:
         self.hub.typing(ANALYST, True, "답장 쓰는 중…")
         try:
             pf = await self.tb.call("get_portfolio", {})
-            ctx = json.dumps(pf, ensure_ascii=False, default=str)[:6000] + "\n\n" + self._memory()
+            trades = await self.tb.call("get_trade_history", {"limit": 20})
+            ctx = (
+                "[포트폴리오]\n"
+                + json.dumps(pf, ensure_ascii=False, default=str)[:6000]
+                + "\n\n[매매 내역·실현손익]\n"
+                + json.dumps(trades, ensure_ascii=False, default=str)[:5000]
+                + "\n\n"
+                + self._memory()
+            )
+            history = self._today_chat()
+            if history and history[-1]["role"] == "user":
+                history = history[:-1]  # 방금 질문은 아래에 따로 붙인다
             res = await self.llm.chat(
                 [
                     {
                         "role": "system",
-                        "content": CHAT_SYSTEM_PROMPT.format(name=p["name"], emoji=p["emoji"]),
+                        "content": CHAT_SYSTEM_PROMPT.format(name=p["name"], emoji=p["emoji"]) + "\n\n" + ctx,
                     },
-                    {"role": "user", "content": f"[포트폴리오·기록]\n{ctx}\n\n[질문]\n{question[:1000]}"},
+                    *history,
+                    {"role": "user", "content": question[:1000]},
                 ]
             )
-            self.hub.chat(ANALYST, "text", res.content[:2000] or "음… 잘 모르겠어요 🤔", reply_to="user")
+            text = strip_disclaimers(res.content)[:2000]
+            self.hub.chat(ANALYST, "text", text or "음… 잘 모르겠어요 🤔", reply_to="user")
         except Exception as e:
             self.hub.chat(SYSTEM, "text", f"⚠️ 답장 중 오류: {type(e).__name__}")
         finally:
@@ -561,6 +616,28 @@ class AgentRunner:
 
 
 # ==================================================================== 유틸
+_DISCLAIMER = re.compile(r"투자\s*권유|모의\s*투자(이|라서|일 뿐|예요|입니다)")
+
+
+def strip_disclaimers(text: str) -> str:
+    """'모의투자이고 투자 권유가 아니에요' 같은 면책 문장을 뺀다 (화면 하단에 이미 표시됨). 줄바꿈은 유지한다."""
+    pieces = re.split(r"((?<=[.!?。])[ \t]+|(?<=요)[ \t]+|\n)", text)
+    out: list[str] = []
+    for i in range(0, len(pieces), 2):
+        sentence, sep = pieces[i], pieces[i + 1] if i + 1 < len(pieces) else ""
+        if _DISCLAIMER.search(sentence):
+            if sep == "\n" and out and not out[-1].endswith("\n"):
+                out.append(sep)  # 문장 중간 줄이 빠져도 줄 구분은 남긴다
+            continue
+        out.append(sentence + sep)
+    return "".join(out).strip()
+
+
+def _today_start(now: datetime) -> datetime:
+    k = now.astimezone(KST)
+    return k.replace(hour=0, minute=0, second=0, microsecond=0)
+
+
 _SYMBOL_KEYS = ("symbol", "ticker", "code", "stock_code", "종목코드")
 
 

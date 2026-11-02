@@ -90,6 +90,15 @@ TOOL_SPECS: list[dict[str, Any]] = [
         "parameters": {"type": "object", "properties": {}},
     },
     {
+        "name": "get_trade_history",
+        "description": "매매 내역: 최근 체결(매수·매도, 사유, 판단 세션)과 매도별·종목별·전체 실현손익. "
+        "'왜 팔았는지', '실현손익이 어디서 났는지' 확인용.",
+        "parameters": {
+            "type": "object",
+            "properties": {"limit": {"type": "integer", "minimum": 1, "maximum": 50, "default": 20}},
+        },
+    },
+    {
         "name": "screen_stocks",
         "description": "종목 스크리닝(후보 발굴용). 토스 연결 시 시장 전체 실시간 랭킹 상위 100 기준, 아니면 최신 일봉 기준.",
         "parameters": {
@@ -238,6 +247,7 @@ def tool_label(name: str, args: dict[str, Any], names: Callable[[str], str]) -> 
     who = f"{names(sym) or sym}" if sym else ""
     return {
         "get_portfolio": "💼 포트폴리오 확인",
+        "get_trade_history": "🧾 매매 내역·실현손익 확인",
         "screen_stocks": f"🧭 종목 스크리닝 ({args.get('sort_by', 'market_cap')})",
         "get_price_history": f"📈 {who} 차트·지표 확인",
         "get_financials": f"🧾 {who} 재무제표 분석",
@@ -269,6 +279,7 @@ class ToolBox:
         self.screener = screener  # 토스 랭킹 기반 실시간 스크리닝
         self.quote = quote  # 토스 실시간 현재가
         self.toss: Any = None  # TossMarketProvider (컨테이너에서 연결)
+        self.trades: Callable[[int], dict[str, Any]] | None = None  # 매매 원장 (컨테이너에서 연결)
 
     async def call(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
         fn = getattr(self, f"t_{name}", None)
@@ -290,6 +301,11 @@ class ToolBox:
     # ------------------------------------------------------------------ 도구 구현
     async def t_get_portfolio(self) -> dict[str, Any]:
         return await self.portfolio()
+
+    async def t_get_trade_history(self, limit: int = 20) -> dict[str, Any]:
+        if self.trades is None:
+            return {"error": "매매 내역을 볼 수 없어요"}
+        return self.trades(max(1, min(int(limit), 50)))
 
     async def t_screen_stocks(
         self,

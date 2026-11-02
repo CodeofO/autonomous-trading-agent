@@ -325,6 +325,7 @@ def agent_decisions(
 # 도구 → (분류, 데이터 출처). 에이전트 구조 화면에서 묶어 보여준다.
 TOOL_GROUPS: dict[str, tuple[str, str]] = {
     "get_portfolio": ("portfolio", "모의계좌"),
+    "get_trade_history": ("portfolio", "모의계좌"),
     "screen_stocks": ("market", "토스증권"),
     "get_price_history": ("market", "토스증권"),
     "get_market_overview": ("market", "토스증권"),

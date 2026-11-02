@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -11,10 +12,9 @@ from typing import Any
 from fastapi import FastAPI
 
 from app.api import routes, ws
-from app.container import build_container
+from app.container import announce_boot, build_container
 from app.core.config import BACKEND_DIR, Settings, get_settings
 from app.core.logging import setup_logging
-from app.engine.events import SYSTEM
 
 log = logging.getLogger(__name__)
 
@@ -47,6 +47,7 @@ def create_app(settings: Settings | None = None, **container_overrides: Any) -> 
             settings.llm_model if settings.has_llm else "없음(규칙 기반)",
             settings.agent_interval_minutes,
         )
+        resume: asyncio.Task[None] | None = None
         await c.engine.refresh_calendar()
         try:
             await c.engine.sync_data()
@@ -54,13 +55,15 @@ def create_app(settings: Settings | None = None, **container_overrides: Any) -> 
             log.exception("초기 시세 동기화 실패")
         if settings.enable_scheduler:
             c.scheduler.start()
-            c.hub.chat(
-                SYSTEM,
-                "text",
+            boot = (
                 f"🟢 시스템 기동 — 시세: 토스증권 실시간, 장중 판단 {settings.agent_interval_minutes}분 간격, "
-                f"LLM: {settings.llm_model if settings.has_llm else '미설정(규칙 기반)'}",
+                f"LLM: {settings.llm_model if settings.has_llm else '미설정(규칙 기반)'}"
             )
+            announce_boot(c, boot)
+            resume = asyncio.create_task(c.runner.resume_pending())  # 재시작 전에 못 한 답장
         yield
+        if resume is not None and not resume.done():
+            resume.cancel()
         c.scheduler.shutdown()
         await c.toss.client.aclose()
 

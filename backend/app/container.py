@@ -19,7 +19,7 @@ from app.agent.llm import LLMClient
 from app.agent.runner import AgentRunner
 from app.agent.tools import ToolBox
 from app.brokers.paper import PaperBroker, PaperCosts
-from app.core.clock import Clock, RealClock
+from app.core.clock import KST, Clock, RealClock
 from app.core.config import Settings
 from app.core.logging import register_secret
 from app.core.market_calendar import MarketCalendar
@@ -41,6 +41,7 @@ from app.engine.engine import TradingEngine
 from app.engine.events import SYSTEM, EventHub
 from app.engine.scheduler import Scheduler
 from app.engine.settings_store import SettingsStore
+from app.engine.trades import trade_ledger
 from app.market.store import PriceStore
 from app.market.toss import TossClient, TossMarketProvider
 from app.research.dart import DartClient
@@ -192,6 +193,17 @@ def _reset_on_source_change(db: Database, kv: SettingsStore, broker: PaperBroker
     kv.set("account_source", {"source": SOURCE, "since": since.isoformat(), "purged": 4})
 
 
+def announce_boot(c: Container, text: str) -> bool:
+    """트레이딩 룸 대화는 하루 단위로 이어진다: 기동 안내는 하루 한 번만 채팅에, 그 뒤 재시작은 감사 로그에만."""
+    today = c.clock.now().astimezone(KST).date().isoformat()
+    if c.kv.get("boot_notice").get("day") == today:
+        c.hub.audit("SYSTEM", "재시작 — " + text.removeprefix("🟢 "), None)
+        return False
+    c.kv.set("boot_notice", {"day": today})
+    c.hub.chat(SYSTEM, "text", text)
+    return True
+
+
 def build_container(
     settings: Settings,
     *,
@@ -261,6 +273,12 @@ def build_container(
         )
     toolbox = ToolBox(engine.portfolio, store, research, clock, screener=toss.screen, quote=broker.get_quote)
     toolbox.toss = toss
+
+    def trades(limit: int = 20) -> dict[str, Any]:
+        since = kv.get("account_source").get("since")
+        return trade_ledger(db, store.name_of, datetime.fromisoformat(since) if since else None, limit)
+
+    toolbox.trades = trades
     runner = AgentRunner(
         db,
         clock,

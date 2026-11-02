@@ -601,6 +601,7 @@ label.toggle input {
 }
 .chat-row.user {
   justify-content: flex-end;
+  padding-right: 16px; /* 스크롤바·카드 가장자리에서 띄움 */
 }
 .avatar {
   width: 34px;
