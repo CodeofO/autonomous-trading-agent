@@ -1,0 +1,64 @@
+[project]
+name = "toss-paper-trader"
+version = "0.1.0"
+description = "토스증권 시세 + 자체 모의투자(PaperBroker) 자동매매 시스템"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi==0.115.12",
+    "uvicorn[standard]==0.34.2",
+    "sqlalchemy==2.0.40",
+    "alembic==1.15.2",
+    "pydantic==2.11.4",
+    "pydantic-settings==2.9.1",
+    "httpx==0.28.1",
+    "apscheduler==3.11.0",
+    "psycopg[binary]==3.2.9",
+    "tzdata==2025.2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==8.3.5",
+    "pytest-asyncio==0.26.0",
+    "pytest-cov==6.1.1",
+    "respx==0.22.0",
+    "ruff==0.11.8",
+    "mypy==1.15.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-q"
+filterwarnings = ["ignore::DeprecationWarning:apscheduler.*"]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/db/migrations/*"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+extend-exclude = ["app/db/migrations/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "ASYNC"]
+ignore = ["B008"]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["app"]
+plugins = ["pydantic.mypy"]
+disallow_untyped_defs = true
+check_untyped_defs = true
+warn_unused_ignores = true
+no_implicit_optional = true
+exclude = ["app/db/migrations/"]
+
+[[tool.mypy.overrides]]
+module = ["apscheduler.*"]
+ignore_missing_imports = true
