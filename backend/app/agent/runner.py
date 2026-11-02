@@ -220,6 +220,7 @@ class AgentRunner:
         tools = openai_tools(toss=self.tb.toss is not None)
         nudged = False
         force_submit = False
+        resubmitted = False
         for step in range(self.max_steps):
             force = force_submit or step == self.max_steps - 1
             self.hub.typing(ANALYST, True, "생각 중…")
@@ -266,9 +267,35 @@ class AgentRunner:
                     ],
                 }
             )
+            if res.finish_reason == "length":
+                log.warning("LLM 응답이 길이 한도로 잘렸습니다 (LLM_MAX_TOKENS 상향 권장)")
             for call in res.tool_calls:
                 if call.name == TERMINAL_TOOL:
-                    return call.arguments
+                    if "decisions" in call.arguments or resubmitted:
+                        return call.arguments
+                    # 결정 목록이 빠진 제출(잘림·누락) → 한 번 돌려보내 다시 받는다
+                    resubmitted = True
+                    self.hub.chat(
+                        SYSTEM,
+                        "text",
+                        "📝 결정 목록이 빠진 제출이라 매니저에게 다시 요청했어요.",
+                        run_id=run_id,
+                    )
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": call.id,
+                            "content": json.dumps(
+                                {
+                                    "error": "decisions 배열이 비어 있습니다. 요약에 적은 매수·매도와 보유 종목 전부를 decisions "
+                                    "배열에 넣어 submit_decisions 를 다시 호출하세요. 요약은 짧게."
+                                },
+                                ensure_ascii=False,
+                            ),
+                        }
+                    )
+                    force_submit = True
+                    continue  # 같은 묶음의 다른 도구 호출에도 응답해야 하므로 계속 진행
                 label = tool_label(call.name, call.arguments, self.names)
                 self.hub.typing(ANALYST, True, label)
                 result = await self.tb.call(call.name, call.arguments)

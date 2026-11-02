@@ -182,7 +182,9 @@ async def test_llm_tool_loop_uses_toss_tools_and_places_orders(tmp_path: Path) -
     assert decs["005930"].order_id and decs["000660"].order_id and decs["035420"].action == "HOLD"
     o2 = next(o for o in _orders(c) if o.symbol == "000660")
     assert o2.status == "FILLED" and o2.fill_basis == "NOW"  # 장중 현재가 즉시 체결
-    assert o2.quantity * c.toss.client.last_price("000660") < 2_100_000  # 1회 최대 주문금액(200만 원)으로 축소
+    assert (
+        o2.quantity * c.toss.client.last_price("000660") < 2_100_000
+    )  # 1회 최대 주문금액(200만 원)으로 축소
     chat = _chat(c)
     assert any(m.kind == "tool" and m.payload.get("tool") == "get_supply_demand" for m in chat)
     assert any(m.role == "risk" and "축소" in m.content for m in chat)
@@ -367,3 +369,52 @@ async def test_financials_valuation_uses_toss_market_cap(tmp_path: Path) -> None
     mcap = c.toss.client.last_price("005930") * 5.9e9
     assert res["valuation"]["market_cap_eok"] == round(mcap / 1e8, 1)
     assert res["valuation"]["per"] == round(mcap / 4.5e13, 1) and res["valuation"]["pbr"] is not None
+
+
+@respx.mock
+async def test_submission_without_decisions_is_bounced_once(tmp_path: Path) -> None:
+    c = make(tmp_path, **LLM)
+    route = respx.post(LLM_URL).mock(
+        side_effect=[
+            _resp(
+                None,
+                [
+                    _tc(
+                        "submit_decisions",
+                        {"market_view": "회복 초기", "summary": "삼성전자를 소량 담았어요"},
+                        1,
+                    )
+                ],
+            ),
+            _resp(
+                None,
+                [
+                    _tc(
+                        "submit_decisions",
+                        {
+                            "summary": "삼성전자 매수",
+                            "decisions": [
+                                {
+                                    "symbol": "005930",
+                                    "action": "BUY",
+                                    "quantity": 2,
+                                    "confidence": 0.6,
+                                    "rationale": "r",
+                                }
+                            ],
+                        },
+                        2,
+                    )
+                ],
+            ),
+        ]
+    )
+    run_id = await c.runner.run("manual")
+    assert route.call_count == 2
+    second = json.loads(route.calls[1].request.content)
+    assert second["tool_choice"]["function"]["name"] == "submit_decisions"
+    assert any(m["role"] == "tool" and "decisions" in m["content"] for m in second["messages"])
+    with c.db.session() as s:
+        d = s.scalar(select(AgentDecision).where(AgentDecision.run_id == run_id))
+    assert d is not None and d.symbol == "005930" and d.action == "BUY" and d.order_id is not None
+    assert any("다시 요청" in m.content for m in _chat(c))

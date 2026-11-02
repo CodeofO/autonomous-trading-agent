@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     llm_api_key: SecretStr | None = None
     llm_tool_mode: Literal["auto", "tools", "json"] = "auto"
     llm_temperature: float = 0.2
-    llm_max_tokens: int = 4096
+    llm_max_tokens: int = 8192
     llm_max_steps: int = Field(default=24, ge=2, le=80)
     llm_timeout_sec: float = 180.0
 
