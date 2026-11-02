@@ -19,19 +19,22 @@ cp .env.example .env
 ./run.sh
 ```
 
-브라우저에서 <http://localhost:5173> 을 엽니다. 처음 접속하면 이 컴퓨터 전용 로컬 계정을 만듭니다.
+브라우저에서 <http://localhost:15173> 을 엽니다. 로그인 없이 바로 대시보드가 열립니다(이 컴퓨터 `127.0.0.1` 에서만 접속 가능).
 
 `run.sh` 는 Docker 가 켜져 있으면 `docker compose`(백엔드 + 프론트 + PostgreSQL)로, 꺼져 있으면 로컬(uv + npm, SQLite)로 실행합니다.
 
 | 명령 | 설명 |
 |---|---|
 | `./run.sh` | 자동 선택 (Docker → 없으면 로컬) |
-| `./run.sh docker` | `docker compose up --build` |
+| `./run.sh up` | Docker 백그라운드 실행 (터미널을 닫아도 유지) · 중지는 `./run.sh down` |
+| `./run.sh docker` | `docker compose` 포그라운드 실행 |
 | `./run.sh local` | 로컬 실행 (Python 3.12 · [uv](https://docs.astral.sh/uv/) · Node.js 필요) |
 | `./run.sh test` | 백엔드 + 프론트 테스트 |
 | `make dev` / `make test` / `make lint` / `make e2e` | 개발용 단축 명령 |
 
-종료는 `Ctrl+C` 입니다. Docker 로 띄웠다면 종료 후 `docker compose down` 을 실행합니다.
+- 종료: 포그라운드 실행은 `Ctrl+C`, 백그라운드는 `./run.sh down`.
+- 포트: 프론트 **15173**, 백엔드 **18000**. 바꾸려면 `.env` 에 `FRONTEND_PORT`, `BACKEND_PORT` 를 지정합니다.
+- 다시 빌드하면 이 프로젝트의 이전 버전 이미지(backend·frontend)는 자동으로 지워집니다. 다른 프로젝트 이미지와 베이스 이미지는 건드리지 않습니다.
 
 ---
 
@@ -47,6 +50,8 @@ cp .env.example .env
 | `DART_API_KEY` | 선택 | 재무제표·공시 | [OpenDART](https://opendart.fss.or.kr) 인증키 신청 |
 | `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` | 선택 | 뉴스 검색 | [네이버 개발자센터](https://developers.naver.com) 애플리케이션 등록(검색 API) |
 | `TRADING_MODE` | 고정 | 반드시 `paper`. 다른 값이면 기동이 거부됨 | — |
+| `AUTH_ENABLED` | 선택 | 기본 `false`(로그인 없음). 다른 사람이 접근할 수 있는 환경이면 `true` 로 켜면 로컬 계정 로그인이 생김 | — |
+| `FRONTEND_PORT` · `BACKEND_PORT` | 선택 | 접속 포트 (기본 15173 / 18000) | — |
 
 - **LLM 3개 값 중 하나라도 비면** 규칙 기반 매니저(뉴스 키워드 + 기술 신호 + 재무)로 동작합니다.
 - **`DATA_GO_KR_SERVICE_KEY` 가 비면** 가상 종목 20개(`MOCK01`~`MOCK20`, 실존 기업 아님)로 구성된 가상 시장이 **가속 시뮬레이션**(기본 실제 1초 = 10분)으로 돌아갑니다.
@@ -116,13 +121,13 @@ UI 의 **🧠 지금 판단 실행** 버튼으로 언제든 수동 세션을 돌
 make test
 ```
 
-백엔드 pytest(121개, 커버리지 93%)와 프론트 Vitest(13개)를 실행합니다.
+백엔드 pytest(122개, 커버리지 93%)와 프론트 Vitest(13개)를 실행합니다.
 
 ```bash
 make e2e
 ```
 
-Playwright E2E 2개(계정 생성 → 대시보드 → 킬 스위치 → 재개, 트레이딩 룸 세션)를 실행합니다.
+Playwright E2E 2개(대시보드 → 킬 스위치 → 재개, 트레이딩 룸 세션)를 실행합니다.
 
 ```bash
 make lint
@@ -138,6 +143,6 @@ ruff · mypy · eslint · prettier · tsc 를 실행합니다.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — 구조와 흐름 다이어그램
 - [docs/DECISIONS.md](docs/DECISIONS.md) — 설계 결정 기록
 - [docs/PROGRESS.md](docs/PROGRESS.md) — 마일스톤 진행, 테스트 결과, 알려진 문제
-- API 문서(실행 중): <http://localhost:8000/api/docs>
+- API 문서(실행 중): <http://localhost:18000/api/docs>
 
 > 생성된 코드·설정은 사람이 검토하고 테스트한 뒤 사용하세요. 공공데이터 시세는 공공누리 제4유형(상업적 이용·재배포 금지)이므로 개인 학습용으로만 쓰세요.

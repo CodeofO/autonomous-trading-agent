@@ -20,11 +20,11 @@
 
 | 영역 | 결과 |
 |---|---|
-| 백엔드 pytest | **121 passed**, 라인 커버리지 **93%** (`app/`) |
+| 백엔드 pytest | **122 passed**, 라인 커버리지 **93%** (`app/`) |
 | 프론트 Vitest | **13 passed** (트레이딩 룸 메시지·결정 카드·도구 칩·입력중, 킬 스위치 모달, PAPER 배지, 리스크 검증, 로그인) |
-| Playwright E2E | **2 passed** (계정 생성 → 대시보드 → 킬 스위치 → 재개 / 트레이딩 룸 세션 → 결정 카드) |
+| Playwright E2E | **2 passed** (로그인 없이 대시보드 → 킬 스위치 → 재개 / 트레이딩 룸 세션 → 결정 카드) |
 | 린트 | ruff · mypy(51 파일 무오류) · eslint(오류 0, 경고 4: react-refresh 안내) · prettier · tsc 통과 |
-| 기동 확인 | `./run.sh local` → 로그인·대시보드·트레이딩 룸·종목 상세 화면 확인. `docker compose up` → PostgreSQL 위에서 로그인·세션·주문·채팅·WS(nginx 프록시) 확인 후 `down -v` 로 정리 |
+| 기동 확인 | `./run.sh up` → http://localhost:15173 (로그인 없음) 대시보드 확인. `./run.sh local` → 대시보드·트레이딩 룸·종목 상세 화면 확인. `docker compose up` → PostgreSQL 위에서 로그인·세션·주문·채팅·WS(nginx 프록시) 확인 후 `down -v` 로 정리 |
 
 주요 검증 항목:
 - 실거래 차단: 증권사 호스트 9곳 × 메서드 3종, 주문형 경로, 허용목록 밖 호스트, 브로커 플래그 변조 → 모두 차단. 차단 요청은 네트워크로 나가지 않음
@@ -48,7 +48,7 @@
 | 매도세율 | 0.20% 가정 | `.env` `PAPER_SELL_TAX_RATE` 로 조정 |
 | LLM 비용 | 세션당 최대 24단계 tool 호출 | `LLM_MAX_STEPS` 로 상한 조정 |
 | 규칙 에이전트 | 단순 점수 합산 예시 — 성과 기대 금지 | LLM 연결 권장 |
-| 인증 | 로컬 단일 사용자, HTTP | 외부 공개 배포 금지(범위 밖) |
+| 인증 | 기본 로그인 없음(127.0.0.1 전용). `AUTH_ENABLED=true` 시 로컬 단일 사용자, HTTP | 외부 공개 배포 금지(범위 밖) |
 | 컨테이너 로그 시각 | slim 이미지에 tzdata 가 없어 로그 시각이 UTC 로 보일 수 있음 | 기능 영향 없음 |
 | eslint 경고 4건 | react-refresh 의 개발용 핫리로드 안내 | 기능 영향 없음 |
 

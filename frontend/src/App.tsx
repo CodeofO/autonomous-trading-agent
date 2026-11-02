@@ -14,10 +14,11 @@ import { Stock } from "./pages/Stock";
 import { TradingRoom } from "./pages/TradingRoom";
 
 function Routed() {
-  const { token } = useAuth();
-  if (!token) return <Login />;
+  const { token, authEnabled, ready } = useAuth();
+  if (!ready) return null;
+  if (authEnabled && !token) return <Login />;
   return (
-    <EventsProvider key={token}>
+    <EventsProvider key={token ?? "local"}>
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<Dashboard />} />

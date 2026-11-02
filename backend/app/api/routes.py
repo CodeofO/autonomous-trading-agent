@@ -60,6 +60,8 @@ C = Annotated[Container, Depends(get_c)]
 
 def require_user(request: Request, authorization: Annotated[str | None, Header()] = None) -> dict[str, Any]:
     c: Container = request.app.state.container
+    if not c.settings.auth_enabled:
+        return {"uid": 0, "u": "local"}
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(401, "로그인이 필요합니다")
     data = verify_token(c.secret_key, authorization.split(" ", 1)[1].strip())
@@ -92,7 +94,7 @@ def health(c: C) -> dict[str, str]:
 def auth_status(c: C) -> dict[str, Any]:
     with c.db.session() as s:
         n = s.scalar(select(func.count()).select_from(User)) or 0
-    return {"setup_required": n == 0}
+    return {"auth_enabled": c.settings.auth_enabled, "setup_required": c.settings.auth_enabled and n == 0}
 
 
 @router.post("/auth/setup")

@@ -22,6 +22,7 @@ def _client(tmp_path: Path, **kw: Any) -> TestClient:
         database_url="sqlite://",
         data_dir=tmp_path,
         sim_start="2026-11-02T10:00:00",
+        auth_enabled=kw.pop("auth_enabled", True),
         enable_scheduler=False,
         **kw,
     )
@@ -51,10 +52,10 @@ def _wait_run(c: TestClient, h: dict[str, str], n: int = 1, timeout: float = 20)
 
 
 def test_auth_flow(client: TestClient) -> None:
-    assert client.get("/api/auth/status").json() == {"setup_required": True}
+    assert client.get("/api/auth/status").json() == {"auth_enabled": True, "setup_required": True}
     assert client.get("/api/portfolio").status_code == 401
     h = _login(client)
-    assert client.get("/api/auth/status").json() == {"setup_required": False}
+    assert client.get("/api/auth/status").json() == {"auth_enabled": True, "setup_required": False}
     assert client.post("/api/auth/setup", json={"username": "x", "password": PW}).status_code == 409
     assert (
         client.post("/api/auth/login", json={"username": "me", "password": "wrong-password"}).status_code
@@ -207,3 +208,12 @@ def test_secrets_never_exposed(tmp_path: Path) -> None:
         body = c.get("/api/system", headers=h).text
         assert key not in body and "llm.example.com" in body
         assert key not in c.get("/api/openapi.json").text
+
+
+def test_default_mode_needs_no_login(tmp_path: Path) -> None:
+    with _client(tmp_path, auth_enabled=False) as c:
+        assert c.get("/api/auth/status").json() == {"auth_enabled": False, "setup_required": False}
+        assert c.get("/api/portfolio").status_code == 200
+        assert c.post("/api/engine/kill", json={"reason": "t"}).json()["status"] == "KILLED"
+        with c.websocket_connect("/ws/events") as ws:
+            assert ws.receive_json()["channel"] == "hello"

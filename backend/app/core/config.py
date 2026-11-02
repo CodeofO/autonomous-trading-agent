@@ -64,6 +64,8 @@ class Settings(BaseSettings):
     database_url: str = f"sqlite:///{BACKEND_DIR / 'data' / 'app.db'}"
     data_dir: Path = BACKEND_DIR / "data"
     app_secret_key: SecretStr | None = None
+    # 로컬 전용(127.0.0.1)이라 기본은 로그인 없음. 다른 사람이 접근할 수 있는 환경이면 true 로 켠다.
+    auth_enabled: bool = False
     session_ttl_hours: int = 12
     log_level: str = "INFO"
     enable_scheduler: bool = True

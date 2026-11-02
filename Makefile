@@ -8,7 +8,7 @@ migrate:
 	cd backend && uv run alembic upgrade head
 
 backend:
-	cd backend && uv run uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8000
+	cd backend && uv run uvicorn app.main:create_app --factory --host 127.0.0.1 --port 18000
 
 frontend:
 	cd frontend && npm run dev

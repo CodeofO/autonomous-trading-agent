@@ -18,7 +18,7 @@ async def events_ws(ws: WebSocket) -> None:
     c: Container = ws.app.state.container
     # 브라우저 WebSocket 은 헤더를 못 붙이므로 쿼리 토큰 사용 (로컬 전용, 로그에 남기지 않음)
     token = ws.query_params.get("token", "")
-    if verify_token(c.secret_key, token) is None:
+    if c.settings.auth_enabled and verify_token(c.secret_key, token) is None:
         await ws.close(code=4401)
         return
     await ws.accept()

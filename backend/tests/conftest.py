@@ -63,6 +63,7 @@ def _isolate_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "DATABASE_URL",
         "TRADING_MODE",
         "APP_SECRET_KEY",
+        "AUTH_ENABLED",
     ):
         monkeypatch.delenv(key, raising=False)
     from app.core.config import Settings

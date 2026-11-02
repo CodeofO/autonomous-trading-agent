@@ -71,10 +71,11 @@ export function EventsProvider({ children }: { children: ReactNode }) {
     };
 
     const connect = () => {
+      if (stopped) return;
       const token = getToken();
-      if (!token || stopped) return;
+      const query = token ? `?token=${encodeURIComponent(token)}` : "";
       const proto = window.location.protocol === "https:" ? "wss" : "ws";
-      ws = new WebSocket(`${proto}://${window.location.host}/ws/events?token=${encodeURIComponent(token)}`);
+      ws = new WebSocket(`${proto}://${window.location.host}/ws/events${query}`);
       ws.onopen = () => {
         retry = 0;
         setConnected(true);

@@ -28,7 +28,7 @@ const STATUS_KO: Record<string, string> = { RUNNING: "실행 중", PAUSED: "일�
 export function Layout() {
   const { data: sys } = useSystem();
   const { connected, simTime } = useEvents();
-  const { logout } = useAuth();
+  const { logout, authEnabled } = useAuth();
   const now = simTime ?? sys?.now;
   return (
     <div className="app">
@@ -51,9 +51,11 @@ export function Layout() {
           <span className={`conn ${connected ? "on" : ""}`}>
             {connected ? "● 실시간 연결" : "○ 연결 대기"}
           </span>
-          <button className="link" onClick={logout}>
-            로그아웃
-          </button>
+          {authEnabled && (
+            <button className="link" onClick={logout}>
+              로그아웃
+            </button>
+          )}
         </div>
       </aside>
       <div className="main">

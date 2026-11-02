@@ -28,14 +28,14 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:${BACKEND_PORT:-18000}:8000"
 
   frontend:
     build: ./frontend
     depends_on:
       - backend
     ports:
-      - "127.0.0.1:5173:80"
+      - "127.0.0.1:${FRONTEND_PORT:-15173}:80"
 
 volumes:
   pgdata:
