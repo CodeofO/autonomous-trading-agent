@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import json
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -16,9 +15,7 @@ import respx
 
 from app.brokers.base import OrderRequest, OrderSide, OrderStatus, OrderType
 from app.brokers.paper import PaperBroker, PaperCosts
-from app.container import build_container
 from app.core.clock import KST, SimulatedClock
-from app.core.config import Settings
 from app.core.http import LiveOrderBlockedError, SafeHttpClient
 from app.core.market_calendar import MarketCalendar
 from app.market import toss
@@ -153,7 +150,9 @@ async def test_toss_order_and_account_paths_always_blocked(method: str, path: st
 async def test_toss_unlisted_and_websocket_blocked() -> None:
     http = SafeHttpClient(toss.ROUTES)
     with pytest.raises(LiveOrderBlockedError):
-        await http.request("GET", f"{B}/api/v1/stocks/005930/warnings")
+        await http.request("GET", f"{B}/api/v1/stocks/005930/unknown-endpoint")
+    with pytest.raises(LiveOrderBlockedError):
+        await http.request("POST", f"{B}/api/v1/stocks/005930/warnings")  # 조회 경로라도 POST 는 차단
     with pytest.raises(LiveOrderBlockedError):
         await http.request("GET", "https://openapi-ws.tossinvest.com/ws/v1")
 
@@ -387,50 +386,26 @@ async def test_realtime_still_rejects_outside_hours() -> None:
 
 
 # ------------------------------------------------------------------ 설정·조립
-def test_toss_settings_resolution() -> None:
-    s = Settings(toss_client_id="tsck_id", toss_client_secret="sec_value")  # type: ignore[arg-type]
-    assert s.resolved_data_source == "toss" and s.resolved_clock_mode == "real"
-    assert {"tsck_id", "sec_value"} <= set(s.secret_values())
-    with pytest.raises(ValueError):
-        _ = Settings(data_source="toss").resolved_data_source
+def test_account_resets_once_when_leaving_mock(tmp_path: Path) -> None:
+    from tests.helpers import make_container
 
-
-def test_account_resets_when_switching_mock_to_toss(tmp_path: Path) -> None:
     url = f"sqlite:///{tmp_path / 'sw.db'}"
-    mock = build_container(
-        Settings(
-            database_url=url, data_dir=tmp_path, enable_scheduler=False, sim_start="2026-11-02T10:00:00"
-        ),
-        create_schema=True,
-    )
-    mock.broker.state["cash"] = 1.0
-    mock.broker.state["positions"]["MOCK01"] = {"qty": 1, "avg_price": 1.0, "opened_day": "2026-11-01"}
-    mock.broker._save()
-    real = build_container(
-        Settings(
-            database_url=url,
-            data_dir=tmp_path,
-            enable_scheduler=False,
-            toss_client_id="tsck_id",
-            toss_client_secret="sec_value",
-        )
-    )  # type: ignore[arg-type]
-    assert real.data_source == "toss" and real.toss is not None and real.broker.realtime
+    first = make_container(tmp_path, database_url=url)
+    first.kv.set("account_source", {"source": "mock"})  # 예전 가상 시장 버전의 DB 를 흉내
+    first.broker.state["cash"] = 1.0
+    first.broker.state["positions"]["MOCK01"] = {"qty": 1, "avg_price": 1.0, "opened_day": "2026-11-01"}
+    first.broker._save()
+    first.hub.chat("analyst", "text", "가짜 종목 이야기")
+    real = make_container(tmp_path, database_url=url, create_schema=False)
     assert (
         real.broker.state["cash"] == real.settings.paper_initial_cash and real.broker.state["positions"] == {}
     )
-    events = json.dumps([m.content for m in _chat(real)], ensure_ascii=False)
-    assert "MOCK → TOSS" in events
-    again = build_container(
-        Settings(
-            database_url=url,
-            data_dir=tmp_path,
-            enable_scheduler=False,
-            toss_client_id="tsck_id",
-            toss_client_secret="sec_value",
-        )
-    )  # type: ignore[arg-type]
-    assert again.broker.state["initial_cash"] == real.broker.state["initial_cash"]  # 같은 소스면 유지
+    msgs = [m.content for m in _chat(real)]
+    assert "가짜 종목 이야기" not in msgs and any("토스증권 실제 시세로 전환" in m for m in msgs)
+    real.broker.state["cash"] = 123.0
+    real.broker._save()
+    again = make_container(tmp_path, database_url=url, create_schema=False)
+    assert again.broker.state["cash"] == 123.0  # 같은 소스면 유지
 
 
 def _chat(c: Any) -> list[Any]:

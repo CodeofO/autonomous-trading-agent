@@ -1090,3 +1090,41 @@ label.toggle input {
     overflow-x: auto;
   }
 }
+
+.banner {
+  padding: 10px 22px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.banner.warn {
+  background: rgba(255, 159, 10, 0.14);
+  color: var(--warn);
+  border-bottom: 1px solid rgba(255, 159, 10, 0.3);
+}
+.flow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.flow div {
+  background: var(--panel-2);
+  border-radius: 8px;
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  font-size: 12px;
+}
+.flow b {
+  font-size: 15px;
+}
+.warn-badge {
+  display: inline-block;
+  background: rgba(224, 49, 49, 0.12);
+  color: var(--danger);
+  border-radius: 6px;
+  padding: 2px 8px;
+  margin: 0 4px 4px 0;
+  font-size: 12px;
+  font-weight: 700;
+}

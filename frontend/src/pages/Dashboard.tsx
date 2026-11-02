@@ -10,8 +10,7 @@ import { HoldingsTable } from "./Portfolio";
 
 const JOB_KO: Record<string, string> = {
   morning: "☀️ 장전 판단",
-  sync: "🔄 시세·체결 확정",
-  afternoon: "🌤️ 오후 판단",
+  hourly: "⏰ 정시 판단",
   report: "📊 마감 리포트",
 };
 
@@ -31,10 +30,6 @@ export function Dashboard() {
   const pause = useMutation({
     mutationFn: (p: boolean) => post(p ? "/api/engine/pause" : "/api/engine/resume"),
     onSuccess: () => qc.invalidateQueries(),
-  });
-  const sim = useMutation({
-    mutationFn: (body: { action: string; speed?: number }) => post("/api/sim", body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["system"] }),
   });
   const persona = sys?.persona ?? DEFAULT_PERSONA;
   const unrealized = pf?.positions.reduce((s, p) => s + p.unrealized_pnl, 0) ?? 0;
@@ -108,26 +103,6 @@ export function Dashboard() {
               )}
             </div>
             {run.isError && <p className="error">{errorText(run.error)}</p>}
-            {sys?.clock_mode === "simulated" && (
-              <div className="sim-controls">
-                <span className="muted">시뮬레이션 배속</span>
-                {[60, 600, 1800].map((s) => (
-                  <button
-                    key={s}
-                    className={`btn tiny ${sys.sim_speed === s ? "active" : ""}`}
-                    onClick={() => sim.mutate({ action: "speed", speed: s })}
-                  >
-                    ×{s}
-                  </button>
-                ))}
-                <button
-                  className="btn tiny"
-                  onClick={() => sim.mutate({ action: sys.sim_paused ? "resume" : "pause" })}
-                >
-                  {sys.sim_paused ? "▶ 시간 흐르기" : "⏸ 시간 멈춤"}
-                </button>
-              </div>
-            )}
           </section>
 
           <section className="card">

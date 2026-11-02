@@ -26,8 +26,7 @@ flowchart LR
   end
 
   subgraph EXT["외부 (조회 전용, 허용목록)"]
-    TOSS[(토스증권 Open API<br/>현재가·일봉·종목·랭킹·캘린더)]
-    PD[(공공데이터<br/>주식시세 T+1 · 대체)]
+    TOSS[(토스증권 Open API<br/>현재가·일봉·종목·랭킹·수급·지수·섹터·캘린더)]
     DART[(OpenDART<br/>재무·공시)]
     NAVER[(네이버 뉴스)]
     LLM[(OpenAI 호환 LLM)]
@@ -48,9 +47,8 @@ flowchart LR
   Tools --> Store
   Tools --> Research
   Store --> TOSS
-  Store -.토스 키 없을 때.-> PD
   Broker -- 실시간 현재가 --> TOSS
-  Tools -- 랭킹 스크리닝 --> TOSS
+  Tools -- 랭킹·수급·지수·섹터 --> TOSS
   Research --> DART
   Research --> NAVER
   Agent --> LLM
@@ -64,14 +62,14 @@ flowchart LR
 ```
 
 - 모든 외부 호출은 `SafeHttpClient`(허용목록·토큰버킷·지수 백오프)를 거칩니다. 주문·계좌 경로는 토스 포함 모든 호스트에서 무조건 차단되고, 토스는 조회 7개 경로만 열려 있습니다.
-- 키가 없으면 `MockWorld`(가상 종목 20개의 일봉·뉴스·공시·재무)가 공공데이터·DART·네이버를 대신합니다.
+- 목업 데이터는 없습니다. 테스트는 `backend/tests/fake_toss.py`(테스트 전용 가짜 토스 클라이언트)로 네트워크 없이 돕니다.
 
 ## 2. 디렉터리
 
 ```
 backend/app/
-  core/        설정(TRADING_MODE=paper 강제), 마스킹 로깅, 시계, KRX 캘린더, 호가단위, 외부호출 허용목록
-  market/      일봉 저장소, 공공데이터 어댑터, MockWorld(가상 시장)
+  core/        설정(TRADING_MODE=paper 강제, 토스 키 필수), 마스킹 로깅, 시계(KST), 장 캘린더, 호가단위, 외부호출 허용목록
+  market/      일봉 저장소, 토스증권 조회 전용 클라이언트·시세 공급자(스크리너·실시간 현재가)
   research/    OpenDART, 네이버 뉴스, ResearchService 퍼사드
   agent/       LLM 클라이언트, 도구, 프롬프트, 세션 실행기, 규칙 기반 대체 에이전트
   brokers/     BrokerInterface, PaperBroker
@@ -153,25 +151,30 @@ stateDiagram-v2
 
 허용되지 않은 전이는 `InvalidTransitionError` 입니다(`engine/state_machine.py`). 같은 `client_order_id` 로 다시 접수하면 기존 결과를 돌려줍니다(멱등).
 
-## 5. 데이터 시점 규칙 (미래 정보 차단)
+## 5. 하루 일정과 체결 (실제 한국 시각)
 
 ```mermaid
 gantt
   dateFormat  HH:mm
   axisFormat  %H:%M
-  title 거래일 D (KST)
-  section 데이터
-  D-1 일봉 공개 (공공데이터)     :milestone, 13:00, 0m
-  section 매니저
-  오전 판단 (D-2 일봉까지 사용) → 시가 체결 :08:35, 25m
-  오후 판단 (D-1 일봉까지 사용) → 종가 체결 :14:00, 30m
-  section 엔진
-  동기화·체결 확정 (D-1 주문)    :13:20, 10m
-  일일 리포트                    :15:45, 10m
+  title 거래일 (KST, 토스 장 운영 캘린더 기준)
+  section 매니저 (LLM)
+  장전 판단 → 09:00 현재가 체결 :08:35, 25m
+  정시 판단 10시            :10:00, 15m
+  정시 판단 11시            :11:00, 15m
+  정시 판단 12시            :12:00, 15m
+  정시 판단 13시            :13:00, 15m
+  정시 판단 14시            :14:00, 15m
+  정시 판단 15시            :15:00, 15m
+  section 엔진 (1분 주기)
+  체결·손절익절 감시         :09:00, 380m
+  section 마감
+  15:20 미체결 만료          :milestone, 15:20, 0m
+  일일 리포트               :15:45, 10m
 ```
 
-- `MarketCalendar.latest_published_day(now)` 가 '지금 볼 수 있는 마지막 일봉'을 정합니다. MockWorld·백테스터·PaperBroker 모두 이 함수를 따릅니다.
-- 백테스터는 시점마다 공개된 일봉만 저장소에 넣습니다. 손계산 재현 테스트가 미래 정보 누설을 잡아냈고, 그 수정이 반영돼 있습니다(`tests/test_backtest.py`).
+- 시장가는 토스 현재가 ± 슬리피지로 즉시, 지정가는 도달 시 체결합니다. 장전 주문은 09:00 이후 첫 현재가로 체결합니다.
+- 백테스터만 '다음 일봉' 체결 규칙과 `latest_published_day` 공개 시점 규칙을 씁니다(미래 정보 차단, `tests/test_backtest.py`).
 
 ## 6. 실시간 이벤트 (WebSocket)
 
@@ -182,4 +185,4 @@ gantt
 | `chat` | 트레이딩 룸 메시지 `{role: analyst\|risk\|broker\|system\|user, kind: text\|tool\|decision\|fill\|block\|summary}` |
 | `typing` | 입력 중 표시 `{role, active, label}` |
 | `audit` | 감사 로그 (신호·주문·체결·리스크 차단·킬 스위치 …) |
-| `state` | 엔진 상태·시뮬레이션 시각·자산 변경 → UI 가 쿼리를 다시 불러옴 |
+| `state` | 엔진 상태·자산 변경 → UI 가 쿼리를 다시 불러옴 |

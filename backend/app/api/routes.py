@@ -31,7 +31,6 @@ from app.db.models import (
     WatchlistItem,
 )
 from app.engine.orders import order_dict
-from app.market.mock_world import COMPANIES
 from app.risk.rules import RiskConfig
 from app.strategies.rules import REGISTRY, build, param_schema
 
@@ -136,11 +135,11 @@ def system(c: C, _: U) -> dict[str, Any]:
     llm_host = urlsplit(s.llm_base_url).hostname if s.has_llm else None
     return {
         "trading_mode": s.trading_mode,
-        "data_source": c.data_source,
-        "clock_mode": c.clock_mode,
+        "data_source": "toss",
+        "toss_ok": c.engine._health[0],
+        "toss_issue": c.kv.get("toss_health").get("reason") if not c.engine._health[0] else None,
         "now": c.clock.now().isoformat(),
-        "sim_speed": c.scheduler.sim_speed if c.clock_mode == "simulated" else None,
-        "sim_paused": c.scheduler.paused_sim,
+        "agent_interval_minutes": c.settings.agent_interval_minutes,
         "llm": {
             "configured": s.has_llm,
             "model": s.llm_model if s.has_llm else None,
@@ -235,25 +234,6 @@ def resume(c: C, _: U) -> dict[str, Any]:
 def pause(c: C, _: U) -> dict[str, Any]:
     c.engine.pause()
     return {"status": c.engine.status}
-
-
-class SimBody(BaseModel):
-    action: Literal["pause", "resume", "speed"]
-    speed: float | None = Field(None, gt=0, le=86400)
-
-
-@router.post("/sim")
-def sim_control(body: SimBody, c: C, _: U) -> dict[str, Any]:
-    if c.clock_mode != "simulated":
-        raise HTTPException(409, "시뮬레이션 모드가 아닙니다")
-    if body.action == "pause":
-        c.scheduler.paused_sim = True
-    elif body.action == "resume":
-        c.scheduler.paused_sim = False
-    elif body.speed:
-        c.scheduler.sim_speed = body.speed
-    c.hub.state({"sim_paused": c.scheduler.paused_sim, "sim_speed": c.scheduler.sim_speed})
-    return {"paused": c.scheduler.paused_sim, "speed": c.scheduler.sim_speed}
 
 
 # ====================================================================== 에이전트
@@ -506,10 +486,16 @@ class WatchBody(BaseModel):
 
 
 @router.post("/watchlist")
-def add_watch(body: WatchBody, c: C, _: U) -> dict[str, Any]:
+async def add_watch(body: WatchBody, c: C, _: U) -> dict[str, Any]:
+    name = body.name
+    if not name:
+        try:
+            name = str((await c.toss.info([body.symbol])).get(body.symbol, {}).get("name", ""))
+        except Exception:
+            name = ""
     with c.db.session() as s:
         if s.get(WatchlistItem, body.symbol) is None:
-            s.add(WatchlistItem(symbol=body.symbol, name=body.name or c.store.name_of(body.symbol)))
+            s.add(WatchlistItem(symbol=body.symbol, name=name or c.store.name_of(body.symbol)))
     return {"ok": True}
 
 
@@ -525,22 +511,15 @@ def del_watch(symbol: str, c: C, _: U) -> dict[str, Any]:
 # ====================================================================== 시장/종목
 @router.get("/market/universe")
 async def universe(c: C, _: U, q: str = "", limit: int = Query(50, ge=1, le=500)) -> list[dict[str, Any]]:
-    if c.toss is not None:
+    try:
         return await c.toss.search(q, limit)
-    snap = c.store.snapshot()
-    if not snap and c.world:
-        return [{"symbol": x.symbol, "name": x.name, "market": x.market} for x in COMPANIES]
-    rows = [b for b in snap if not q or q in b.symbol or q in b.name]
-    rows.sort(key=lambda b: -b.market_cap)
-    return [
-        {"symbol": b.symbol, "name": b.name, "market": b.market, "close": b.close, "market_cap": b.market_cap}
-        for b in rows[:limit]
-    ]
+    except Exception as e:
+        raise HTTPException(503, f"토스증권 종목 목록을 불러오지 못했습니다: {type(e).__name__}") from e
 
 
 @router.get("/market/{symbol}/candles")
 async def candles(symbol: str, c: C, _: U, days: int = Query(180, ge=20, le=1000)) -> dict[str, Any]:
-    latest = c.clock.now().astimezone(KST).date() if c.toss is not None else c.store.latest_day()
+    latest = c.clock.now().astimezone(KST).date()
     if latest is not None:
         await c.store.ensure_history(symbol, latest, int(days * 1.5))
     bars = c.store.history(symbol, latest, days)
@@ -591,12 +570,22 @@ async def candles(symbol: str, c: C, _: U, days: int = Query(180, ge=20, le=1000
 async def research(symbol: str, c: C, _: U) -> dict[str, Any]:
     tb = c.runner.tb
     name = c.store.name_of(symbol) or symbol
-    fin, news, disc = await asyncio.gather(
+    fin, news, disc, supply, status = await asyncio.gather(
         tb.call("get_financials", {"symbol": symbol}),
         tb.call("search_news", {"query": name, "limit": 8}),
         tb.call("get_disclosures", {"symbol": symbol, "days": 60}),
+        tb.call("get_supply_demand", {"symbol": symbol, "days": 10}),
+        tb.call("get_stock_status", {"symbol": symbol}),
     )
-    return {"symbol": symbol, "name": name, "financials": fin, "news": news, "disclosures": disc}
+    return {
+        "symbol": symbol,
+        "name": name,
+        "financials": fin,
+        "news": news,
+        "disclosures": disc,
+        "supply": supply,
+        "status": status,
+    }
 
 
 # ====================================================================== 백테스트 / 리포트

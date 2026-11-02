@@ -20,8 +20,8 @@ die() { printf '%s\n' "${RED}✗ $*${RESET}" >&2; exit 1; }
 if [[ ! -f .env ]]; then
   cp .env.example .env
   chmod 600 .env
-  warn ".env 가 없어서 .env.example 로 만들었어요. 키 없이도 가상 시장(MOCK)으로 바로 실행됩니다."
-  warn "LLM·실데이터를 쓰려면 .env 의 LLM_BASE_URL / LLM_MODEL / LLM_API_KEY 등을 채운 뒤 다시 실행하세요."
+  warn ".env 가 없어서 .env.example 로 만들었어요."
+  warn ".env 에 TOSS_CLIENT_ID / TOSS_CLIENT_SECRET(필수)과 LLM_BASE_URL / LLM_MODEL / LLM_API_KEY 를 채운 뒤 다시 실행하세요."
 fi
 
 # 안전 확인: TRADING_MODE 는 paper 만 허용
@@ -41,8 +41,7 @@ echo
 printf '%s\n' "${BOLD}🦉 AI 펀드매니저 — 모의투자(PAPER)${RESET}"
 if filled LLM_BASE_URL && filled LLM_MODEL && filled LLM_API_KEY; then say "LLM: 설정됨"; else warn "LLM: 미설정 → 규칙 기반 매니저"; fi
 if filled TOSS_CLIENT_ID && filled TOSS_CLIENT_SECRET; then say "시세: 토스증권 Open API (실제 종목·실시간, 조회 전용)"
-elif filled DATA_GO_KR_SERVICE_KEY; then say "시세: 공공데이터포털(실데이터, T+1)"
-else warn "시세: 가상 시장(MOCK) + 가속 시뮬레이션 — 실제 종목은 .env 에 TOSS_CLIENT_ID/SECRET 입력"; fi
+else die ".env 에 TOSS_CLIENT_ID / TOSS_CLIENT_SECRET 이 필요합니다 (토스증권 WTS > 설정 > Open API, 허용 IP 등록 필수)"; fi
 filled DART_API_KEY && say "재무·공시: OpenDART" || true
 filled NAVER_CLIENT_ID && say "뉴스: 네이버 검색" || true
 echo

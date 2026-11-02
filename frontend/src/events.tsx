@@ -13,7 +13,6 @@ interface EventsState {
   audit: AuditEvent[];
   typing: Typing | null;
   connected: boolean;
-  simTime: string | null;
 }
 
 const Ctx = createContext<EventsState>({
@@ -21,7 +20,6 @@ const Ctx = createContext<EventsState>({
   audit: [],
   typing: null,
   connected: false,
-  simTime: null,
 });
 
 export const useEvents = () => useContext(Ctx);
@@ -39,7 +37,6 @@ export function EventsProvider({ children }: { children: ReactNode }) {
   const [audit, setAudit] = useState<AuditEvent[]>([]);
   const [typing, setTyping] = useState<Typing | null>(null);
   const [connected, setConnected] = useState(false);
-  const [simTime, setSimTime] = useState<string | null>(null);
   const invalidateTimer = useRef<number | null>(null);
 
   useEffect(() => {
@@ -98,8 +95,7 @@ export function EventsProvider({ children }: { children: ReactNode }) {
         } else if (msg.channel === "typing") {
           setTyping(msg.data.active ? { role: msg.data.role, label: msg.data.label } : null);
         } else if (msg.channel === "state") {
-          if (typeof msg.data.sim_time === "string") setSimTime(msg.data.sim_time);
-          if (Object.keys(msg.data).some((k) => k !== "sim_time")) refresh();
+          refresh();
         }
       };
     };
@@ -111,10 +107,7 @@ export function EventsProvider({ children }: { children: ReactNode }) {
     };
   }, [qc]);
 
-  const value = useMemo(
-    () => ({ messages, audit, typing, connected, simTime }),
-    [messages, audit, typing, connected, simTime],
-  );
+  const value = useMemo(() => ({ messages, audit, typing, connected }), [messages, audit, typing, connected]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

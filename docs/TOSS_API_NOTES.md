@@ -54,6 +54,13 @@
 | GET | `/api/v1/stocks/all?market=KOSPI\|KOSDAQ&securityType=STOCK` | 유니버스(보통주), 하루 1회 캐시 | STOCK_ALL 1/s → 0.8/s |
 | GET | `/api/v1/rankings?type=&marketCountry=KR&duration=` | 스크리닝(거래대금·거래량·상승/하락률 상위 100) | RANKING 5/s → 4/s |
 | GET | `/api/v1/market-calendar/KR` | 휴장일·장 시간(전일/당일/익일) | MARKET_INFO 3/s → 2.4/s |
+| GET | `/api/v1/orderbook`, `/api/v1/trades`, `/api/v1/price-limits` | 호가·최근 체결·상하한가 (`get_stock_status`) | MARKET_DATA |
+| GET | `/api/v1/stocks/{symbol}/warnings` | 매수 유의사항 | STOCK |
+| GET | `/api/v1/stocks/{symbol}/investor-trading` · `program-trades` · `short-selling` · `credit-trades` · `securities-lending` | 수급 (`get_supply_demand`, 종목 상세 화면) | STOCK_TRADING_TREND 10/s → 8/s |
+| GET | `/api/v1/exchange-rate` | 원/달러 환율 | MARKET_INFO |
+| GET | `/api/v1/market-indicators/prices`, `/{KOSPI\|KOSDAQ}/candles`, `/{KOSPI\|KOSDAQ}/investor-trading` | 지수·지수 투자자 매매 (`get_market_overview`) | MARKET_INDICATOR 10/s → 8/s · CHART 5/s → 4/s |
+| GET | `/api/v1/sectors`, `/sectors/{id}`, `/sectors/{id}/stocks`, `/sectors/rankings` | 섹터 (`explore_sector`, 시장 개요) | SECTOR · SECTOR_RANKING 5/s → 4/s |
+| GET | `/api/v1/rankings/investor-trading` | 외국인·기관·개인 순매수 상위 (시장 개요, 수급 스크리닝) | RANKING |
 
 ### 응답 형식 (공식 예시 기준)
 
@@ -81,7 +88,7 @@
 | * | `/api/v1/conditional-orders/**` | 조건주문 (SINGLE/OCO/OTO) |
 | GET | `/api/v1/accounts`, `/api/v1/holdings` | 실계좌 정보 |
 
-→ `core/http.check_outbound` 가 주문·계좌 경로를 **어떤 호스트든 허용목록보다 먼저** 차단하고(`LiveOrderBlockedError`), 토스 호스트는 위 7개 조회 경로 외 전부 차단한다. 차단 요청은 네트워크로 나가지 않는다 (`tests/test_toss.py`, `tests/test_guard.py`).
+→ `core/http.check_outbound` 가 주문·계좌 경로를 **어떤 호스트든 허용목록보다 먼저** 차단하고(`LiveOrderBlockedError`), 토스 호스트는 위 조회 경로 외 전부 차단한다(같은 경로라도 GET 외 메서드는 차단). 차단 요청은 네트워크로 나가지 않는다 (`tests/test_toss.py`, `tests/test_guard.py`).
 
 ## 6. 실시간 시세 (WebSocket)
 

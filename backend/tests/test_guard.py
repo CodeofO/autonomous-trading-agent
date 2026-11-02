@@ -18,18 +18,18 @@ from app.core.http import (
     SafeHttpClient,
     check_outbound,
 )
-from app.market import public_data
+from app.market import toss
 from app.research import dart, naver
 from tests.helpers import make_env
 
-ALL_ROUTES = public_data.ROUTES + dart.ROUTES + naver.ROUTES
+ALL_ROUTES = toss.ROUTES + dart.ROUTES + naver.ROUTES
 
 
 @pytest.mark.parametrize("host", BROKER_HOST_DENYLIST)
 @pytest.mark.parametrize("method", ["GET", "POST", "DELETE"])
 def test_broker_hosts_always_blocked(host: str, method: str) -> None:
     with pytest.raises(LiveOrderBlockedError):
-        check_outbound(method, f"https://{host}/api/v1/prices", ALL_ROUTES)
+        check_outbound(method, f"https://{host}/api/v1/internal-endpoint", ALL_ROUTES)  # 허용목록 밖 경로
 
 
 @pytest.mark.parametrize(
@@ -39,7 +39,7 @@ def test_broker_hosts_always_blocked(host: str, method: str) -> None:
         "https://openapivts.koreainvestment.com:29443/uapi/domestic-stock/v1/trading/order-cash",
         "https://paper-api.alpaca.markets/v2/orders",
         "https://evil.example.com/v1/orders",
-        "https://apis.data.go.kr/1160100/orders",
+        "https://opendart.fss.or.kr/api/orders",
     ],
 )
 def test_order_like_urls_blocked(url: str) -> None:
@@ -53,7 +53,7 @@ def test_unknown_host_blocked_even_for_get() -> None:
 
 
 def test_allowed_routes_pass() -> None:
-    check_outbound("GET", public_data.URL, ALL_ROUTES)
+    check_outbound("GET", f"{toss.BASE}/api/v1/prices", ALL_ROUTES)
     check_outbound("GET", "https://opendart.fss.or.kr/api/list.json", ALL_ROUTES)
     check_outbound("GET", naver.URL, ALL_ROUTES)
     with pytest.raises(OutboundBlockedError):  # 메서드가 다르면 차단

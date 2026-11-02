@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime
+from typing import Any
 
 from app.brokers.paper import PaperBroker, PaperCosts
 from app.core.clock import KST, SimulatedClock
@@ -74,3 +75,22 @@ def make_env(
     store.upsert(provider.bars)
     broker = PaperBroker(db, store, cal, clock, initial_cash=cash, costs=costs or PaperCosts())
     return Env(db, clock, cal, store, provider, broker)
+
+
+def make_container(
+    tmp_path: Any,
+    start: datetime | None = None,
+    *,
+    create_schema: bool = True,
+    database_url: str = "sqlite://",
+    **settings: Any,
+) -> Any:
+    """가짜 토스 클라이언트 + 고정 시계로 전체 시스템 조립 (네트워크 없음)."""
+    from app.container import build_container
+    from app.core.config import Settings
+    from tests.fake_toss import FakeTossClient
+
+    clock = SimulatedClock(start or datetime(2026, 11, 2, 10, 0, tzinfo=KST))
+    s = Settings(database_url=database_url, data_dir=tmp_path, enable_scheduler=False, **settings)
+    c = build_container(s, create_schema=create_schema, toss_client=FakeTossClient(clock), clock=clock)
+    return c

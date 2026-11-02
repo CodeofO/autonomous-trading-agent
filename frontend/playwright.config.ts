@@ -21,11 +21,11 @@ export default defineConfig({
   ],
   webServer: [
     {
+      // 테스트 전용 서버: 가짜 토스 + 고정 시각, 실제 LLM·토스 호출 없음
       command:
         `rm -rf ${tmp} && mkdir -p ${tmp} && cd ../backend && ` +
         `DATABASE_URL=sqlite:///../frontend/${tmp}/e2e.db DATA_DIR=../frontend/${tmp} ` +
-        `ENABLE_SCHEDULER=false SIM_START=2026-11-02T10:00:00 DATA_SOURCE=mock LLM_BASE_URL= LLM_API_KEY= ` +
-        `uv run uvicorn app.main:create_app --factory --host 127.0.0.1 --port ${BACKEND_PORT}`,
+        `E2E_PORT=${BACKEND_PORT} uv run python -m tests.e2e_server`,
       url: `http://127.0.0.1:${BACKEND_PORT}/api/health`,
       reuseExistingServer: false,
       timeout: 120_000,

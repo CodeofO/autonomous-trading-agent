@@ -6,6 +6,7 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI
 
@@ -28,23 +29,23 @@ def _migrate(url: str) -> None:
     command.upgrade(cfg, "head")
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(settings: Settings | None = None, **container_overrides: Any) -> FastAPI:
+    """`container_overrides`(toss_client, clock)는 테스트 전용."""
     settings = settings or get_settings()
     setup_logging(settings.log_level, settings.secret_values())
     in_memory = settings.database_url in ("sqlite://", "sqlite:///:memory:")
     if not in_memory:
         _migrate(settings.database_url)
-    container = build_container(settings, create_schema=in_memory)
+    container = build_container(settings, create_schema=in_memory, **container_overrides)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         c = container
         log.info(
-            "기동: TRADING_MODE=%s DATA=%s CLOCK=%s LLM=%s",
+            "기동: TRADING_MODE=%s 시세=토스증권(조회 전용) LLM=%s 장중판단=%s분",
             settings.trading_mode,
-            c.data_source,
-            c.clock_mode,
             settings.llm_model if settings.has_llm else "없음(규칙 기반)",
+            settings.agent_interval_minutes,
         )
         await c.engine.refresh_calendar()
         try:
@@ -56,13 +57,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             c.hub.chat(
                 SYSTEM,
                 "text",
-                f"🟢 시스템 기동 — 데이터: {c.data_source.upper()}, 시계: {c.clock_mode}, "
+                f"🟢 시스템 기동 — 시세: 토스증권 실시간, 장중 판단 {settings.agent_interval_minutes}분 간격, "
                 f"LLM: {settings.llm_model if settings.has_llm else '미설정(규칙 기반)'}",
             )
         yield
         c.scheduler.shutdown()
-        if c.toss is not None:
-            await c.toss.client.aclose()
+        await c.toss.client.aclose()
 
     app = FastAPI(
         title="AI Paper Fund Manager",

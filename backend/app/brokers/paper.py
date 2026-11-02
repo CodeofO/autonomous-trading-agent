@@ -58,7 +58,7 @@ class QuoteSource(Protocol):
 class PaperBroker(BrokerInterface):
     """가상 계좌.
 
-    - quotes 가 없으면 '다음 공식 일봉' 체결 (Mock·공공데이터, D-05)
+    - quotes 가 없으면 '다음 일봉' 체결 (백테스트용, D-05)
     - quotes 가 있으면 실시간 체결 (토스 시세, D-24): 장중 시장가는 현재가로 즉시, 지정가는 가격 도달 시,
       장 시작 전 주문은 09:00 이후 첫 현재가로, 당일 15:20 까지 미체결분은 취소
     """

@@ -38,7 +38,12 @@ from app.strategies.rules import Strategy
 
 log = logging.getLogger(__name__)
 
-TRIGGER_KO = {"morning": "☀️ 장 시작 전 점검", "afternoon": "🌤️ 오후 점검", "manual": "👆 수동 실행"}
+TRIGGER_KO = {
+    "morning": "☀️ 장 시작 전 점검",
+    "hourly": "⏰ 정시 점검",
+    "afternoon": "🌤️ 오후 점검",
+    "manual": "👆 수동 실행",
+}
 
 
 class AgentRunner:
@@ -209,7 +214,7 @@ class AgentRunner:
             {"role": "system", "content": self._system()},
             {"role": "user", "content": self._user_context(trigger)},
         ]
-        tools = openai_tools()
+        tools = openai_tools(toss=self.tb.toss is not None)
         nudged = False
         force_submit = False
         for step in range(self.max_steps):
@@ -351,7 +356,7 @@ class AgentRunner:
             run_id=run_id,
             payload=json.dumps(payload, ensure_ascii=False, default=str)[:4000],
         )
-        raw = normalize_decisions(payload.get("decisions"), self._symbol_lookup(held))
+        raw = normalize_decisions(payload.get("decisions"), await self._symbol_lookup(held))
         decisions: list[dict[str, Any]] = []
         seen: set[str] = set()
         for d in raw:
@@ -391,9 +396,17 @@ class AgentRunner:
             counts={a: sum(x["action"] == a for x in decisions) for a in ("BUY", "SELL", "HOLD")},
         )
 
-    def _symbol_lookup(self, held: dict[str, Any]) -> dict[str, str]:
-        """종목명/코드 → 종목코드 (LLM 이 이름으로 답하는 경우 대비)."""
+    async def _symbol_lookup(self, held: dict[str, Any]) -> dict[str, str]:
+        """종목명/코드 → 종목코드 (LLM 이 이름으로 답하는 경우 대비). 토스 전체 종목 목록 우선."""
         out: dict[str, str] = {}
+        if self.tb.toss is not None:
+            try:
+                for sym, it in (await self.tb.toss.universe()).items():
+                    out[sym.upper()] = sym
+                    if it.get("name"):
+                        out[str(it["name"])] = sym
+            except Exception as e:
+                log.warning("종목 목록 조회 실패(이름→코드 변환): %s", e)
         for b in self.tb.store.snapshot():
             out[b.symbol.upper()] = b.symbol
             if b.name:
@@ -526,7 +539,7 @@ def normalize_decisions(raw: Any, lookup: dict[str, str]) -> list[dict[str, Any]
 
     - 배열을 JSON 문자열로 감싸 보내는 경우 (Qwen 등)
     - {종목코드: {...}} 딕셔너리 형태
-    - symbol 대신 ticker/code 키, 또는 종목명("가온전자", "가온전자(MOCK01)")
+    - symbol 대신 ticker/code 키, 또는 종목명("삼성전자", "삼성전자(005930)")
     """
     if isinstance(raw, str):
         try:
@@ -557,7 +570,7 @@ def normalize_decisions(raw: Any, lookup: dict[str, str]) -> list[dict[str, Any]
         )
         sym = lookup.get(key) or lookup.get(key.upper())
         if sym is None:
-            m = re.search(r"\(([A-Za-z0-9]{4,12})\)", key)  # "가온전자(MOCK01)"
+            m = re.search(r"\(([A-Za-z0-9]{4,12})\)", key)  # "삼성전자(005930)"
             sym = lookup.get(m.group(1).upper()) if m else None
         if sym is None:
             sym = key

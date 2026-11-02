@@ -10,15 +10,14 @@
 | 용도 | 출처 | 키 | 비고 |
 |---|---|---|---|
 | 주가(실시간·일봉) · 종목 · 랭킹 · 캘린더 | **토스증권 Open API (조회 전용, 기본)** — [TOSS_API_NOTES.md](TOSS_API_NOTES.md) | `TOSS_CLIENT_ID`, `TOSS_CLIENT_SECRET` | 허용 IP 등록 필요 |
-| 주가(일봉) · 시가총액 (토스 대체) | 공공데이터포털 **금융위원회_주식시세정보** | `DATA_GO_KR_SERVICE_KEY` | **T+1**: 기준일 다음 영업일 13시 이후 공개 |
 | 재무제표 · 공시 · 기업코드 | 금융감독원 **OpenDART** | `DART_API_KEY` | 2015년 이후 재무제표 |
 | 뉴스 | **네이버 검색 API**(뉴스) | `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET` | 하루 25,000회 |
 | 판단 | 사용자가 지정한 **OpenAI 호환 Chat Completions** 엔드포인트 | `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY` | tool calling 사용, 미지원 시 JSON 모드 |
 | 주문 · 체결 · 잔고 | **자체 PaperBroker**(가상 계좌) | 없음 | 외부 주문 API 없음 |
 
-키가 하나도 없어도 Mock 데이터와 규칙 기반 에이전트로 전체가 동작한다.
+토스 키는 필수다. DART·네이버 키가 없으면 해당 정보 없이 판단한다. 목업 데이터는 없다(D-28).
 
-## 1. 금융위원회_주식시세정보 (공공데이터포털)
+## 1. 금융위원회_주식시세정보 (공공데이터포털) — ⛔ 더 이상 사용하지 않음 (D-28, 조사 기록으로만 보관)
 
 - 상세: <https://www.data.go.kr/data/15094808/openapi.do> (페이지에 포함된 Swagger 2.0 정의로 확인)
 - 요청: `GET https://apis.data.go.kr/1160100/GetStockSecuritiesInfoService_V2/getStockPriceInfo_V2`
@@ -83,7 +82,7 @@
 - 제공자가 tool calling 을 지원하지 않으면 `LLM_TOOL_MODE=json` 으로 바꾼다. `auto`(기본)는 tool 호출 요청이 400 으로 거부되면 자동으로 JSON 모드로 전환한다.
 - `TODO(verify)`: 제공자마다 `max_tokens`/`max_completion_tokens` 지원 여부가 다르다. 기본은 `max_tokens` 를 보내고 `LLM_MAX_TOKENS=0` 이면 생략한다.
 
-## 5. 모의 체결 규칙 (데이터 제약에서 도출)
+## 5. 일봉 체결 규칙 — 현재는 **백테스트에서만** 사용 (운영은 토스 실시간 체결, D-24)
 
 공식 시세가 T+1 일봉뿐이라 장중 실시간 가격이 없다. 그래서 PaperBroker 는 **"다음 공식 가격"** 으로 체결한다.
 

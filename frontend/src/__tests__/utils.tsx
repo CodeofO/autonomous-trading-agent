@@ -34,11 +34,11 @@ export function mockFetch(routes: Record<string, Handler | unknown>) {
 
 export const SYSTEM = {
   trading_mode: "paper",
-  data_source: "mock",
-  clock_mode: "simulated",
+  data_source: "toss",
+  toss_ok: true,
+  toss_issue: null,
+  agent_interval_minutes: 60,
   now: "2026-11-02T10:00:00+09:00",
-  sim_speed: 600,
-  sim_paused: false,
   llm: { configured: false, model: null, host: null, tool_mode: "auto" },
   research: { financials: "MOCK", news: "MOCK" },
   engine_status: "RUNNING",

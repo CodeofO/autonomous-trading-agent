@@ -47,10 +47,10 @@ export interface Portfolio {
 export interface SystemInfo {
   trading_mode: string;
   data_source: string;
-  clock_mode: string;
+  toss_ok: boolean;
+  toss_issue: string | null;
   now: string;
-  sim_speed: number | null;
-  sim_paused: boolean;
+  agent_interval_minutes: number;
   llm: { configured: boolean; model: string | null; host: string | null; tool_mode: string };
   research: { financials: string; news: string };
   engine_status: "RUNNING" | "PAUSED" | "KILLED";

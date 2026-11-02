@@ -90,7 +90,7 @@ class StrategyConfig(Base):
 
 
 class DailyPrice(Base):
-    """일봉 + 시가총액 (공공데이터 주식시세 또는 Mock)."""
+    """일봉 + 시가총액 (토스증권 캔들 + 종목 발행주식수)."""
 
     __tablename__ = "daily_prices"
     __table_args__ = (UniqueConstraint("symbol", "day", name="uq_daily_price"),)

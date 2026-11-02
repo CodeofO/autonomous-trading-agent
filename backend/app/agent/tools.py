@@ -24,6 +24,13 @@ ScreenerFn = Callable[[str, str, int, float], Awaitable[list[dict[str, Any]]]]
 QuoteFn = Callable[[str], Awaitable[Any]]
 
 
+def _f(v: Any) -> float:
+    try:
+        return float(v) if v not in (None, "") else 0.0
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def _eok(v: float | None) -> float | None:
     return None if v is None else round(v / EOK, 1)
 
@@ -96,6 +103,8 @@ TOOL_SPECS: list[dict[str, Any]] = [
                         "losers_1d",
                         "change_1w",
                         "change_1mo",
+                        "foreigner_net_buy",
+                        "institution_net_buy",
                     ],
                     "default": "trading_value",
                     "description": "market_cap=시가총액, trading_value=거래대금, volume=거래량, change_*=상승률, losers_1d=하락률",
@@ -173,9 +182,53 @@ TOOL_SPECS: list[dict[str, Any]] = [
 
 TERMINAL_TOOL = "submit_decisions"
 
+# 토스증권 연결 시에만 노출되는 도구 (조회 전용)
+TOSS_TOOL_SPECS: list[dict[str, Any]] = [
+    {
+        "name": "get_market_overview",
+        "description": "시장 전체 상황(토스): KOSPI·KOSDAQ 지수와 기간 수익률, 지수별 투자자(개인·외국인·기관) 순매수, "
+        "상승률 상위 섹터, 원/달러 환율, 외국인·기관 순매수/순매도 상위 종목.",
+        "parameters": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "get_supply_demand",
+        "description": "종목 수급(토스): 투자자별 순매수(외국인·기관·개인), 프로그램매매, 공매도 비중, 신용잔고율, 대차잔고 추이.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string"},
+                "days": {"type": "integer", "minimum": 3, "maximum": 30, "default": 10},
+            },
+            "required": ["symbol"],
+        },
+    },
+    {
+        "name": "get_stock_status",
+        "description": "종목 상태(토스): 매수 유의사항(과열·투자경고·VI 등), 상·하한가, 호가 5단계·스프레드·잔량 불균형, "
+        "최근 체결 흐름, 상장·거래정지 정보. 매수 전 리스크 점검용.",
+        "parameters": {
+            "type": "object",
+            "properties": {"symbol": {"type": "string"}},
+            "required": ["symbol"],
+        },
+    },
+    {
+        "name": "explore_sector",
+        "description": "섹터 탐색(토스): 섹터 이름으로 찾아 기간별 등락률과 구성 종목(시가총액·거래대금)을 본다. "
+        "query 를 비우면 오늘/이번 주 상승률 상위 섹터를 보여준다.",
+        "parameters": {
+            "type": "object",
+            "properties": {"query": {"type": "string", "description": "예: 반도체, 2차전지, 조선"}},
+        },
+    },
+]
 
-def openai_tools() -> list[dict[str, Any]]:
-    return [{"type": "function", "function": spec} for spec in TOOL_SPECS]
+
+def openai_tools(toss: bool = False) -> list[dict[str, Any]]:
+    specs = (
+        TOOL_SPECS[:-1] + (TOSS_TOOL_SPECS if toss else []) + TOOL_SPECS[-1:]
+    )  # submit_decisions 는 마지막
+    return [{"type": "function", "function": spec} for spec in specs]
 
 
 def tool_label(name: str, args: dict[str, Any], names: Callable[[str], str]) -> str:
@@ -189,6 +242,10 @@ def tool_label(name: str, args: dict[str, Any], names: Callable[[str], str]) -> 
         "get_disclosures": f"📑 {who} 공시 확인",
         "search_news": f"📰 뉴스 검색: “{args.get('query', '')}”",
         "submit_decisions": "✅ 최종 판단 제출",
+        "get_market_overview": "🌐 시장 전체 흐름 확인 (지수·수급·섹터·환율)",
+        "get_supply_demand": f"🧲 {who} 수급 확인 (외국인·기관·공매도)",
+        "get_stock_status": f"🚦 {who} 상태 점검 (유의사항·호가)",
+        "explore_sector": f"🗂️ 섹터 탐색: “{args.get('query') or '상승 상위'}”",
     }.get(name, f"🔧 {name}")
 
 
@@ -209,6 +266,7 @@ class ToolBox:
         self.clock = clock
         self.screener = screener  # 토스 랭킹 기반 실시간 스크리닝
         self.quote = quote  # 토스 실시간 현재가
+        self.toss: Any = None  # TossMarketProvider (컨테이너에서 연결)
 
     async def call(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
         fn = getattr(self, f"t_{name}", None)
@@ -399,6 +457,223 @@ class ToolBox:
     async def t_get_disclosures(self, symbol: str, days: int = 30) -> dict[str, Any]:
         items = await self.research.disclosures(symbol, max(1, min(180, int(days))))
         return {"symbol": symbol, "count": len(items), "items": items[:20]}
+
+    # ------------------------------------------------------------------ 토스 전용 도구
+    def _need_toss(self) -> Any:
+        if self.toss is None:
+            raise RuntimeError("토스증권 연결이 없어 사용할 수 없습니다")
+        return self.toss
+
+    async def _names(self, symbols: list[str]) -> dict[str, str]:
+        uni = await self._need_toss().universe()
+        return {s: str(uni.get(s, {}).get("name", "")) for s in symbols}
+
+    async def t_get_market_overview(self) -> dict[str, Any]:
+        tc = self._need_toss().client
+        out: dict[str, Any] = {"as_of": self.clock.now().isoformat()}
+        idx = {}
+        for it in await tc.index_prices():
+            sym = it["symbol"]
+            closes = [_f(c.get("closePrice")) for c in reversed(await tc.index_candles(sym, 61))]
+            inv = await tc.index_investor_trading(sym, 3)
+            idx[sym] = {
+                "last": _f(it.get("lastPrice")),
+                "returns_pct": {f"{n}d": _pct(pct_change(closes, n)) for n in (1, 5, 20, 60)},
+                "investor_net_buy_eok_last3d": [
+                    {
+                        "date": r.get("date"),
+                        **{
+                            k: _eok(
+                                _f((r.get(k) or {}).get("buyAmount")) - _f((r.get(k) or {}).get("sellAmount"))
+                            )
+                            for k in ("individual", "foreigner", "institution")
+                            if r.get(k)
+                        },
+                    }
+                    for r in inv
+                ],
+            }
+        out["indices"] = idx
+        out["top_sectors_1d"] = [
+            {"name": r["name"], "change_pct": _pct(_f(r.get("changeRate")))}
+            for r in (await tc.sector_rankings("TOP_GAINERS", "1d"))[:8]
+        ]
+        out["top_sectors_1w"] = [
+            {"name": r["name"], "change_pct": _pct(_f(r.get("changeRate")))}
+            for r in (await tc.sector_rankings("TOP_GAINERS", "1w"))[:5]
+        ]
+        fx = await tc.exchange_rate()
+        out["usd_krw"] = {"rate": _f(fx.get("rate")), "direction": fx.get("rateChangeType")}
+        inv_rank = await tc.investor_rankings(10)
+        syms = sorted(
+            {
+                str(x["symbol"])
+                for grp in inv_rank.values()
+                if isinstance(grp, dict)
+                for key in ("netBuyRankings", "netSellRankings")
+                for x in grp.get(key, [])
+            }
+        )
+        names = await self._names(syms)
+        out["investor_rankings"] = {
+            who: {
+                "net_buy_top": [
+                    f"{names.get(str(x['symbol'])) or x['symbol']}({_eok(_f(x.get('netBuyAmount')))}억)"
+                    for x in grp.get("netBuyRankings", [])[:10]
+                ],
+                "net_sell_top": [
+                    f"{names.get(str(x['symbol'])) or x['symbol']}({_eok(_f(x.get('netSellAmount')))}억)"
+                    for x in grp.get("netSellRankings", [])[:10]
+                ],
+            }
+            for who, grp in inv_rank.items()
+            if who in ("foreigner", "institution") and isinstance(grp, dict)
+        }
+        return out
+
+    async def t_get_supply_demand(self, symbol: str, days: int = 10) -> dict[str, Any]:
+        tc = self._need_toss().client
+        n = max(3, min(30, int(days)))
+        inv = await tc.stock_trend(symbol, "investor-trading", n)
+        prog = await tc.stock_trend(symbol, "program-trades", min(n, 10))
+        short = await tc.stock_trend(symbol, "short-selling", min(n, 10))
+        credit = await tc.stock_trend(symbol, "credit-trades", 5)
+        lend = await tc.stock_trend(symbol, "securities-lending", 5)
+
+        def net(r: dict[str, Any], k: str) -> float | None:
+            v = r.get(k)
+            return _f(v.get("netBuyVolume")) if isinstance(v, dict) else None
+
+        daily = [
+            {
+                "date": r.get("date"),
+                "foreigner": net(r, "foreigner"),
+                "institution": net(r, "institution"),
+                "individual": net(r, "individual"),
+            }
+            for r in inv
+        ]
+        sums = {
+            k: sum(d[k] for d in daily if d[k] is not None)
+            for k in ("foreigner", "institution", "individual")
+        }
+        return {
+            "symbol": symbol,
+            "unit": "주(순매수 수량)",
+            "investor_net_buy_daily": daily,
+            f"investor_net_buy_sum_{len(daily)}d": sums,
+            "program_net_buy": [
+                {
+                    "date": r.get("date"),
+                    "arbitrage": _f((r.get("arbitrage") or {}).get("netBuyVolume")),
+                    "non_arbitrage": _f((r.get("nonArbitrage") or {}).get("netBuyVolume")),
+                }
+                for r in prog[:5]
+            ],
+            "short_selling_volume_rate_pct": [
+                {"date": r.get("date"), "rate": _pct(_f(r.get("shortSellingVolumeRate")), 2)}
+                for r in short[:5]
+            ],
+            "margin_loan_balance_rate_pct": [
+                {"date": r.get("date"), "rate": _pct(_f((r.get("marginLoan") or {}).get("balanceRate")), 2)}
+                for r in credit
+            ],
+            "lending_balance_qty": [
+                {"date": r.get("date"), "balance": _f(r.get("balanceQuantity"))} for r in lend
+            ],
+        }
+
+    async def t_get_stock_status(self, symbol: str) -> dict[str, Any]:
+        tp = self._need_toss()
+        tc = tp.client
+        info = (await tp.info([symbol])).get(symbol, {})
+        ob = await tc.orderbook(symbol)
+        asks = [(_f(a.get("price")), _f(a.get("volume"))) for a in (ob.get("asks") or [])[:5]]
+        bids = [(_f(b.get("price")), _f(b.get("volume"))) for b in (ob.get("bids") or [])[:5]]
+        best_ask = min((p for p, _ in asks), default=None)
+        best_bid = max((p for p, _ in bids), default=None)
+        ask_vol, bid_vol = sum(v for _, v in asks), sum(v for _, v in bids)
+        trades = await tc.trades(symbol, 30)
+        tvol = sum(_f(t.get("volume")) for t in trades)
+        vwap = sum(_f(t.get("price")) * _f(t.get("volume")) for t in trades) / tvol if tvol else None
+        lim = await tc.price_limits(symbol)
+        km = info.get("koreanMarketDetail") or {}
+        return {
+            "symbol": symbol,
+            "name": info.get("name"),
+            "market": info.get("market"),
+            "list_date": info.get("listDate"),
+            "warnings": await tc.warnings(symbol),
+            "trading_suspended": bool(km.get("krxTradingSuspended") or km.get("nxtTradingSuspended")),
+            "liquidation_trading": km.get("liquidationTrading"),
+            "price_limits": {
+                "upper": _f(lim.get("upperLimitPrice")),
+                "lower": _f(lim.get("lowerLimitPrice")),
+            },
+            "orderbook_top5": {"asks": asks, "bids": bids},
+            "spread_pct": _pct((best_ask - best_bid) / best_bid, 3) if best_ask and best_bid else None,
+            "bid_ask_volume_ratio": round(bid_vol / ask_vol, 2) if ask_vol else None,
+            "recent_trades": {"count": len(trades), "vwap": round(vwap, 1) if vwap else None, "volume": tvol},
+        }
+
+    async def t_explore_sector(self, query: str = "") -> dict[str, Any]:
+        tc = self._need_toss().client
+        if not query.strip():
+            return {
+                "top_1d": [
+                    {
+                        "sector_id": r["sectorId"],
+                        "name": r["name"],
+                        "change_pct": _pct(_f(r.get("changeRate"))),
+                    }
+                    for r in (await tc.sector_rankings("TOP_GAINERS", "1d"))[:10]
+                ],
+                "top_1w": [
+                    {
+                        "sector_id": r["sectorId"],
+                        "name": r["name"],
+                        "change_pct": _pct(_f(r.get("changeRate"))),
+                    }
+                    for r in (await tc.sector_rankings("TOP_GAINERS", "1w"))[:10]
+                ],
+            }
+        sectors = await tc.sectors()
+        q = query.strip()
+        matches = [s for s in sectors if q in str(s.get("name", ""))] or [
+            s for s in sectors if any(w and w in str(s.get("name", "")) for w in q.split())
+        ]
+        if not matches:
+            return {
+                "query": q,
+                "error": "일치하는 섹터가 없습니다",
+                "examples": [s["name"] for s in sectors if s.get("depth") == 0][:20],
+            }
+        top = sorted(matches, key=lambda s: (s.get("depth", 9), len(str(s.get("name", "")))))[0]
+        detail = await tc.sector(str(top["sectorId"]))
+        stocks = await tc.sector_stocks(str(top["sectorId"]))
+        stocks.sort(key=lambda s: -_f(s.get("marketCapitalization")))
+        perf = {
+            p.get("duration"): _pct(_f(p.get("changeRate"))) if p.get("changeRate") is not None else None
+            for p in ((detail.get("performance") or {}).get("changeRates") or [])
+        }
+        return {
+            "sector": {
+                "id": top["sectorId"],
+                "name": top["name"],
+                "summary": detail.get("summary"),
+                "change_pct": perf,
+            },
+            "other_matches": [s["name"] for s in matches if s is not top][:8],
+            "stocks": [
+                {
+                    "symbol": s["symbol"],
+                    "name": s.get("name"),
+                    "market_cap_eok": _eok(_f(s.get("marketCapitalization"))),
+                    "trading_value_eok": _eok(_f(s.get("tradingAmount"))),
+                }
+                for s in stocks[:15]
+            ],
+        }
 
     async def t_search_news(self, query: str, limit: int = 8) -> dict[str, Any]:
         items = await self.research.news(str(query)[:60], max(1, min(20, int(limit))))

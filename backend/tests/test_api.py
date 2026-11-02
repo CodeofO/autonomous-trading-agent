@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Iterator
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -11,22 +12,25 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
+from app.core.clock import KST, SimulatedClock
 from app.core.config import Settings
 from app.main import create_app
+from tests.fake_toss import FakeTossClient
 
 PW = "correct-horse-battery"
 
 
-def _client(tmp_path: Path, **kw: Any) -> TestClient:
+def _client(tmp_path: Path, start: datetime | None = None, **kw: Any) -> TestClient:
     s = Settings(
         database_url="sqlite://",
         data_dir=tmp_path,
-        sim_start="2026-11-02T10:00:00",
         auth_enabled=kw.pop("auth_enabled", True),
         enable_scheduler=False,
         **kw,
     )
-    return TestClient(create_app(s))
+    # 장 시작 전(08:40) → 판단 주문이 09:00 체결 대기로 남아 취소·킬 스위치를 시험할 수 있다
+    clock = SimulatedClock(start or datetime(2026, 11, 2, 8, 40, tzinfo=KST))
+    return TestClient(create_app(s, toss_client=FakeTossClient(clock), clock=clock))
 
 
 @pytest.fixture
@@ -72,9 +76,9 @@ def test_auth_flow(client: TestClient) -> None:
 def test_system_and_portfolio(client: TestClient) -> None:
     h = _login(client)
     s = client.get("/api/system", headers=h).json()
-    assert s["trading_mode"] == "paper" and s["data_source"] == "mock" and s["clock_mode"] == "simulated"
+    assert s["trading_mode"] == "paper" and s["data_source"] == "toss" and s["agent_interval_minutes"] == 60
     assert s["llm"]["configured"] is False and "투자 권유" in s["disclaimer"]
-    assert "종가" in s["order_window"]
+    assert "09:00" in s["order_window"]
     pf = client.get("/api/portfolio", headers=h).json()
     assert pf["equity"] == 10_000_000 and pf["positions"] == []
     assert client.get("/api/openapi.json").status_code == 200
@@ -126,11 +130,11 @@ def test_risk_strategies_watchlist_settings(client: TestClient) -> None:
         f"/api/strategies/{ma['id']}", headers=h, json={"params": {"short": 3, "long": 10}, "enabled": False}
     ).json()
     assert r["params"] == {"short": 3, "long": 10} and r["enabled"] is False
-    assert client.post("/api/watchlist", headers=h, json={"symbol": "MOCK02"}).status_code == 200
+    assert client.post("/api/watchlist", headers=h, json={"symbol": "000660"}).status_code == 200
     assert client.post("/api/watchlist", headers=h, json={"symbol": "bad symbol!"}).status_code == 422
     wl = client.get("/api/watchlist", headers=h).json()
-    assert wl[0]["symbol"] == "MOCK02" and wl[0]["name"] == "한빛반도체"
-    client.delete("/api/watchlist/MOCK02", headers=h)
+    assert wl[0]["symbol"] == "000660" and wl[0]["name"] == "SK하이닉스"
+    client.delete("/api/watchlist/000660", headers=h)
     assert client.get("/api/watchlist", headers=h).json() == []
     st = client.put(
         "/api/agent/settings",
@@ -144,19 +148,21 @@ def test_risk_strategies_watchlist_settings(client: TestClient) -> None:
 def test_market_endpoints_and_backtest(client: TestClient) -> None:
     h = _login(client)
     uni = client.get("/api/market/universe", headers=h).json()
-    assert any(u["symbol"] == "MOCK01" for u in uni)
-    cd = client.get("/api/market/MOCK01/candles?days=60", headers=h).json()
-    assert len(cd["bars"]) >= 40 and cd["name"] == "가온전자"
-    rs = client.get("/api/market/MOCK01/research", headers=h).json()
-    assert rs["financials"]["valuation"]["per"] is not None and "items" in rs["news"]
+    assert any(u["symbol"] == "005930" for u in uni)
+    cd = client.get("/api/market/005930/candles?days=60", headers=h).json()
+    assert len(cd["bars"]) >= 40 and cd["name"] == "삼성전자"
+    rs = client.get("/api/market/005930/research", headers=h).json()
+    assert rs["financials"]["available"] is False and "DART" in rs["financials"]["reason"]  # 키 없음
+    assert rs["supply"]["investor_net_buy_daily"] and rs["status"]["price_limits"]["upper"] > 0
+    assert "items" in rs["news"]
     bt = client.post(
         "/api/backtest",
         headers=h,
         json={
             "strategy_type": "rsi",
             "params": {"period": 14, "lower": 35, "upper": 65},
-            "symbols": ["MOCK01", "MOCK03", "MOCK14"],
-            "start": "2026-03-02",
+            "symbols": ["005930", "005380", "247540"],
+            "start": "2026-07-01",
             "end": "2026-10-30",
         },
     ).json()
@@ -166,7 +172,7 @@ def test_market_endpoints_and_backtest(client: TestClient) -> None:
         client.post(
             "/api/backtest",
             headers=h,
-            json={"strategy_type": "nope", "symbols": ["MOCK01"], "start": "2026-01-01", "end": "2026-02-01"},
+            json={"strategy_type": "nope", "symbols": ["005930"], "start": "2026-01-01", "end": "2026-02-01"},
         ).status_code
         == 422
     )
@@ -193,12 +199,6 @@ def test_chat_without_llm_and_websocket(client: TestClient) -> None:
         assert any(m["channel"] == "chat" and "LLM" in m["data"]["content"] for m in seen)
         ws.send_text("PING")
         assert ws.receive_json()["channel"] == "pong"
-
-
-def test_sim_control(client: TestClient) -> None:
-    h = _login(client)
-    assert client.post("/api/sim", headers=h, json={"action": "pause"}).json()["paused"] is True
-    assert client.post("/api/sim", headers=h, json={"action": "speed", "speed": 120}).json()["speed"] == 120
 
 
 def test_secrets_never_exposed(tmp_path: Path) -> None:

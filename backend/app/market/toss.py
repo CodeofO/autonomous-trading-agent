@@ -33,6 +33,23 @@ ROUTES = [
     Route(HOST, "GET", re.compile(r"/api/v1/stocks/all")),
     Route(HOST, "GET", re.compile(r"/api/v1/rankings")),
     Route(HOST, "GET", re.compile(r"/api/v1/market-calendar/KR")),
+    Route(HOST, "GET", re.compile(r"/api/v1/orderbook")),
+    Route(HOST, "GET", re.compile(r"/api/v1/trades")),
+    Route(HOST, "GET", re.compile(r"/api/v1/price-limits")),
+    Route(
+        HOST,
+        "GET",
+        re.compile(
+            r"/api/v1/stocks/[A-Za-z0-9.\-]+/(warnings|investor-trading|program-trades|short-selling|credit-trades|securities-lending)"
+        ),
+    ),
+    Route(HOST, "GET", re.compile(r"/api/v1/exchange-rate")),
+    Route(HOST, "GET", re.compile(r"/api/v1/market-indicators/prices")),
+    Route(HOST, "GET", re.compile(r"/api/v1/market-indicators/(KOSPI|KOSDAQ)/(candles|investor-trading)")),
+    Route(HOST, "GET", re.compile(r"/api/v1/sectors")),
+    Route(HOST, "GET", re.compile(r"/api/v1/sectors/rankings")),
+    Route(HOST, "GET", re.compile(r"/api/v1/sectors/[0-9A-Za-z\-]+(/stocks)?")),
+    Route(HOST, "GET", re.compile(r"/api/v1/rankings/investor-trading")),
 ]
 
 # 공식 Rate Limits 의 80% (docs/TOSS_API_NOTES.md §7)
@@ -44,6 +61,11 @@ RATE_GROUPS: dict[str, float] = {
     "STOCK_ALL": 0.8,
     "RANKING": 4,
     "MARKET_INFO": 2.4,
+    "STOCK_TRADING_TREND": 8,
+    "MARKET_INDICATOR": 8,
+    "MARKET_INDICATOR_CHART": 4,
+    "SECTOR": 4,
+    "SECTOR_RANKING": 4,
 }
 KR_MARKETS = ("KOSPI", "KOSDAQ")
 
@@ -197,6 +219,99 @@ class TossClient:
         params = {"date": day.isoformat()} if day else None
         return dict(await self._get("MARKET_INFO", "/api/v1/market-calendar/KR", params) or {})
 
+    # ------------------------------------------------------------ 시세 부가 정보
+    async def orderbook(self, symbol: str) -> dict[str, Any]:
+        return dict(await self._get("MARKET_DATA", "/api/v1/orderbook", {"symbol": symbol}) or {})
+
+    async def trades(self, symbol: str, count: int = 50) -> list[dict[str, Any]]:
+        return list(
+            await self._get(
+                "MARKET_DATA", "/api/v1/trades", {"symbol": symbol, "count": max(1, min(50, count))}
+            )
+            or []
+        )
+
+    async def price_limits(self, symbol: str) -> dict[str, Any]:
+        return dict(await self._get("MARKET_DATA", "/api/v1/price-limits", {"symbol": symbol}) or {})
+
+    # ------------------------------------------------------------ 종목 수급·상태
+    async def warnings(self, symbol: str) -> list[dict[str, Any]]:
+        return list(await self._get("STOCK", f"/api/v1/stocks/{symbol}/warnings") or [])
+
+    async def stock_trend(self, symbol: str, kind: str, count: int = 10) -> list[dict[str, Any]]:
+        """kind: investor-trading | program-trades | short-selling | credit-trades | securities-lending"""
+        if kind not in (
+            "investor-trading",
+            "program-trades",
+            "short-selling",
+            "credit-trades",
+            "securities-lending",
+        ):
+            raise ValueError(kind)
+        res = await self._get(
+            "STOCK_TRADING_TREND", f"/api/v1/stocks/{symbol}/{kind}", {"count": max(1, min(30, count))}
+        )
+        return list((res or {}).get("records") or [])
+
+    # ------------------------------------------------------------ 시장
+    async def exchange_rate(self) -> dict[str, Any]:
+        return dict(
+            await self._get(
+                "MARKET_INFO", "/api/v1/exchange-rate", {"baseCurrency": "USD", "quoteCurrency": "KRW"}
+            )
+            or {}
+        )
+
+    async def index_prices(self, symbols: tuple[str, ...] = ("KOSPI", "KOSDAQ")) -> list[dict[str, Any]]:
+        return list(
+            await self._get(
+                "MARKET_INDICATOR", "/api/v1/market-indicators/prices", {"symbols": ",".join(symbols)}
+            )
+            or []
+        )
+
+    async def index_candles(self, symbol: str, count: int = 60) -> list[dict[str, Any]]:
+        res = await self._get(
+            "MARKET_INDICATOR_CHART",
+            f"/api/v1/market-indicators/{symbol}/candles",
+            {"interval": "1d", "count": max(1, min(200, count))},
+        )
+        return list((res or {}).get("candles") or [])
+
+    async def index_investor_trading(self, symbol: str, count: int = 5) -> list[dict[str, Any]]:
+        res = await self._get(
+            "MARKET_INDICATOR",
+            f"/api/v1/market-indicators/{symbol}/investor-trading",
+            {"interval": "1d", "count": max(1, min(30, count))},
+        )
+        return list((res or {}).get("records") or [])
+
+    async def sectors(self) -> list[dict[str, Any]]:
+        return list((await self._get("SECTOR", "/api/v1/sectors") or {}).get("sectors") or [])
+
+    async def sector(self, sector_id: str) -> dict[str, Any]:
+        return dict(await self._get("SECTOR", f"/api/v1/sectors/{sector_id}", {"marketCountry": "KR"}) or {})
+
+    async def sector_stocks(self, sector_id: str) -> list[dict[str, Any]]:
+        res = await self._get("SECTOR", f"/api/v1/sectors/{sector_id}/stocks", {"marketCountry": "KR"})
+        return list((res or {}).get("stocks") or [])
+
+    async def sector_rankings(self, type_: str = "TOP_GAINERS", duration: str = "1d") -> list[dict[str, Any]]:
+        res = await self._get(
+            "SECTOR_RANKING",
+            "/api/v1/sectors/rankings",
+            {"type": type_, "marketCountry": "KR", "duration": duration},
+        )
+        return list((res or {}).get("rankings") or [])
+
+    async def investor_rankings(self, count: int = 20) -> dict[str, Any]:
+        return dict(
+            await self._get(
+                "RANKING", "/api/v1/rankings/investor-trading", {"count": max(1, min(100, count))}
+            )
+            or {}
+        )
+
     async def aclose(self) -> None:
         await self.http.aclose()
 
@@ -287,6 +402,8 @@ class TossMarketProvider:
     async def screen(
         self, sort_by: str, market: str, limit: int, min_market_cap: float = 0.0
     ) -> list[dict[str, Any]]:
+        if sort_by in ("foreigner_net_buy", "institution_net_buy"):
+            return await self._screen_investor(sort_by.split("_")[0], market, limit)
         type_, duration = {
             "trading_value": ("MARKET_TRADING_AMOUNT", "1d"),
             "volume": ("MARKET_TRADING_VOLUME", "1d"),
@@ -325,6 +442,28 @@ class TossMarketProvider:
             )
         if sort_by == "market_cap":
             out.sort(key=lambda x: -(x["market_cap_eok"] or 0))
+        return out[: max(1, min(30, limit))]
+
+    async def _screen_investor(self, who: str, market: str, limit: int) -> list[dict[str, Any]]:
+        grp = (await self.client.investor_rankings(100)).get(who) or {}
+        uni = await self.universe()
+        rows = [r for r in grp.get("netBuyRankings", []) if str(r["symbol"]) in uni]
+        prices = await self.client.prices([str(r["symbol"]) for r in rows[:50]])
+        out = []
+        for r in rows:
+            sym = str(r["symbol"])
+            mk = uni[sym].get("market", "")
+            if market != "ALL" and mk != market:
+                continue
+            out.append(
+                {
+                    "symbol": sym,
+                    "name": uni[sym].get("name", ""),
+                    "market": mk,
+                    "price": prices.get(sym, (None, None))[0],
+                    f"{who}_net_buy_eok": round(_num(r.get("netBuyAmount")) / 1e8, 1),
+                }
+            )
         return out[: max(1, min(30, limit))]
 
     async def search(self, q: str, limit: int = 50) -> list[dict[str, Any]]:

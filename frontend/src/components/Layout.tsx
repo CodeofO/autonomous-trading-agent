@@ -1,8 +1,8 @@
+import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../auth";
 import { useEvents } from "../events";
 import { useSystem } from "../hooks";
-import { fmtDateTime } from "../utils/format";
 import { KillSwitch } from "./KillSwitch";
 
 export function PaperBadge() {
@@ -27,9 +27,8 @@ const STATUS_KO: Record<string, string> = { RUNNING: "실행 중", PAUSED: "일�
 
 export function Layout() {
   const { data: sys } = useSystem();
-  const { connected, simTime } = useEvents();
+  const { connected } = useEvents();
   const { logout, authEnabled } = useAuth();
-  const now = simTime ?? sys?.now;
   return (
     <div className="app">
       <aside className="sidebar">
@@ -62,18 +61,12 @@ export function Layout() {
         <header className="topbar">
           <PaperBadge />
           <div className="top-info">
-            {now && (
-              <span
-                className="chip"
-                title={sys?.clock_mode === "simulated" ? "가속 시뮬레이션 시계" : "실시간"}
-              >
-                {sys?.clock_mode === "simulated" ? "⏩ " : "🕒 "}
-                {fmtDateTime(now)}
-              </span>
-            )}
+            <KstClock />
             {sys && (
               <>
-                <span className={`chip src ${sys.data_source}`}>데이터 {sys.data_source.toUpperCase()}</span>
+                <span className={`chip ${sys.toss_ok ? "ok" : "warn"}`} title={sys.toss_issue ?? ""}>
+                  {sys.toss_ok ? "토스 실시세 연결" : "토스 시세 연결 안 됨"}
+                </span>
                 <span className={`chip ${sys.llm.configured ? "ok" : "warn"}`}>
                   {sys.llm.configured ? `LLM ${sys.llm.model}` : "LLM 미설정(규칙)"}
                 </span>
@@ -88,6 +81,11 @@ export function Layout() {
           </div>
           {sys && <KillSwitch status={sys.engine_status} />}
         </header>
+        {sys && !sys.toss_ok && (
+          <div className="banner warn" role="alert">
+            ⚠️ {sys.toss_issue ?? "토스증권 시세를 받을 수 없어요."} — 연결될 때까지 매니저는 판단을 쉬어요.
+          </div>
+        )}
         <main className="content">
           <Outlet />
         </main>
@@ -96,5 +94,29 @@ export function Layout() {
         </footer>
       </div>
     </div>
+  );
+}
+
+/** 실제 한국 시각 (브라우저 시계 기준, 1초마다 갱신) */
+export function KstClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+  const text = now.toLocaleString("ko-KR", {
+    timeZone: "Asia/Seoul",
+    month: "2-digit",
+    day: "2-digit",
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+  return (
+    <span className="chip" title="한국 표준시(KST)" data-testid="kst-clock">
+      🕒 {text} KST
+    </span>
   );
 }

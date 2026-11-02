@@ -54,6 +54,20 @@ describe("레이아웃", () => {
     expect(screen.getByRole("status", { name: "모의투자 모드" })).toHaveTextContent("PAPER");
     await waitFor(() => expect(screen.getByTestId("engine-status")).toHaveTextContent("실행 중"));
     expect(screen.getByText(/투자 권유가 아닙니다/)).toBeInTheDocument();
+    expect(screen.getByTestId("kst-clock")).toHaveTextContent("KST");
+    expect(screen.getByText("토스 실시세 연결")).toBeInTheDocument();
+  });
+
+  it("토스 연결 문제를 배너로 알린다", async () => {
+    mockFetch({ "/api/system": { ...SYSTEM, toss_ok: false, toss_issue: "허용 IP 미등록" } });
+    renderWithProviders(
+      <Routes>
+        <Route element={<Layout />}>
+          <Route index element={<div>본문</div>} />
+        </Route>
+      </Routes>,
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent("허용 IP 미등록");
   });
 });
 

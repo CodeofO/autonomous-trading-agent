@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import logging
-from datetime import date, timedelta
+import time
+from datetime import timedelta
 from typing import Any
 
 from sqlalchemy import select
@@ -19,7 +20,7 @@ from app.engine.events import RISK, SYSTEM, EventHub
 from app.engine.orders import OrderManager, order_dict
 from app.engine.settings_store import SettingsStore
 from app.market.store import PriceStore
-from app.market.toss import TossMarketProvider
+from app.market.toss import TossApiError, TossMarketProvider
 from app.risk.rules import RiskConfig, RiskContext, RiskManager
 from app.strategies.rules import Strategy, build
 
@@ -41,7 +42,8 @@ class TradingEngine:
         toss: TossMarketProvider | None = None,
     ) -> None:
         self.db = db
-        self.toss = toss  # 토스 실시세 모드면 실시간 체결·장중 감시
+        self.toss = toss  # 토스 실시세: 실시간 체결·장중 감시 (테스트에서만 None 가능)
+        self._health: tuple[bool, float] = (True, -1e9)
         self.clock = clock
         self.cal = cal
         self.store = store
@@ -104,17 +106,12 @@ class TradingEngine:
     def order_window(self) -> str:
         now = self.clock.now()
         basis = self.cal.fill_basis(now)
-        if self.toss is not None:
-            if basis == "OPEN":
-                return "지금 주문하면 09:00 장 시작 직후 현재가로 체결 (토스 실시세)"
-            if basis == "CLOSE":
-                return "지금 주문하면 토스 실시간 현재가로 즉시 체결 (지정가는 도달 시, 15:20 미체결분 취소)"
         if basis == "OPEN":
-            return f"지금 주문하면 {now:%Y-%m-%d} 시가로 체결 (T+1 13시에 확정)"
+            return "지금 주문하면 09:00 장 시작 직후 현재가로 체결 (토스 실시세)"
         if basis == "CLOSE":
-            return f"지금 주문하면 {now:%Y-%m-%d} 종가로 체결 (T+1 13시에 확정)"
+            return "지금 주문하면 토스 실시간 현재가로 즉시 체결 (지정가는 도달 시, 15:20 미체결분 취소)"
         s = self.cal.next_session(now)
-        return f"지금은 주문 불가. 다음 접수: {s.day} 08:30 (장 시작 전 → 시가 체결)"
+        return f"지금은 주문 불가. 다음 접수: {s.day} 08:30 (장 시작 전 주문 → 09:00 현재가 체결)"
 
     async def portfolio(self) -> dict[str, Any]:
         bal = await self.broker.get_balance()
@@ -176,7 +173,7 @@ class TradingEngine:
     # ------------------------------------------------------------ 작업 단위
     async def refresh_calendar(self) -> None:
         """토스 장 운영 캘린더(전일/당일/익일)를 반영 — 휴장일·단축장 대응."""
-        if self.toss is None:
+        if self.toss is None or not await self.toss_health():
             return
         try:
             self.cal.apply_toss_calendar(await self.toss.client.market_calendar_kr())
@@ -202,8 +199,8 @@ class TradingEngine:
         return {"latest_day": today.isoformat(), "synced": n, "settled": settled}
 
     async def intraday(self) -> None:
-        """장중 1분 주기 (토스 모드): 지정가·장전 주문 체결, 당일 만료, 손절/익절 감시."""
-        if self.toss is None:
+        """장중 1분 주기: 지정가·장전 주문 체결, 당일 만료, 손절/익절 감시."""
+        if self.toss is None or not await self.toss_health():
             return
         now = self.clock.now()
         s = self.cal.session(now.astimezone(KST).date())
@@ -216,34 +213,44 @@ class TradingEngine:
             await self.snapshot_equity()
 
     async def sync_data(self) -> dict[str, Any]:
-        """최신 공개 일봉 동기화 → 체결 확정 → 자산 스냅샷."""
+        """보유·관심·미체결 종목 일봉 갱신 → 미체결 처리 → 자산 스냅샷."""
         if self.toss is not None:
             return await self._sync_toss()
-        now = self.clock.now()
-        latest = self.cal.latest_published_day(now)
-        synced = 0
-        for d in (self.cal.previous_trading_day(latest), latest):
-            try:
-                synced += await self.store.sync_day(d)
-            except Exception as e:
-                log.warning("시세 동기화 실패 %s: %s", d, e)
-                self.hub.audit("ERROR", f"시세 동기화 실패 {d}: {str(e)[:200]}", None)
-        # 미체결 주문의 체결일 시세도 확보
-        for o in self.broker.open_orders():
-            td = date.fromisoformat(o["trade_day"])
-            if td <= latest and self.store.bar_on(o["symbol"], td) is None:
-                try:
-                    await self.store.sync_day(td)
-                except Exception as e:
-                    log.warning("체결일 시세 동기화 실패 %s: %s", td, e)
         settled = await self.orders.settle()
         await self.snapshot_equity()
-        if synced or settled:
-            self.hub.state({"data_day": latest.isoformat(), "settled": settled})
-        return {"latest_day": latest.isoformat(), "synced": synced, "settled": settled}
+        return {"synced": 0, "settled": settled}
+
+    async def toss_health(self) -> bool:
+        """토스 시세 접근 가능 여부. 실패 원인(허용 IP·키)을 채팅으로 1시간에 한 번 안내한다."""
+        if self.toss is None:
+            return True
+        now = time.monotonic()
+        if now - self._health[1] < 60:
+            return self._health[0]
+        try:
+            await self.toss.client.prices(["005930"])
+            ok, why = True, ""
+        except TossApiError as e:
+            ok = False
+            if e.status == 403:
+                why = "토스증권 허용 IP 에 이 컴퓨터의 공인 IP 가 등록되지 않았어요 (WTS > 설정 > Open API > 허용 IP 관리)"
+            elif e.status == 401:
+                why = "토스증권 TOSS_CLIENT_ID / TOSS_CLIENT_SECRET 을 확인해 주세요"
+            else:
+                why = f"토스증권 API 오류 {e.status} {e.code}"
+        except Exception as e:
+            ok, why = False, f"토스증권 연결 실패: {type(e).__name__}"
+        self._health = (ok, now)
+        if not ok:
+            last = float(self.settings.get("toss_health").get("warned_at", 0))
+            if time.time() - last > 3600:
+                self.settings.set("toss_health", {"warned_at": time.time(), "reason": why})
+                self.hub.chat(SYSTEM, "text", f"⚠️ 시세를 받을 수 없어 판단을 쉬어요: {why}")
+                self.hub.audit("ERROR", why, None)
+        return ok
 
     async def check_exits(self) -> int:
-        """손절/익절 감시 — 공식 종가 기준. 주문 접수 가능 시간에만."""
+        """손절/익절 감시 — 토스 실시간 현재가 기준. 주문 접수 가능 시간에만."""
         if self.status != RUNNING or self.cal.fill_basis(self.clock.now()) is None:
             return 0
         n = 0
@@ -261,6 +268,8 @@ class TradingEngine:
     async def run_agent(self, trigger: str) -> int | None:
         if self.runner is None:
             return None
+        if not await self.toss_health():
+            return None
         if self.status != RUNNING:
             self.hub.chat(SYSTEM, "text", f"⏸️ 엔진이 {self.status} 상태라 {trigger} 세션을 건너뛰었어요.")
             return None
@@ -273,10 +282,11 @@ class TradingEngine:
         await self.check_exits()
         await self.run_agent("morning")
 
-    async def afternoon(self) -> None:
+    async def hourly(self) -> None:
+        """장중 정시 판단 (AGENT_INTERVAL_MINUTES 간격)."""
         await self.sync_data()
         await self.check_exits()
-        await self.run_agent("afternoon")
+        await self.run_agent("hourly")
 
     async def snapshot_equity(self) -> None:
         bal = await self.broker.get_balance()

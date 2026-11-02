@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { get, post } from "../api/client";
 import type { Bar, Decision, Marker } from "../api/types";
 import { CandleChart } from "../components/charts";
-import { ACTION_KO, fmtDateTime, fmtNum } from "../utils/format";
+import { ACTION_KO, fmtDateTime, fmtNum, signClass } from "../utils/format";
 
 interface Research {
   name: string;
@@ -17,6 +17,100 @@ interface Research {
   };
   news: { items?: { title: string; description: string; pubDate: string; link: string }[] };
   disclosures: { items?: { report_nm: string; rcept_dt: string }[] };
+  supply?: {
+    error?: string;
+    investor_net_buy_daily?: {
+      date: string;
+      foreigner: number | null;
+      institution: number | null;
+      individual: number | null;
+    }[];
+    short_selling_volume_rate_pct?: { date: string; rate: number | null }[];
+    margin_loan_balance_rate_pct?: { date: string; rate: number | null }[];
+  };
+  status?: {
+    error?: string;
+    warnings?: { warningType: string; startDate: string; endDate: string | null }[];
+    trading_suspended?: boolean;
+    price_limits?: { upper: number; lower: number };
+    spread_pct?: number | null;
+    bid_ask_volume_ratio?: number | null;
+    orderbook_top5?: { asks: [number, number][]; bids: [number, number][] };
+  };
+}
+
+const WARN_KO: Record<string, string> = {
+  OVERHEATED: "단기과열",
+  INVESTMENT_WARNING: "투자경고",
+  INVESTMENT_DANGER: "투자위험",
+  INVESTMENT_CAUTION: "투자주의",
+  VI_STATIC: "정적 VI",
+  VI_DYNAMIC: "동적 VI",
+  LIQUIDATION_TRADING: "정리매매",
+};
+
+function SupplyPanel({ r }: { r: Research }) {
+  const sup = r.supply;
+  const st = r.status;
+  if (!sup && !st) return null;
+  const daily = sup?.investor_net_buy_daily ?? [];
+  const sum = (k: "foreigner" | "institution" | "individual") => daily.reduce((a, d) => a + (d[k] ?? 0), 0);
+  const short = sup?.short_selling_volume_rate_pct?.[0]?.rate;
+  const margin = sup?.margin_loan_balance_rate_pct?.[0]?.rate;
+  return (
+    <section className="card">
+      <h2>
+        수급·상태 <small className="muted">(토스증권, 최근 {daily.length}거래일 순매수 수량)</small>
+      </h2>
+      {sup?.error && <p className="muted">{sup.error}</p>}
+      {daily.length > 0 && (
+        <div className="flow">
+          {(
+            [
+              ["foreigner", "외국인"],
+              ["institution", "기관"],
+              ["individual", "개인"],
+            ] as const
+          ).map(([k, label]) => (
+            <div key={k}>
+              <span className="muted">{label}</span>
+              <b className={signClass(sum(k))}>{fmtNum(sum(k))}주</b>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="flow">
+        <div>
+          <span className="muted">공매도 비중</span>
+          <b>{short == null ? "—" : `${short}%`}</b>
+        </div>
+        <div>
+          <span className="muted">신용잔고율</span>
+          <b>{margin == null ? "—" : `${margin}%`}</b>
+        </div>
+        <div>
+          <span className="muted">호가 스프레드 · 매수/매도 잔량비</span>
+          <b>
+            {st?.spread_pct == null ? "—" : `${st.spread_pct}%`} · {st?.bid_ask_volume_ratio ?? "—"}
+          </b>
+        </div>
+      </div>
+      {st?.price_limits && (
+        <p className="muted">
+          상한가 {fmtNum(st.price_limits.upper)} · 하한가 {fmtNum(st.price_limits.lower)}
+          {st.trading_suspended ? " · ⛔ 거래정지" : ""}
+        </p>
+      )}
+      <div>
+        {(st?.warnings ?? []).map((w, i) => (
+          <span key={i} className="warn-badge" title={`${w.startDate} ~ ${w.endDate ?? ""}`}>
+            ⚠️ {WARN_KO[w.warningType] ?? w.warningType}
+          </span>
+        ))}
+        {st && (st.warnings ?? []).length === 0 && <span className="muted">매수 유의사항 없음</span>}
+      </div>
+    </section>
+  );
 }
 
 const VAL_LABEL: Record<string, string> = {
@@ -87,6 +181,8 @@ export function Stock() {
         {candles.data && <CandleChart bars={candles.data.bars} markers={candles.data.markers} />}
         <p className="muted legend">▲▼ 체결 · ● AI 결정 (빨강=상승/매수, 파랑=하락/매도)</p>
       </section>
+
+      {research.data && <SupplyPanel r={research.data} />}
 
       <div className="two-col">
         <section className="card">

@@ -2,6 +2,7 @@
 
 비밀정보(데이터 API 키, LLM 키, APP_SECRET_KEY)는 .env 로만 주입하며 SecretStr 로 보관한다.
 TRADING_MODE 는 "paper" 외의 값을 허용하지 않는다 — 실계좌(live) 주문 코드 경로는 존재하지 않는다(D-01).
+시세는 토스증권 Open API(조회 전용)만 쓴다. 목업 데이터·가속 시뮬레이션은 없다(D-28).
 """
 
 from __future__ import annotations
@@ -30,11 +31,9 @@ class Settings(BaseSettings):
     # --- 안전 장치 -------------------------------------------------------
     trading_mode: Literal["paper"] = "paper"
 
-    # --- 데이터 소스 -----------------------------------------------------
-    data_source: Literal["auto", "mock", "toss", "public"] = "auto"
+    # --- 데이터 (토스증권 조회 전용 + DART·네이버) -------------------------
     toss_client_id: SecretStr | None = None
     toss_client_secret: SecretStr | None = None
-    data_go_kr_service_key: SecretStr | None = None
     dart_api_key: SecretStr | None = None
     naver_client_id: SecretStr | None = None
     naver_client_secret: SecretStr | None = None
@@ -49,11 +48,9 @@ class Settings(BaseSettings):
     llm_max_steps: int = Field(default=24, ge=2, le=80)
     llm_timeout_sec: float = 180.0
 
-    # --- 시계 ------------------------------------------------------------
-    clock_mode: Literal["auto", "real", "simulated"] = "auto"
-    sim_speed: float = Field(default=600.0, gt=0, description="시뮬레이션 배속 (600 = 실제 1초에 10분)")
-    sim_start: str = ""
-    mock_seed: int = 42
+    # --- 판단 주기 --------------------------------------------------------
+    # 장중 LLM 판단 간격(분). 60 → 10:00~15:00 매시 정각 (+ 08:35 장전). 0 → 14:00 한 번
+    agent_interval_minutes: int = Field(default=60, ge=0, le=390)
 
     # --- 모의 계좌 -------------------------------------------------------
     paper_initial_cash: float = 10_000_000
@@ -94,10 +91,6 @@ class Settings(BaseSettings):
         return _filled(self.toss_client_id) and _filled(self.toss_client_secret)
 
     @property
-    def has_public_data(self) -> bool:
-        return _filled(self.data_go_kr_service_key)
-
-    @property
     def has_dart(self) -> bool:
         return _filled(self.dart_api_key)
 
@@ -109,27 +102,12 @@ class Settings(BaseSettings):
     def has_llm(self) -> bool:
         return bool(self.llm_base_url and self.llm_model and _filled(self.llm_api_key))
 
-    @property
-    def resolved_data_source(self) -> Literal["mock", "toss", "public"]:
-        if self.data_source == "auto":
-            if self.has_toss:
-                return "toss"
-            return "public" if self.has_public_data else "mock"
-        if self.data_source == "toss" and not self.has_toss:
-            raise ValueError("DATA_SOURCE=toss 에는 TOSS_CLIENT_ID / TOSS_CLIENT_SECRET 이 필요합니다.")
-        if self.data_source == "public" and not self.has_public_data:
-            raise ValueError("DATA_SOURCE=public 에는 DATA_GO_KR_SERVICE_KEY 가 필요합니다.")
-        return self.data_source
-
-    @property
-    def resolved_clock_mode(self) -> Literal["real", "simulated"]:
-        if self.clock_mode == "auto":
-            return "simulated" if self.resolved_data_source == "mock" else "real"
-        if self.clock_mode == "simulated" and self.resolved_data_source != "mock":
+    def require_toss(self) -> None:
+        if not self.has_toss:
             raise ValueError(
-                "CLOCK_MODE=simulated 는 Mock 데이터에서만 쓸 수 있습니다(실데이터와 시각이 어긋남)."
+                "TOSS_CLIENT_ID / TOSS_CLIENT_SECRET 이 필요합니다. 토스증권 WTS > 설정 > Open API 에서 발급해 .env 에 "
+                "넣고, 같은 화면의 '허용 IP 관리'에 이 컴퓨터의 공인 IP 를 등록하세요."
             )
-        return self.clock_mode
 
     def secret_values(self) -> list[str]:
         """로그 마스킹 대상 비밀값 목록."""
@@ -137,7 +115,6 @@ class Settings(BaseSettings):
         for s in (
             self.toss_client_id,
             self.toss_client_secret,
-            self.data_go_kr_service_key,
             self.dart_api_key,
             self.naver_client_id,
             self.naver_client_secret,

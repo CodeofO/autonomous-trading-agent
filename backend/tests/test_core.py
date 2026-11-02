@@ -7,7 +7,7 @@ from datetime import date, datetime
 import pytest
 from fastapi.testclient import TestClient
 
-from app.core.clock import KST
+from app.core.clock import KST, SimulatedClock
 from app.core.config import Settings
 from app.core.logging import RedactingFilter, mask, redact, register_secret
 from app.core.market_calendar import MarketCalendar
@@ -15,8 +15,16 @@ from app.core.ticks import round_to_tick, tick_size
 from app.main import create_app
 
 
-def test_health() -> None:
-    client = TestClient(create_app(Settings(database_url="sqlite://", enable_scheduler=False)))
+def test_health(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from tests.fake_toss import FakeTossClient
+
+    clock = SimulatedClock(datetime(2026, 11, 2, 10, tzinfo=KST))
+    app = create_app(
+        Settings(database_url="sqlite://", data_dir=tmp_path, enable_scheduler=False),
+        toss_client=FakeTossClient(clock),
+        clock=clock,
+    )
+    client = TestClient(app)
     r = client.get("/api/health")
     assert r.status_code == 200
     assert r.json()["trading_mode"] == "paper"
@@ -34,21 +42,20 @@ def test_trading_mode_env_live_rejected(monkeypatch: pytest.MonkeyPatch) -> None
         Settings()
 
 
-def test_data_source_auto_resolution() -> None:
-    assert Settings().resolved_data_source == "mock"
-    assert Settings().resolved_clock_mode == "simulated"
-    assert not Settings().has_llm
-    s = Settings(data_go_kr_service_key="abcd1234")  # type: ignore[arg-type]
-    assert s.resolved_data_source == "public"
-    assert s.resolved_clock_mode == "real"
+def test_toss_keys_required_and_interval() -> None:
+    with pytest.raises(ValueError, match="TOSS_CLIENT_ID"):
+        Settings().require_toss()
+    s = Settings(toss_client_id="tsck_id", toss_client_secret="sec_value")  # type: ignore[arg-type]
+    s.require_toss()
+    assert {"tsck_id", "sec_value"} <= set(s.secret_values())
+    assert Settings().agent_interval_minutes == 60
     llm = Settings(llm_base_url="https://llm.example/v1/", llm_model="m", llm_api_key="k")  # type: ignore[arg-type]
     assert llm.has_llm and llm.llm_base_url == "https://llm.example/v1"
 
 
-def test_simulated_clock_requires_mock() -> None:
-    s = Settings(data_go_kr_service_key="abcd1234", clock_mode="simulated")  # type: ignore[arg-type]
-    with pytest.raises(ValueError):
-        _ = s.resolved_clock_mode
+def test_app_refuses_to_start_without_toss_keys(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    with pytest.raises(ValueError, match="허용 IP"):
+        create_app(Settings(database_url="sqlite://", data_dir=tmp_path, enable_scheduler=False))
 
 
 def test_secret_not_in_repr() -> None:
