@@ -25,6 +25,8 @@ export function fmtDateTime(iso: string): string {
 }
 
 export const ACTION_KO: Record<string, string> = { BUY: "매수", SELL: "매도", HOLD: "유지" };
+export const BASIS_KO: Record<string, string> = { OPEN: "시가", CLOSE: "종가", NOW: "현재가" };
+
 export const STATUS_KO: Record<string, string> = {
   PENDING: "대기",
   SUBMITTED: "접수",

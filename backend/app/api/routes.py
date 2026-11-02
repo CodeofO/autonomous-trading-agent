@@ -524,7 +524,9 @@ def del_watch(symbol: str, c: C, _: U) -> dict[str, Any]:
 
 # ====================================================================== 시장/종목
 @router.get("/market/universe")
-def universe(c: C, _: U, q: str = "", limit: int = Query(50, ge=1, le=500)) -> list[dict[str, Any]]:
+async def universe(c: C, _: U, q: str = "", limit: int = Query(50, ge=1, le=500)) -> list[dict[str, Any]]:
+    if c.toss is not None:
+        return await c.toss.search(q, limit)
     snap = c.store.snapshot()
     if not snap and c.world:
         return [{"symbol": x.symbol, "name": x.name, "market": x.market} for x in COMPANIES]
@@ -538,7 +540,7 @@ def universe(c: C, _: U, q: str = "", limit: int = Query(50, ge=1, le=500)) -> l
 
 @router.get("/market/{symbol}/candles")
 async def candles(symbol: str, c: C, _: U, days: int = Query(180, ge=20, le=1000)) -> dict[str, Any]:
-    latest = c.store.latest_day()
+    latest = c.clock.now().astimezone(KST).date() if c.toss is not None else c.store.latest_day()
     if latest is not None:
         await c.store.ensure_history(symbol, latest, int(days * 1.5))
     bars = c.store.history(symbol, latest, days)

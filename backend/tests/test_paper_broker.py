@@ -42,9 +42,9 @@ async def test_open_fill_and_idempotency() -> None:
     again = await env.broker.place_order(OrderRequest("c1", "AAA", OrderSide.BUY, 10))
     assert again.broker_order_id == r.broker_order_id
     assert len(env.broker.open_orders()) == 1
-    assert env.broker.settle() == []  # 아직 공개 전
+    assert await env.broker.settle() == []  # 아직 공개 전
     await _publish(env, D)
-    [res] = env.broker.settle()
+    [res] = await env.broker.settle()
     assert res.status == OrderStatus.FILLED and res.path == [OrderStatus.FILLED]
     assert res.fills[0].price == 10_200 and res.fills[0].quantity == 10
     bal = await env.broker.get_balance()
@@ -60,7 +60,7 @@ async def test_close_fill_with_costs() -> None:
     env = _env(datetime(2026, 11, 2, 10, 0, tzinfo=KST), costs=costs)
     await env.broker.place_order(OrderRequest("c1", "AAA", OrderSide.BUY, 10))
     await _publish(env, D)
-    [res] = env.broker.settle()
+    [res] = await env.broker.settle()
     px = 10_400 * 1.001
     assert res.fills[0].price == pytest.approx(round(px, 2))
     assert res.fills[0].fee == pytest.approx(round(px * 10 * 0.001, 2))
@@ -76,7 +76,7 @@ async def test_sell_tax_and_realized_pnl() -> None:
     r = await env.broker.place_order(OrderRequest("s", "AAA", OrderSide.SELL, 10))
     assert r.reject_reason == "insufficient-sellable-quantity"  # 아직 체결 전
     await _publish(env, D)
-    env.broker.settle()
+    await env.broker.settle()
     # 다음 거래일에 매도 (종가 체결)
     d3 = date(2026, 11, 3)
     env.provider.bars.append(bar("AAA", d3, 10_400, 11_000, 10_300, 11_000))
@@ -86,7 +86,7 @@ async def test_sell_tax_and_realized_pnl() -> None:
     r = await env.broker.place_order(OrderRequest("s3", "AAA", OrderSide.SELL, 1))
     assert r.reject_reason == "insufficient-sellable-quantity"  # 대기 매도 수량 반영
     await _publish(env, d3)
-    [res] = env.broker.settle()
+    [res] = await env.broker.settle()
     assert res.fills[0].tax == pytest.approx(110_000 * 0.002)
     bal = await env.broker.get_balance()
     assert bal.realized_pnl == pytest.approx((11_000 - 10_200) * 10 - 220)
@@ -107,7 +107,7 @@ async def test_limit_not_reached_is_canceled() -> None:
     env = _env(datetime(2026, 11, 2, 8, 45, tzinfo=KST))
     await env.broker.place_order(OrderRequest("c1", "AAA", OrderSide.BUY, 5, OrderType.LIMIT, 9_700))
     await _publish(env, D)
-    [res] = env.broker.settle()
+    [res] = await env.broker.settle()
     assert res.status == OrderStatus.CANCELED and res.reject_reason == "limit-not-reached"
 
 
@@ -115,7 +115,7 @@ async def test_limit_open_fills_at_limit_when_low_touches() -> None:
     env = _env(datetime(2026, 11, 2, 8, 45, tzinfo=KST))
     await env.broker.place_order(OrderRequest("c1", "AAA", OrderSide.BUY, 5, OrderType.LIMIT, 9_900))
     await _publish(env, D)
-    [res] = env.broker.settle()
+    [res] = await env.broker.settle()
     assert res.status == OrderStatus.FILLED and res.fills[0].price == 9_900
 
 
@@ -124,7 +124,7 @@ async def test_volume_cap_partial_then_cancel() -> None:
     env = _env(datetime(2026, 11, 2, 9, 30, tzinfo=KST), costs=costs, cash=10_000_000)
     await env.broker.place_order(OrderRequest("c1", "AAA", OrderSide.BUY, 20))
     await _publish(env, D)
-    [res] = env.broker.settle()  # 거래량 1,000,000 × 0.000005 = 5주
+    [res] = await env.broker.settle()  # 거래량 1,000,000 × 0.000005 = 5주
     assert res.path == [OrderStatus.PARTIALLY_FILLED, OrderStatus.CANCELED]
     assert res.filled_qty == 5 and res.status == OrderStatus.CANCELED
 

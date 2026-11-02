@@ -1,7 +1,8 @@
-# 토스증권 Open API 조사 노트 (보관용)
+# 토스증권 Open API 노트 — 실제 종목 시세(조회 전용)
 
-> **보관 문서**입니다. 공식 모의투자 환경이 없다는 조사 결과에 따라 사용자 결정(2026-11-02)으로 토스증권 연동은 하지 않습니다(DECISIONS.md D-03).
-> 아래에 나오는 코드 경로(`TossHttpClient` 등)는 현재 코드에 없습니다. 현재 데이터 소스는 [../DATA_API_NOTES.md](../DATA_API_NOTES.md) 를 보세요.
+> **현재 사용 중**입니다(2026-11-02 사용자 결정, DECISIONS D-03·D-23).
+> 시세·캔들·종목정보·랭킹·장 운영 캘린더만 **조회**합니다. 주문·계좌 API 는 이 시스템에서 호출하지 않으며 네트워크 계층에서 차단합니다.
+> 주문은 자체 모의계좌(PaperBroker)가 토스 실시간 현재가로 체결합니다.
 
 > 조사일: 2026-11-02 · 대상 문서 버전: OpenAPI `1.2.28`
 > 출처(공식):
@@ -18,7 +19,7 @@
 | 항목 | 확인 결과 |
 |---|---|
 | 공식 모의투자(샌드박스) 환경 | **없음.** OpenAPI `servers` 는 `https://openapi.tossinvest.com` 하나뿐이고, 개요·FAQ·OpenAPI·AsyncAPI 어디에도 모의투자/샌드박스/테스트 환경 언급이 없다. 예시 client_id 도 `tsck_live_...` 형태. |
-| 분기 | **B.** 시세는 토스 API(조회 전용)로 받고, 주문·체결·잔고는 자체 `PaperBroker`(가상 계좌)로 시뮬레이션한다. **토스 주문/조건주문/계좌 API 는 호출하지 않는다.** |
+| 분기 | **B.** 시세는 토스 API(조회 전용)로 받고, 주문·체결·잔고는 자체 `PaperBroker`(가상 계좌)로 시뮬레이션한다. **토스 주문/조건주문/계좌 API 는 호출하지 않는다.** (한때 공공데이터 일봉으로 바꿨다가, 사용자 결정으로 토스 시세를 다시 채택) |
 
 ## 2. 인증
 
@@ -42,14 +43,17 @@
 
 모의/실전 구분 URL 은 존재하지 않는다.
 
-## 4. 본 시스템이 사용하는 엔드포인트 (조회 전용 허용목록)
+## 4. 본 시스템이 사용하는 엔드포인트 (조회 전용 허용목록, `backend/app/market/toss.py`)
 
-| 메서드 | 경로 | 용도 | Rate group |
+| 메서드 | 경로 | 용도 | Rate group (공식 → 본 시스템 80%) |
 |---|---|---|---|
-| POST | `/oauth2/token` | 토큰 발급 | AUTH (5/s) |
-| GET | `/api/v1/prices?symbols=005930,000660` | 현재가 (최대 200종목, 콤마 구분) | MARKET_DATA (15/s) |
-| GET | `/api/v1/candles?symbol=&interval=1m\|1d&count=&before=&adjusted=` | 분봉/일봉 (최대 200개, **최신순 내림차순**, `nextBefore` 로 과거 페이지) | MARKET_DATA_CHART (20/s) |
-| GET | `/api/v1/market-calendar/KR?date=YYYY-MM-DD` | 국내 장 운영시간(전일/당일/익일) | MARKET_INFO (3/s) |
+| POST | `/oauth2/token` | 토큰 발급 | AUTH 5/s → 4/s |
+| GET | `/api/v1/prices?symbols=005930,000660` | 실시간 현재가 (최대 200종목) — 실시간 체결·평가·손절익절 | MARKET_DATA 15/s → 12/s |
+| GET | `/api/v1/candles?symbol=&interval=1d&count=200&before=` | 일봉 (최신순, `nextBefore` 페이지) — 지표·차트·백테스트 | MARKET_DATA_CHART 20/s → 16/s |
+| GET | `/api/v1/stocks?symbols=` | 종목명·시장·발행주식수(시가총액 계산) | STOCK 5/s → 4/s |
+| GET | `/api/v1/stocks/all?market=KOSPI\|KOSDAQ&securityType=STOCK` | 유니버스(보통주), 하루 1회 캐시 | STOCK_ALL 1/s → 0.8/s |
+| GET | `/api/v1/rankings?type=&marketCountry=KR&duration=` | 스크리닝(거래대금·거래량·상승/하락률 상위 100) | RANKING 5/s → 4/s |
+| GET | `/api/v1/market-calendar/KR` | 휴장일·장 시간(전일/당일/익일) | MARKET_INFO 3/s → 2.4/s |
 
 ### 응답 형식 (공식 예시 기준)
 
@@ -77,7 +81,7 @@
 | * | `/api/v1/conditional-orders/**` | 조건주문 (SINGLE/OCO/OTO) |
 | GET | `/api/v1/accounts`, `/api/v1/holdings` | 실계좌 정보 |
 
-→ `TossHttpClient` 는 **(메서드, 경로) 허용목록** 방식이라 위 경로는 네트워크로 나가기 전에 `LiveOrderBlockedError` 를 던진다 (`backend/app/brokers/guard.py`, 테스트 `tests/test_guard.py`).
+→ `core/http.check_outbound` 가 주문·계좌 경로를 **어떤 호스트든 허용목록보다 먼저** 차단하고(`LiveOrderBlockedError`), 토스 호스트는 위 7개 조회 경로 외 전부 차단한다. 차단 요청은 네트워크로 나가지 않는다 (`tests/test_toss.py`, `tests/test_guard.py`).
 
 ## 6. 실시간 시세 (WebSocket)
 
@@ -87,7 +91,7 @@
 - 계정당 동시 연결 2개, 연결당 구독 100건, 선언 5회/초
 - 클라이언트 수신 180초 없으면 서버가 종료 → 60초마다 `PING` 권장
 - 시세 채널은 LOSSY(최신 우선)
-- **본 시스템 결정**: 전략 주기가 1분이므로 REST 폴링으로 충분하다. 토스 WebSocket 클라이언트는 이번 범위에서 구현하지 않는다 (DECISIONS.md D-07).
+- **본 시스템 결정**: 판단은 하루 2회, 장중 감시는 1분 주기라 REST 폴링(현재가 5초 캐시)으로 충분하다. 토스 WebSocket 은 쓰지 않는다(웹소켓 호스트도 차단).
 
 ## 7. Rate Limit
 
@@ -111,8 +115,8 @@
 ## 9. 장 운영시간 제약
 
 - 국내 주문 가능 시간은 매매 시스템과 동일, 불가 시간엔 `422 order-hours-closed`.
-- 본 시스템의 PaperBroker/리스크 규칙은 **정규장 연속매매 구간(09:00~15:20 KST)** 에만 주문을 허용한다 (단일가 구간·프리/애프터마켓 제외, D-05).
-- 휴장일: 토스 키가 있으면 `market-calendar/KR` 로 판정, 없으면 내장 KRX 휴장일 목록(`app/core/market_calendar.py`) 사용.
+- 본 시스템: 08:30~09:00 접수 → 09:00 이후 첫 현재가로 체결, 09:00~15:20 접수 → 현재가로 즉시 체결(지정가는 도달 시), 15:20 이후 미체결분 취소. 그 외 시간 접수 거부 (D-24).
+- 휴장일: `market-calendar/KR` 결과가 내장 KRX 휴장일 목록보다 우선한다(기동 시·매일 장전 갱신).
 
 ## 10. 수수료·세금 (PaperBroker 가정값)
 

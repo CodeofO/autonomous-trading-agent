@@ -46,6 +46,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             c.clock_mode,
             settings.llm_model if settings.has_llm else "없음(규칙 기반)",
         )
+        await c.engine.refresh_calendar()
         try:
             await c.engine.sync_data()
         except Exception:
@@ -60,6 +61,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
         yield
         c.scheduler.shutdown()
+        if c.toss is not None:
+            await c.toss.client.aclose()
 
     app = FastAPI(
         title="AI Paper Fund Manager",

@@ -36,6 +36,7 @@ _REJECT_KO = {
     "partial-fill-volume-cap": "거래량 한도로 일부만 체결하고 나머지는 취소했어요",
     "insufficient-cash-at-fill": "체결 시점 현금이 부족해 취소됐어요",
     "canceled-by-user": "취소 요청으로 취소됐어요",
+    "day-order-expired": "오늘 장중에 체결되지 않아 취소됐어요",
     "kill-switch": "킬 스위치로 취소됐어요",
 }
 
@@ -231,7 +232,9 @@ class OrderManager:
             return
         self.hub.audit(new.value, f"{o['side']} {o['quantity']}주 → {new.value}", o["symbol"], order=o)
         if new == OrderStatus.SUBMITTED:
-            when = "오늘 시가" if o["fill_basis"] == "OPEN" else "오늘 종가"
+            when = {"OPEN": "장 시작 후 시가", "NOW": "현재가 도달 시", "CLOSE": "오늘 종가"}.get(
+                o["fill_basis"], ""
+            )
             self.hub.chat(
                 BROKER,
                 "text",
@@ -278,10 +281,10 @@ class OrderManager:
             )
 
     # ------------------------------------------------------------ 체결 확정 / 취소
-    def settle(self) -> int:
+    async def settle(self) -> int:
         if not isinstance(self.broker, PaperBroker):
             return 0
-        results = self.broker.settle()
+        results = await self.broker.settle()
         n = 0
         for r in results:
             with self.db.session() as s:

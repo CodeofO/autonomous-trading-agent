@@ -122,7 +122,7 @@ async def run_backtest(
     for d in cal.trading_days(start, end):
         clock.set(datetime.combine(d, time(13, 20), KST))
         publish()
-        orders.settle()
+        await orders.settle()
         bal = await broker.get_balance()
         curve.append({"day": d.isoformat(), "equity": round(bal.equity, 2), "cash": round(bal.cash, 2)})
         clock.set(datetime.combine(d, time(14, 0), KST))
@@ -151,7 +151,7 @@ async def run_backtest(
     # 마지막 주문 확정 (다음 거래일 공개분까지)
     clock.set(datetime.combine(cal.next_trading_day(end), time(13, 20), KST) + timedelta(seconds=1))
     publish()
-    orders.settle()
+    await orders.settle()
     final = await broker.get_balance()
     if curve:
         curve[-1] = {**curve[-1], "equity": round(final.equity, 2), "cash": round(final.cash, 2)}

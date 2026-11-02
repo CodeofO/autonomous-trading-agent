@@ -31,7 +31,9 @@ class Settings(BaseSettings):
     trading_mode: Literal["paper"] = "paper"
 
     # --- 데이터 소스 -----------------------------------------------------
-    data_source: Literal["auto", "mock", "public"] = "auto"
+    data_source: Literal["auto", "mock", "toss", "public"] = "auto"
+    toss_client_id: SecretStr | None = None
+    toss_client_secret: SecretStr | None = None
     data_go_kr_service_key: SecretStr | None = None
     dart_api_key: SecretStr | None = None
     naver_client_id: SecretStr | None = None
@@ -88,6 +90,10 @@ class Settings(BaseSettings):
 
     # --- 파생 값 ---------------------------------------------------------
     @property
+    def has_toss(self) -> bool:
+        return _filled(self.toss_client_id) and _filled(self.toss_client_secret)
+
+    @property
     def has_public_data(self) -> bool:
         return _filled(self.data_go_kr_service_key)
 
@@ -104,9 +110,13 @@ class Settings(BaseSettings):
         return bool(self.llm_base_url and self.llm_model and _filled(self.llm_api_key))
 
     @property
-    def resolved_data_source(self) -> Literal["mock", "public"]:
+    def resolved_data_source(self) -> Literal["mock", "toss", "public"]:
         if self.data_source == "auto":
+            if self.has_toss:
+                return "toss"
             return "public" if self.has_public_data else "mock"
+        if self.data_source == "toss" and not self.has_toss:
+            raise ValueError("DATA_SOURCE=toss 에는 TOSS_CLIENT_ID / TOSS_CLIENT_SECRET 이 필요합니다.")
         if self.data_source == "public" and not self.has_public_data:
             raise ValueError("DATA_SOURCE=public 에는 DATA_GO_KR_SERVICE_KEY 가 필요합니다.")
         return self.data_source
@@ -125,6 +135,8 @@ class Settings(BaseSettings):
         """로그 마스킹 대상 비밀값 목록."""
         out: list[str] = []
         for s in (
+            self.toss_client_id,
+            self.toss_client_secret,
             self.data_go_kr_service_key,
             self.dart_api_key,
             self.naver_client_id,

@@ -20,6 +20,8 @@ EOK = 1e8  # 억원
 MAX_RESULT_CHARS = 7000
 
 PortfolioFn = Callable[[], Awaitable[dict[str, Any]]]
+ScreenerFn = Callable[[str, str, int, float], Awaitable[list[dict[str, Any]]]]
+QuoteFn = Callable[[str], Awaitable[Any]]
 
 
 def _eok(v: float | None) -> float | None:
@@ -80,14 +82,23 @@ TOOL_SPECS: list[dict[str, Any]] = [
     },
     {
         "name": "screen_stocks",
-        "description": "최신 공식 일봉 기준 종목 스크리닝. 후보 발굴용.",
+        "description": "종목 스크리닝(후보 발굴용). 토스 연결 시 시장 전체 실시간 랭킹 상위 100 기준, 아니면 최신 일봉 기준.",
         "parameters": {
             "type": "object",
             "properties": {
                 "sort_by": {
                     "type": "string",
-                    "enum": ["market_cap", "trading_value", "change_1d"],
-                    "default": "market_cap",
+                    "enum": [
+                        "market_cap",
+                        "trading_value",
+                        "volume",
+                        "change_1d",
+                        "losers_1d",
+                        "change_1w",
+                        "change_1mo",
+                    ],
+                    "default": "trading_value",
+                    "description": "market_cap=시가총액, trading_value=거래대금, volume=거래량, change_*=상승률, losers_1d=하락률",
                 },
                 "market": {"type": "string", "enum": ["ALL", "KOSPI", "KOSDAQ"], "default": "ALL"},
                 "min_market_cap_eok": {"type": "number", "description": "최소 시가총액(억원)", "default": 0},
@@ -183,12 +194,21 @@ def tool_label(name: str, args: dict[str, Any], names: Callable[[str], str]) -> 
 
 class ToolBox:
     def __init__(
-        self, portfolio: PortfolioFn, store: PriceStore, research: ResearchService, clock: Clock
+        self,
+        portfolio: PortfolioFn,
+        store: PriceStore,
+        research: ResearchService,
+        clock: Clock,
+        *,
+        screener: ScreenerFn | None = None,
+        quote: QuoteFn | None = None,
     ) -> None:
         self.portfolio = portfolio
         self.store = store
         self.research = research
         self.clock = clock
+        self.screener = screener  # 토스 랭킹 기반 실시간 스크리닝
+        self.quote = quote  # 토스 실시간 현재가
 
     async def call(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
         fn = getattr(self, f"t_{name}", None)
@@ -219,6 +239,14 @@ class ToolBox:
         descending: bool = True,
         limit: int = 15,
     ) -> dict[str, Any]:
+        if self.screener is not None:
+            ranked = await self.screener(sort_by, market, int(limit), float(min_market_cap_eok) * EOK)
+            return {
+                "as_of": self.clock.now().isoformat(),
+                "source": "토스증권 실시간 랭킹(시장 전체)",
+                "count": len(ranked),
+                "results": ranked,
+            }
         snap = self.store.snapshot()
         if not snap:
             return {"error": "저장된 시세가 없습니다"}
@@ -252,7 +280,7 @@ class ToolBox:
         return {"as_of": day.isoformat(), "count": len(rows), "results": rows[: max(1, min(30, int(limit)))]}
 
     async def t_get_price_history(self, symbol: str, days: int = 120) -> dict[str, Any]:
-        latest = self.store.latest_day()
+        latest = self.clock.now().date() if self.quote is not None else self.store.latest_day()
         if latest is None:
             return {"error": "저장된 시세가 없습니다"}
         days = max(20, min(250, int(days)))
@@ -268,7 +296,18 @@ class ToolBox:
         if sampled[-1] is not recent[-1]:
             sampled.append(recent[-1])
         v20 = volatility(closes, 20)
+        live: dict[str, Any] = {}
+        if self.quote is not None:
+            q = await self.quote(symbol)
+            if q is not None:
+                live = {
+                    "realtime_price": q.price,
+                    "realtime_vs_prev_close_pct": _pct(q.price / closes[-2] - 1)
+                    if len(closes) >= 2 and bars[-1].day == latest
+                    else _pct(q.price / closes[-1] - 1),
+                }
         return {
+            **live,
             "symbol": symbol,
             "name": bars[-1].name,
             "as_of": bars[-1].day.isoformat(),

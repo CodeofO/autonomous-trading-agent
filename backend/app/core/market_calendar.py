@@ -1,13 +1,14 @@
 """국내(KRX) 장 운영 캘린더.
 
 - 정규장 09:00~15:30. 주문 접수는 장 시작 전 08:30~09:00(시가 체결)과 09:00~15:20(종가 체결)만 허용 (D-05)
-- 휴장일: 내장 KRX 휴장일 목록 + 사용자 추가 휴장일
+- 휴장일: 토스 장 운영 캘린더(키가 있으면 우선) → 내장 KRX 휴장일 목록 + 사용자 추가 휴장일
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
+from typing import Any
 
 from app.core.clock import KST
 
@@ -69,11 +70,16 @@ class Session:
 class MarketCalendar:
     def __init__(self, extra_holidays: set[date] | None = None) -> None:
         self._holidays: set[date] = set(KRX_HOLIDAYS) | (extra_holidays or set())
+        self._overrides: dict[date, Session | None] = {}  # 토스 장 운영 캘린더 (우선 적용)
 
     def is_trading_day(self, d: date) -> bool:
+        if d in self._overrides:
+            return self._overrides[d] is not None
         return d.weekday() < 5 and d not in self._holidays
 
     def session(self, d: date) -> Session | None:
+        if d in self._overrides:
+            return self._overrides[d]
         if not self.is_trading_day(d):
             return None
         return Session(
@@ -146,3 +152,21 @@ class MarketCalendar:
         if s.open <= t < s.order_cutoff:
             return "CLOSE"
         return None
+
+    def apply_toss_calendar(self, result: dict[str, Any]) -> None:
+        """토스 `GET /api/v1/market-calendar/KR` 의 result 반영. integrated=null 이면 휴장."""
+        for key in ("previousBusinessDay", "today", "nextBusinessDay"):
+            entry = result.get(key)
+            if not entry:
+                continue
+            d = date.fromisoformat(entry["date"])
+            integrated = entry.get("integrated")
+            regular = integrated.get("regularMarket") if integrated else None
+            if not regular:
+                self._overrides[d] = None
+                continue
+            open_ = datetime.fromisoformat(regular["startTime"]).astimezone(KST)
+            close = datetime.fromisoformat(regular["endTime"]).astimezone(KST)
+            cutoff_raw = regular.get("singlePriceAuctionStartTime")
+            cutoff = datetime.fromisoformat(cutoff_raw).astimezone(KST) if cutoff_raw else close
+            self._overrides[d] = Session(day=d, open=open_, order_cutoff=cutoff, close=close)

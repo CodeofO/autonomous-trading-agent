@@ -40,7 +40,9 @@ filled() { grep -qE "^[[:space:]]*$1[[:space:]]*=[[:space:]]*[^[:space:]#]+" .en
 echo
 printf '%s\n' "${BOLD}🦉 AI 펀드매니저 — 모의투자(PAPER)${RESET}"
 if filled LLM_BASE_URL && filled LLM_MODEL && filled LLM_API_KEY; then say "LLM: 설정됨"; else warn "LLM: 미설정 → 규칙 기반 매니저"; fi
-if filled DATA_GO_KR_SERVICE_KEY; then say "시세: 공공데이터포털(실데이터, T+1)"; else warn "시세: 가상 시장(MOCK) + 가속 시뮬레이션"; fi
+if filled TOSS_CLIENT_ID && filled TOSS_CLIENT_SECRET; then say "시세: 토스증권 Open API (실제 종목·실시간, 조회 전용)"
+elif filled DATA_GO_KR_SERVICE_KEY; then say "시세: 공공데이터포털(실데이터, T+1)"
+else warn "시세: 가상 시장(MOCK) + 가속 시뮬레이션 — 실제 종목은 .env 에 TOSS_CLIENT_ID/SECRET 입력"; fi
 filled DART_API_KEY && say "재무·공시: OpenDART" || true
 filled NAVER_CLIENT_ID && say "뉴스: 네이버 검색" || true
 echo

@@ -31,7 +31,7 @@ class LiveOrderBlockedError(OutboundBlockedError):
     """실거래(증권사) 주문 엔드포인트 호출 시도."""
 
 
-# 실계좌 주문이 가능한 증권사 API 호스트 — 어떤 경로든 차단
+# 실계좌 주문이 가능한 증권사 API 호스트 — 허용목록에 '정확히' 등록된 조회 경로 외에는 전부 차단
 BROKER_HOST_DENYLIST: tuple[str, ...] = (
     "openapi.tossinvest.com",
     "openapi-ws.tossinvest.com",
@@ -43,7 +43,12 @@ BROKER_HOST_DENYLIST: tuple[str, ...] = (
     "api.alpaca.markets",
     "paper-api.alpaca.markets",
 )
-_ORDER_PATH = re.compile(r"/(orders?|trading|conditional-orders?|order-cash|order-rvsecncl)(/|$|\?)", re.I)
+# 주문·계좌 경로: 어떤 호스트든, 허용목록 여부와 무관하게 항상 차단 (D-02, D-23)
+_LIVE_PATH = re.compile(
+    r"/(orders?|trading|conditional-orders?|order-cash|order-rvsecncl|accounts?|holdings|buying-power"
+    r"|sellable-quantity|commissions)(/|$|\?)",
+    re.I,
+)
 
 
 @dataclass(frozen=True)
@@ -80,13 +85,15 @@ class TokenBucket:
 def check_outbound(method: str, url: str, routes: list[Route]) -> None:
     parts = urlsplit(url)
     host = (parts.hostname or "").lower()
+    if _LIVE_PATH.search(parts.path):
+        raise LiveOrderBlockedError(f"주문·계좌 엔드포인트 호출 차단: {method} {host}{parts.path}")
+    allowed = any(
+        r.host == host and r.method == method.upper() and r.path.fullmatch(parts.path) for r in routes
+    )
+    if allowed:
+        return
     if any(host == h or host.endswith("." + h) for h in BROKER_HOST_DENYLIST):
-        raise LiveOrderBlockedError(f"증권사 API 호출 차단: {method} {host}{parts.path}")
-    for r in routes:
-        if r.host == host and r.method == method.upper() and r.path.fullmatch(parts.path):
-            return
-    if _ORDER_PATH.search(parts.path):
-        raise LiveOrderBlockedError(f"주문 엔드포인트로 보이는 호출 차단: {method} {host}{parts.path}")
+        raise LiveOrderBlockedError(f"증권사 API 호출 차단(허용되지 않은 경로): {method} {host}{parts.path}")
     raise OutboundBlockedError(f"허용목록에 없는 외부 호출 차단: {method} {host}{parts.path}")
 
 
@@ -117,13 +124,16 @@ class SafeHttpClient:
         params: Mapping[str, Any] | None = None,
         headers: Mapping[str, str] | None = None,
         json: Any = None,
+        data: Mapping[str, str] | None = None,
     ) -> httpx.Response:
         check_outbound(method, url, self.routes)
         attempt = 0
         while True:
             await self.bucket.acquire()
             try:
-                resp = await self._client.request(method, url, params=params, headers=headers, json=json)
+                resp = await self._client.request(
+                    method, url, params=params, headers=headers, json=json, data=data
+                )
             except (httpx.TransportError, httpx.TimeoutException) as e:
                 if attempt >= self.max_retries:
                     raise

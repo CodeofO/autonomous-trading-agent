@@ -59,6 +59,15 @@ class Scheduler:
                     misfire_grace_time=600,
                     coalesce=True,
                 )
+            if self.engine.toss is not None:  # 토스 실시세: 장중 1분 감시
+                self._sched.add_job(
+                    self._guarded("intraday", self.engine.intraday),
+                    "interval",
+                    minutes=1,
+                    id="intraday",
+                    coalesce=True,
+                    max_instances=1,
+                )
             self._sched.add_job(
                 self._guarded("heartbeat", self.engine.sync_data),
                 "interval",

@@ -2,7 +2,16 @@ import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { get, post } from "../api/client";
 import type { Decision, FillRow, Order, Position } from "../api/types";
-import { ACTION_KO, fmtDateTime, fmtNum, fmtPct, fmtWon, signClass, STATUS_KO } from "../utils/format";
+import {
+  ACTION_KO,
+  BASIS_KO,
+  fmtDateTime,
+  fmtNum,
+  fmtPct,
+  fmtWon,
+  signClass,
+  STATUS_KO,
+} from "../utils/format";
 
 export function HoldingsTable({ positions }: { positions: Position[] }) {
   if (positions.length === 0)
@@ -70,7 +79,10 @@ export function Portfolio() {
 
       <section className="card">
         <h2>미체결 주문 ({open.length})</h2>
-        <p className="muted">공식 일봉이 공개되면(T+1 13시) 시가/종가 기준으로 체결이 확정돼요.</p>
+        <p className="muted">
+          토스 실시세 모드는 현재가로 즉시(지정가는 도달 시) 체결되고 15:20 미체결분은 취소돼요. 가상 시장
+          모드는 다음 공식 일봉으로 확정돼요.
+        </p>
         <OrderTable orders={open} onCancel={(id) => cancel.mutate(id)} />
       </section>
 
@@ -175,7 +187,7 @@ function OrderTable({ orders, onCancel }: { orders: Order[]; onCancel?: (id: num
             <td className={o.side === "BUY" ? "up" : "down"}>{ACTION_KO[o.side]}</td>
             <td className="r">{fmtNum(o.quantity)}</td>
             <td>
-              {o.trade_day} {o.fill_basis === "OPEN" ? "시가" : o.fill_basis === "CLOSE" ? "종가" : ""}
+              {o.trade_day} {BASIS_KO[o.fill_basis] ?? ""}
             </td>
             <td>
               <span className={`pill ${o.status.toLowerCase()}`}>{STATUS_KO[o.status] ?? o.status}</span>

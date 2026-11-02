@@ -26,7 +26,8 @@ flowchart LR
   end
 
   subgraph EXT["외부 (조회 전용, 허용목록)"]
-    PD[(공공데이터<br/>주식시세 T+1)]
+    TOSS[(토스증권 Open API<br/>현재가·일봉·종목·랭킹·캘린더)]
+    PD[(공공데이터<br/>주식시세 T+1 · 대체)]
     DART[(OpenDART<br/>재무·공시)]
     NAVER[(네이버 뉴스)]
     LLM[(OpenAI 호환 LLM)]
@@ -46,7 +47,10 @@ flowchart LR
   OM --> Broker
   Tools --> Store
   Tools --> Research
-  Store --> PD
+  Store --> TOSS
+  Store -.토스 키 없을 때.-> PD
+  Broker -- 실시간 현재가 --> TOSS
+  Tools -- 랭킹 스크리닝 --> TOSS
   Research --> DART
   Research --> NAVER
   Agent --> LLM
@@ -59,7 +63,7 @@ flowchart LR
   Store --> DB
 ```
 
-- 모든 외부 호출은 `SafeHttpClient`(허용목록·토큰버킷·지수 백오프)를 거칩니다. 증권사 호스트와 주문형 경로는 무조건 차단됩니다.
+- 모든 외부 호출은 `SafeHttpClient`(허용목록·토큰버킷·지수 백오프)를 거칩니다. 주문·계좌 경로는 토스 포함 모든 호스트에서 무조건 차단되고, 토스는 조회 7개 경로만 열려 있습니다.
 - 키가 없으면 `MockWorld`(가상 종목 20개의 일봉·뉴스·공시·재무)가 공공데이터·DART·네이버를 대신합니다.
 
 ## 2. 디렉터리

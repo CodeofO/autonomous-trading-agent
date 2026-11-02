@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime, time
 from pathlib import Path
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 
 from app.agent.llm import LLMClient
 from app.agent.runner import AgentRunner
@@ -18,7 +18,7 @@ from app.core.clock import KST, Clock, RealClock, SimulatedClock
 from app.core.config import Settings
 from app.core.logging import register_secret
 from app.core.market_calendar import MarketCalendar
-from app.db.models import StrategyConfig
+from app.db.models import EquitySnapshot, Order, StrategyConfig, WatchlistItem
 from app.db.session import Database
 from app.engine.engine import TradingEngine
 from app.engine.events import EventHub
@@ -27,6 +27,7 @@ from app.engine.settings_store import SettingsStore
 from app.market.mock_world import MockDataProvider, MockWorld
 from app.market.public_data import PublicDataProvider
 from app.market.store import PriceStore
+from app.market.toss import TossClient, TossMarketProvider
 from app.market.types import MarketDataProvider
 from app.research.dart import DartClient
 from app.research.naver import NaverNewsClient
@@ -52,6 +53,7 @@ class Container:
     scheduler: Scheduler
     world: MockWorld | None
     secret_key: bytes
+    toss: TossMarketProvider | None = None
 
     @property
     def data_source(self) -> str:
@@ -108,6 +110,37 @@ def seed_defaults(db: Database, kv: SettingsStore) -> None:
             )
 
 
+def _reset_on_source_change(
+    db: Database, kv: SettingsStore, broker: PaperBroker, hub: EventHub, source: str
+) -> None:
+    """데이터 소스가 바뀌면(예: 가상 시장 → 토스 실시세) 모의계좌를 새로 시작한다(D-25).
+
+    가상 종목 포지션을 실제 시세로 평가할 수 없으므로 계좌·미체결·자산곡선·가상 관심종목을 정리한다.
+    주문·체결·결정 기록과 감사 로그는 그대로 남긴다.
+    """
+    prev = kv.get("account_source").get("source")
+    if prev == source:
+        return
+    if prev is not None:
+        broker.reset()
+        with db.session() as s:
+            for o in s.scalars(
+                select(Order).where(Order.status.in_(["PENDING", "SUBMITTED", "PARTIALLY_FILLED"]))
+            ):
+                o.status, o.reject_reason = "CANCELED", "data-source-changed"
+            s.execute(delete(EquitySnapshot))
+            s.execute(delete(WatchlistItem).where(WatchlistItem.symbol.like("MOCK%")))
+        kv.set("sod", {})
+        hub.audit("ACCOUNT_RESET", f"데이터 소스 변경 {prev} → {source}: 모의계좌 초기화", None)
+        hub.chat(
+            "system",
+            "text",
+            f"🔄 데이터 소스가 {prev.upper()} → {source.upper()} 로 바뀌어 모의계좌를 새로 시작했어요 "
+            f"(초기 자금 {broker.state['initial_cash']:,.0f}원).",
+        )
+    kv.set("account_source", {"source": source})
+
+
 def build_container(settings: Settings, *, create_schema: bool = False) -> Container:
     db = Database(settings.database_url)
     if create_schema:
@@ -119,10 +152,20 @@ def build_container(settings: Settings, *, create_schema: bool = False) -> Conta
     clock: Clock = SimulatedClock(_sim_start(settings, cal, kv)) if clock_mode == "simulated" else RealClock()
 
     world: MockWorld | None = None
+    toss: TossMarketProvider | None = None
     provider: MarketDataProvider
     if source == "mock":
         world = MockWorld(settings.mock_seed, cal)
         provider = MockDataProvider(world, clock)
+    elif source == "toss":
+        assert settings.toss_client_id and settings.toss_client_secret
+        toss = TossMarketProvider(
+            TossClient(
+                settings.toss_client_id.get_secret_value(), settings.toss_client_secret.get_secret_value()
+            ),
+            clock,
+        )
+        provider = toss
     else:
         assert settings.data_go_kr_service_key is not None
         provider = PublicDataProvider(settings.data_go_kr_service_key.get_secret_value())
@@ -130,11 +173,11 @@ def build_container(settings: Settings, *, create_schema: bool = False) -> Conta
 
     dart = (
         DartClient(settings.dart_api_key.get_secret_value(), db)
-        if settings.has_dart and settings.dart_api_key and source == "public"
+        if settings.has_dart and settings.dart_api_key and source != "mock"
         else None
     )
     news = None
-    if settings.has_naver and source == "public":
+    if settings.has_naver and source != "mock":
         assert settings.naver_client_id and settings.naver_client_secret
         news = NaverNewsClient(
             settings.naver_client_id.get_secret_value(), settings.naver_client_secret.get_secret_value()
@@ -154,10 +197,12 @@ def build_container(settings: Settings, *, create_schema: bool = False) -> Conta
             settings.paper_slippage_bps,
             settings.paper_max_volume_participation,
         ),
+        quotes=toss,  # 토스면 실시간 체결
     )
     hub = EventHub(db, clock)
     seed_defaults(db, kv)
-    engine = TradingEngine(db, clock, cal, store, broker, hub, kv)
+    _reset_on_source_change(db, kv, broker, hub, source)
+    engine = TradingEngine(db, clock, cal, store, broker, hub, kv, toss=toss)
 
     llm = None
     if settings.has_llm:
@@ -170,7 +215,14 @@ def build_container(settings: Settings, *, create_schema: bool = False) -> Conta
             max_tokens=settings.llm_max_tokens,
             timeout=settings.llm_timeout_sec,
         )
-    toolbox = ToolBox(engine.portfolio, store, research, clock)
+    toolbox = ToolBox(
+        engine.portfolio,
+        store,
+        research,
+        clock,
+        screener=toss.screen if toss else None,
+        quote=broker.get_quote if toss else None,
+    )
     runner = AgentRunner(
         db,
         clock,
@@ -201,4 +253,5 @@ def build_container(settings: Settings, *, create_schema: bool = False) -> Conta
         scheduler,
         world,
         _secret_key(settings),
+        toss,
     )

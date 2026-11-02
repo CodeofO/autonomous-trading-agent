@@ -3,14 +3,14 @@
 > 조사일: 2026-11-02. 모두 **공식 문서**에서 확인한 내용만 적었다. 비공식 라이브러리(pykrx, FinanceDataReader 등)는 쓰지 않는다.
 > 확인하지 못한 부분은 `TODO(verify)` 로 표시했고, 코드에서는 관대한 파싱(lenient parsing)과 Mock 으로 대체한다.
 >
-> 이전 방향(토스증권 Open API) 조사 결과는 [archive/TOSS_API_NOTES.md](archive/TOSS_API_NOTES.md) 에 보관했다.
-> 토스증권은 공식 모의투자 환경이 없어서, 사용자 결정(2026-11-02)에 따라 **국내 주식 + 자체 모의계좌**로 바꿨다.
+> 시세는 토스증권 Open API(조회 전용)가 기본이다 — [TOSS_API_NOTES.md](TOSS_API_NOTES.md). 이 문서는 나머지 공식 API 를 다룬다.
 
 ## 0. 구성 요약
 
 | 용도 | 출처 | 키 | 비고 |
 |---|---|---|---|
-| 주가(일봉) · 시가총액 · 종목 목록 | 공공데이터포털 **금융위원회_주식시세정보** | `DATA_GO_KR_SERVICE_KEY` | **T+1**: 기준일 다음 영업일 13시 이후 공개 |
+| 주가(실시간·일봉) · 종목 · 랭킹 · 캘린더 | **토스증권 Open API (조회 전용, 기본)** — [TOSS_API_NOTES.md](TOSS_API_NOTES.md) | `TOSS_CLIENT_ID`, `TOSS_CLIENT_SECRET` | 허용 IP 등록 필요 |
+| 주가(일봉) · 시가총액 (토스 대체) | 공공데이터포털 **금융위원회_주식시세정보** | `DATA_GO_KR_SERVICE_KEY` | **T+1**: 기준일 다음 영업일 13시 이후 공개 |
 | 재무제표 · 공시 · 기업코드 | 금융감독원 **OpenDART** | `DART_API_KEY` | 2015년 이후 재무제표 |
 | 뉴스 | **네이버 검색 API**(뉴스) | `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET` | 하루 25,000회 |
 | 판단 | 사용자가 지정한 **OpenAI 호환 Chat Completions** 엔드포인트 | `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY` | tool calling 사용, 미지원 시 JSON 모드 |

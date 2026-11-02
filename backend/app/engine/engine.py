@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 from sqlalchemy import select
@@ -19,6 +19,7 @@ from app.engine.events import RISK, SYSTEM, EventHub
 from app.engine.orders import OrderManager, order_dict
 from app.engine.settings_store import SettingsStore
 from app.market.store import PriceStore
+from app.market.toss import TossMarketProvider
 from app.risk.rules import RiskConfig, RiskContext, RiskManager
 from app.strategies.rules import Strategy, build
 
@@ -37,8 +38,10 @@ class TradingEngine:
         broker: PaperBroker,
         hub: EventHub,
         settings: SettingsStore,
+        toss: TossMarketProvider | None = None,
     ) -> None:
         self.db = db
+        self.toss = toss  # 토스 실시세 모드면 실시간 체결·장중 감시
         self.clock = clock
         self.cal = cal
         self.store = store
@@ -101,6 +104,11 @@ class TradingEngine:
     def order_window(self) -> str:
         now = self.clock.now()
         basis = self.cal.fill_basis(now)
+        if self.toss is not None:
+            if basis == "OPEN":
+                return "지금 주문하면 09:00 장 시작 직후 현재가로 체결 (토스 실시세)"
+            if basis == "CLOSE":
+                return "지금 주문하면 토스 실시간 현재가로 즉시 체결 (지정가는 도달 시, 15:20 미체결분 취소)"
         if basis == "OPEN":
             return f"지금 주문하면 {now:%Y-%m-%d} 시가로 체결 (T+1 13시에 확정)"
         if basis == "CLOSE":
@@ -166,8 +174,51 @@ class TradingEngine:
         }
 
     # ------------------------------------------------------------ 작업 단위
+    async def refresh_calendar(self) -> None:
+        """토스 장 운영 캘린더(전일/당일/익일)를 반영 — 휴장일·단축장 대응."""
+        if self.toss is None:
+            return
+        try:
+            self.cal.apply_toss_calendar(await self.toss.client.market_calendar_kr())
+        except Exception as e:
+            log.warning("장 운영 캘린더 조회 실패: %s", e)
+
+    async def _sync_toss(self) -> dict[str, Any]:
+        assert self.toss is not None
+        today = self.clock.now().astimezone(KST).date()
+        symbols = {p.symbol for p in await self.broker.get_positions()}
+        symbols |= {o["symbol"] for o in self.broker.open_orders()}
+        with self.db.session() as s:
+            symbols |= set(s.scalars(select(WatchlistItem.symbol).where(WatchlistItem.active.is_(True))))
+        n = 0
+        for sym in sorted(symbols):
+            try:  # 최근 일봉(당일 진행 중 봉 포함) 갱신 + 과거 이력 확보
+                await self.store.ensure_history(sym, today, 200)
+                n += self.store.upsert(await self.toss.fetch_history(sym, today - timedelta(days=10), today))
+            except Exception as e:
+                log.warning("토스 일봉 갱신 실패 %s: %s", sym, e)
+        settled = await self.orders.settle()
+        await self.snapshot_equity()
+        return {"latest_day": today.isoformat(), "synced": n, "settled": settled}
+
+    async def intraday(self) -> None:
+        """장중 1분 주기 (토스 모드): 지정가·장전 주문 체결, 당일 만료, 손절/익절 감시."""
+        if self.toss is None:
+            return
+        now = self.clock.now()
+        s = self.cal.session(now.astimezone(KST).date())
+        if s is None or not (s.open - timedelta(minutes=1) <= now <= s.close + timedelta(minutes=5)):
+            return
+        if await self.orders.settle():
+            await self.snapshot_equity()
+        await self.check_exits()
+        if now.minute % 10 == 0:
+            await self.snapshot_equity()
+
     async def sync_data(self) -> dict[str, Any]:
         """최신 공개 일봉 동기화 → 체결 확정 → 자산 스냅샷."""
+        if self.toss is not None:
+            return await self._sync_toss()
         now = self.clock.now()
         latest = self.cal.latest_published_day(now)
         synced = 0
@@ -185,7 +236,7 @@ class TradingEngine:
                     await self.store.sync_day(td)
                 except Exception as e:
                     log.warning("체결일 시세 동기화 실패 %s: %s", td, e)
-        settled = self.orders.settle()
+        settled = await self.orders.settle()
         await self.snapshot_equity()
         if synced or settled:
             self.hub.state({"data_day": latest.isoformat(), "settled": settled})
@@ -216,6 +267,7 @@ class TradingEngine:
         return await self.runner.run(trigger)
 
     async def morning(self) -> None:
+        await self.refresh_calendar()
         self.start_of_day_equity((await self.broker.get_balance()).equity)
         await self.sync_data()
         await self.check_exits()

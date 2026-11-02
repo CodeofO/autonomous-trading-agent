@@ -349,3 +349,21 @@ async def test_llm_decisions_as_json_string_are_executed(tmp_path: Path) -> None
     with c.db.session() as s:
         d = s.scalar(select(AgentDecision).where(AgentDecision.run_id == run_id))
     assert d is not None and d.symbol == "MOCK01" and d.action == "BUY" and d.order_id is not None
+
+
+@respx.mock
+async def test_llm_forced_submit_after_ignoring_nudge(tmp_path: Path) -> None:
+    c = make(tmp_path, llm_base_url="https://llm.test/v1", llm_model="m", llm_api_key="k-123456")
+    await _simulate(c, datetime(2026, 11, 2, 10, 0, tzinfo=KST))
+    route = respx.post(LLM_URL).mock(
+        side_effect=[
+            _resp("분석해 보니 관망이 좋겠어요."),
+            _resp("네, 관망입니다."),
+            _resp(None, [_tc("submit_decisions", {"summary": "관망", "decisions": []}, 1)]),
+        ]
+    )
+    run_id = await c.runner.run("manual")
+    with c.db.session() as s:
+        run = s.get(AgentRun, run_id)
+    assert run is not None and run.status == "DONE"
+    assert json.loads(route.calls[2].request.content)["tool_choice"]["function"]["name"] == "submit_decisions"

@@ -211,8 +211,9 @@ class AgentRunner:
         ]
         tools = openai_tools()
         nudged = False
+        force_submit = False
         for step in range(self.max_steps):
-            force = step == self.max_steps - 1
+            force = force_submit or step == self.max_steps - 1
             self.hub.typing(ANALYST, True, "생각 중…")
             res = await self.llm.chat(
                 messages,
@@ -226,8 +227,11 @@ class AgentRunner:
                 maybe = extract_json(res.content) if res.content else None
                 if maybe and "decisions" in maybe:
                     return maybe
-                if nudged:
+                if force:
                     raise LLMError("모델이 submit_decisions 를 호출하지 않았습니다")
+                if nudged:
+                    force_submit = True  # 재촉에도 응하지 않으면 다음 요청에서 제출 도구를 강제
+                    continue
                 nudged = True
                 messages.append({"role": "assistant", "content": res.content or ""})
                 messages.append(

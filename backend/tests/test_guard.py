@@ -82,7 +82,7 @@ async def test_paper_broker_guard_trips_if_flag_tampered() -> None:
     with pytest.raises(LiveOrderBlockedError):
         await env.broker.place_order(OrderRequest("x1", "MOCK01", OrderSide.BUY, 1))
     with pytest.raises(LiveOrderBlockedError):
-        env.broker.settle()
+        await env.broker.settle()
 
 
 def test_no_live_broker_implementation_exists() -> None:
