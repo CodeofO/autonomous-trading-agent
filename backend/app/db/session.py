@@ -21,7 +21,7 @@ class Database:
             else:
                 Path(url.replace("sqlite:///", "")).parent.mkdir(parents=True, exist_ok=True)
         self.url = url
-        self.engine: Engine = create_engine(url, future=True, **kwargs)  # type: ignore[arg-type]
+        self.engine: Engine = create_engine(url, future=True, **kwargs)
         if url.startswith("sqlite"):
 
             @event.listens_for(self.engine, "connect")

@@ -15,8 +15,10 @@ _secrets: set[str] = set()
 
 _PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"(Bearer\s+)([A-Za-z0-9._\-~+/=]{4,})", re.IGNORECASE),
-    re.compile(r"((?:client_secret|client_id|access_token|password)[\"']?\s*[=:]\s*[\"']?)([^\s&\"',}]{1,})",
-               re.IGNORECASE),
+    re.compile(
+        r"((?:client_secret|client_id|access_token|password)[\"']?\s*[=:]\s*[\"']?)([^\s&\"',}]{1,})",
+        re.IGNORECASE,
+    ),
 ]
 
 
@@ -39,7 +41,9 @@ def redact(text: str) -> str:
         if s in text:
             text = text.replace(s, mask(s))
     for p in _PATTERNS:
-        text = p.sub(lambda m: m.group(1) + mask(m.group(2)) if "****" not in m.group(2) else m.group(0), text)
+        text = p.sub(
+            lambda m: m.group(1) + mask(m.group(2)) if "****" not in m.group(2) else m.group(0), text
+        )
     return text
 
 

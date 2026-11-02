@@ -130,4 +130,6 @@ def _fill_ohl(b: Bar) -> Bar:
     if b.open > 0 and b.high > 0 and b.low > 0:
         return b
     o = b.open or b.close
-    return Bar(**{**b.__dict__, "open": o, "high": b.high or max(o, b.close), "low": b.low or min(o, b.close)})
+    return Bar(
+        **{**b.__dict__, "open": o, "high": b.high or max(o, b.close), "low": b.low or min(o, b.close)}
+    )

@@ -62,21 +62,36 @@ COMPANIES: list[Company] = [
 BY_SYMBOL = {c.symbol: c for c in COMPANIES}
 
 _POS_EVENTS = [
-    ("대규모 공급계약 체결", "{name}이(가) 해외 고객사와 대규모 공급계약을 체결했다고 공시했다. 계약 규모는 최근 매출의 상당 부분에 해당한다."),
-    ("분기 실적 시장 기대치 상회", "{name}의 잠정 실적이 컨센서스를 웃돌았다. 영업이익이 전년 대비 크게 늘었다."),
-    ("신제품 호평에 증권가 목표가 상향", "증권가가 {name}의 목표주가를 잇달아 올렸다. 신제품 반응이 예상보다 좋다는 평가다."),
+    (
+        "대규모 공급계약 체결",
+        "{name}이(가) 해외 고객사와 대규모 공급계약을 체결했다고 공시했다. 계약 규모는 최근 매출의 상당 부분에 해당한다.",
+    ),
+    (
+        "분기 실적 시장 기대치 상회",
+        "{name}의 잠정 실적이 컨센서스를 웃돌았다. 영업이익이 전년 대비 크게 늘었다.",
+    ),
+    (
+        "신제품 호평에 증권가 목표가 상향",
+        "증권가가 {name}의 목표주가를 잇달아 올렸다. 신제품 반응이 예상보다 좋다는 평가다.",
+    ),
     ("자사주 매입·소각 결정", "{name}이(가) 주주환원 강화를 위해 자사주 매입 및 소각을 결정했다."),
     ("핵심 특허 승소", "{name}이(가) 경쟁사와의 특허 분쟁에서 승소했다."),
 ]
 _NEG_EVENTS = [
-    ("분기 실적 쇼크", "{name}의 잠정 영업이익이 시장 예상치를 크게 밑돌았다. 원가 부담이 커졌다는 분석이다."),
+    (
+        "분기 실적 쇼크",
+        "{name}의 잠정 영업이익이 시장 예상치를 크게 밑돌았다. 원가 부담이 커졌다는 분석이다.",
+    ),
     ("제품 리콜 발표", "{name}이(가) 일부 제품의 결함으로 자발적 리콜을 실시한다고 밝혔다."),
     ("대주주 지분 대량 매도", "{name}의 대주주가 시간외 대량매매로 지분 일부를 처분했다."),
     ("소송 리스크 부각", "{name}을(를) 상대로 한 대규모 손해배상 소송이 제기됐다."),
     ("증권가 목표가 하향", "업황 둔화 우려로 증권가가 {name}의 목표주가를 낮췄다."),
 ]
 _ROUTINE = [
-    ("{sector} 업종 수급 동향 점검", "{sector} 업종 전반의 외국인·기관 수급이 엇갈리고 있다. {name}도 박스권 흐름을 이어가고 있다."),
+    (
+        "{sector} 업종 수급 동향 점검",
+        "{sector} 업종 전반의 외국인·기관 수급이 엇갈리고 있다. {name}도 박스권 흐름을 이어가고 있다.",
+    ),
     ("{name}, 주주총회 일정 공시", "{name}이(가) 정기 주주총회 일정을 공시했다."),
     ("{name} 임원 인사 단행", "{name}이(가) 일부 임원 인사를 단행했다."),
     ("{sector} 업황 전망 보고서", "증권가는 {sector} 업황이 당분간 완만한 흐름을 보일 것으로 전망했다."),
@@ -132,9 +147,18 @@ class MockWorld:
             base_vol = c.shares * 0.0025
             vol = float(int(base_vol * math.exp(rng.gauss(0, 0.35)) * (1 + 3 * abs(s.events.get(d, 0.0)))))
             bar = Bar(
-                symbol=c.symbol, day=d, open=open_, high=hi, low=lo, close=close, volume=vol,
-                value=vol * close, market_cap=close * c.shares, listed_shares=c.shares,
-                name=c.name, market=c.market,
+                symbol=c.symbol,
+                day=d,
+                open=open_,
+                high=hi,
+                low=lo,
+                close=close,
+                volume=vol,
+                value=vol * close,
+                market_cap=close * c.shares,
+                listed_shares=c.shares,
+                name=c.name,
+                market=c.market,
             )
             s.index[d] = len(s.bars)
             s.bars.append(bar)
@@ -157,7 +181,9 @@ class MockWorld:
         return [b for b in s.bars if start <= b.day <= end]
 
     # ------------------------------------------------------------------ 뉴스
-    def news(self, query: str, now: datetime, limit: int = 10, lookback_days: int = 14) -> list[dict[str, Any]]:
+    def news(
+        self, query: str, now: datetime, limit: int = 10, lookback_days: int = 14
+    ) -> list[dict[str, Any]]:
         targets = [c for c in COMPANIES if c.symbol in query or c.name in query or c.sector in query]
         if not targets:
             targets = COMPANIES
@@ -204,9 +230,20 @@ class MockWorld:
         out = []
         for d, senti in sorted(self._series[symbol].events.items(), reverse=True):
             if today - timedelta(days=days) <= d <= today and datetime.combine(d, time(7, 0), KST) <= now:
-                kind = "단일판매ㆍ공급계약체결" if senti > 0.7 else ("영업(잠정)실적(공정공시)" if abs(senti) > 0.6 else "기타 경영사항")
-                out.append({"report_nm": kind, "rcept_dt": d.strftime("%Y%m%d"), "corp_name": c.name,
-                            "rcept_no": f"MOCK{symbol}{d:%Y%m%d}", "flr_nm": c.name})
+                kind = (
+                    "단일판매ㆍ공급계약체결"
+                    if senti > 0.7
+                    else ("영업(잠정)실적(공정공시)" if abs(senti) > 0.6 else "기타 경영사항")
+                )
+                out.append(
+                    {
+                        "report_nm": kind,
+                        "rcept_dt": d.strftime("%Y%m%d"),
+                        "corp_name": c.name,
+                        "rcept_no": f"MOCK{symbol}{d:%Y%m%d}",
+                        "flr_nm": c.name,
+                    }
+                )
         return out
 
     # ------------------------------------------------------------------ 재무
@@ -227,7 +264,12 @@ class MockWorld:
                 quarters.append(self._quarter(c, y, q))
             q -= 1
         reports = [
-            {**{k: v for k, v in qd.items() if k != "period"}, "period": qd["period"], "type": "Q", "fs_div": "CFS"}
+            {
+                **{k: v for k, v in qd.items() if k != "period"},
+                "period": qd["period"],
+                "type": "Q",
+                "fs_div": "CFS",
+            }
             for qd in quarters[:4]
         ]
         return {"symbol": symbol, "name": c.name, "available": True, "source": "MOCK", "reports": reports}
@@ -243,10 +285,16 @@ class MockWorld:
         equity = c.shares * c.price * (0.6 + 0.3 * rng.random()) * (1 + c.growth) ** t
         liab = equity * (0.5 + rng.random())
         return {
-            "period": f"{y}Q{q}", "revenue": rev, "operating_income": op, "net_income": net,
-            "depreciation": dep, "operating_cash_flow": op + dep + rev * rng.gauss(0, 0.02),
-            "capex": -rev * (0.05 + 0.04 * rng.random()), "total_assets": equity + liab,
-            "total_liabilities": liab, "total_equity": equity,
+            "period": f"{y}Q{q}",
+            "revenue": rev,
+            "operating_income": op,
+            "net_income": net,
+            "depreciation": dep,
+            "operating_cash_flow": op + dep + rev * rng.gauss(0, 0.02),
+            "capex": -rev * (0.05 + 0.04 * rng.random()),
+            "total_assets": equity + liab,
+            "total_liabilities": liab,
+            "total_equity": equity,
         }
 
 

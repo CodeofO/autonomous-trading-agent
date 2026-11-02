@@ -114,7 +114,9 @@ class Settings(BaseSettings):
         if self.clock_mode == "auto":
             return "simulated" if self.resolved_data_source == "mock" else "real"
         if self.clock_mode == "simulated" and self.resolved_data_source != "mock":
-            raise ValueError("CLOCK_MODE=simulated 는 Mock 데이터에서만 쓸 수 있습니다(실데이터와 시각이 어긋남).")
+            raise ValueError(
+                "CLOCK_MODE=simulated 는 Mock 데이터에서만 쓸 수 있습니다(실데이터와 시각이 어긋남)."
+            )
         return self.clock_mode
 
     def secret_values(self) -> list[str]:

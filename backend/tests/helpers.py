@@ -25,12 +25,28 @@ class StaticProvider:
         return [b for b in self.bars if b.day == day]
 
     async def fetch_history(self, symbol: str, start: date, end: date) -> list[Bar]:
-        return sorted((b for b in self.bars if b.symbol == symbol and start <= b.day <= end), key=lambda b: b.day)
+        return sorted(
+            (b for b in self.bars if b.symbol == symbol and start <= b.day <= end), key=lambda b: b.day
+        )
 
 
-def bar(symbol: str, day: date, o: float, h: float, low: float, c: float, v: float = 1_000_000, name: str = "") -> Bar:
-    return Bar(symbol=symbol, day=day, open=o, high=h, low=low, close=c, volume=v, value=v * c,
-               market_cap=c * 1e7, listed_shares=1e7, name=name or symbol, market="KOSPI")
+def bar(
+    symbol: str, day: date, o: float, h: float, low: float, c: float, v: float = 1_000_000, name: str = ""
+) -> Bar:
+    return Bar(
+        symbol=symbol,
+        day=day,
+        open=o,
+        high=h,
+        low=low,
+        close=c,
+        volume=v,
+        value=v * c,
+        market_cap=c * 1e7,
+        listed_shares=1e7,
+        name=name or symbol,
+        market="KOSPI",
+    )
 
 
 @dataclass
@@ -43,8 +59,12 @@ class Env:
     broker: PaperBroker
 
 
-def make_env(start: datetime | None = None, cash: float = 10_000_000, costs: PaperCosts | None = None,
-             bars: list[Bar] | None = None) -> Env:
+def make_env(
+    start: datetime | None = None,
+    cash: float = 10_000_000,
+    costs: PaperCosts | None = None,
+    bars: list[Bar] | None = None,
+) -> Env:
     db = Database("sqlite://")
     db.create_all()
     clock = SimulatedClock(start or datetime(2026, 11, 2, 8, 40, tzinfo=KST))

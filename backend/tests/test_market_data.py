@@ -36,7 +36,9 @@ def _http(routes) -> SafeHttpClient:
 # ---------------------------------------------------------------- 공공데이터
 @respx.mock
 async def test_public_fetch_day_parses_and_filters() -> None:
-    route = respx.get(public_data.URL).mock(return_value=httpx.Response(200, json=_fx("public_data_day.json")))
+    route = respx.get(public_data.URL).mock(
+        return_value=httpx.Response(200, json=_fx("public_data_day.json"))
+    )
     p = PublicDataProvider("abc%2Bdef%3D%3D", http=_http(public_data.ROUTES))
     bars = await p.fetch_day(date(2026, 10, 30))
     assert [b.symbol for b in bars] == ["005930", "091990"]  # KONEX 제외
@@ -67,7 +69,9 @@ async def test_public_paging() -> None:
     first = _fx("public_data_day.json")
     first["response"]["body"]["totalCount"] = 1500
     second = _fx("public_data_day.json")
-    respx.get(public_data.URL).mock(side_effect=[httpx.Response(200, json=first), httpx.Response(200, json=second)])
+    respx.get(public_data.URL).mock(
+        side_effect=[httpx.Response(200, json=first), httpx.Response(200, json=second)]
+    )
     p = PublicDataProvider("k", http=_http(public_data.ROUTES))
     assert len(await p.fetch_day(date(2026, 10, 30))) == 4
 
@@ -75,7 +79,9 @@ async def test_public_paging() -> None:
 @respx.mock
 async def test_public_error_code_and_non_json() -> None:
     respx.get(public_data.URL).mock(
-        return_value=httpx.Response(200, json={"response": {"header": {"resultCode": "30", "resultMsg": "KEY ERR"}}})
+        return_value=httpx.Response(
+            200, json={"response": {"header": {"resultCode": "30", "resultMsg": "KEY ERR"}}}
+        )
     )
     p = PublicDataProvider("k", http=_http(public_data.ROUTES))
     with pytest.raises(PublicDataError, match="30"):
@@ -88,8 +94,11 @@ async def test_public_error_code_and_non_json() -> None:
 @respx.mock
 async def test_retry_on_429_then_success() -> None:
     route = respx.get(public_data.URL).mock(
-        side_effect=[httpx.Response(429, headers={"Retry-After": "1"}), httpx.Response(503),
-                     httpx.Response(200, json=_fx("public_data_day.json"))]
+        side_effect=[
+            httpx.Response(429, headers={"Retry-After": "1"}),
+            httpx.Response(503),
+            httpx.Response(200, json=_fx("public_data_day.json")),
+        ]
     )
     p = PublicDataProvider("k", http=_http(public_data.ROUTES))
     assert len(await p.fetch_day(date(2026, 10, 30))) == 2
@@ -98,11 +107,13 @@ async def test_retry_on_429_then_success() -> None:
 
 # ---------------------------------------------------------------- DART
 def _corp_zip() -> bytes:
-    xml = ("<?xml version='1.0' encoding='UTF-8'?><result>"
-           "<list><corp_code>00126380</corp_code><corp_name>삼성전자</corp_name><stock_code>005930</stock_code>"
-           "<modify_date>20260101</modify_date></list>"
-           "<list><corp_code>00999999</corp_code><corp_name>비상장</corp_name><stock_code> </stock_code></list>"
-           "</result>")
+    xml = (
+        "<?xml version='1.0' encoding='UTF-8'?><result>"
+        "<list><corp_code>00126380</corp_code><corp_name>삼성전자</corp_name><stock_code>005930</stock_code>"
+        "<modify_date>20260101</modify_date></list>"
+        "<list><corp_code>00999999</corp_code><corp_name>비상장</corp_name><stock_code> </stock_code></list>"
+        "</result>"
+    )
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as zf:
         zf.writestr("CORPCODE.xml", xml.encode())
@@ -124,7 +135,9 @@ def test_extract_summary_by_id_and_name() -> None:
 async def test_dart_financials_and_disclosures() -> None:
     db = Database("sqlite://")
     db.create_all()
-    respx.get("https://opendart.fss.or.kr/api/corpCode.xml").mock(return_value=httpx.Response(200, content=_corp_zip()))
+    respx.get("https://opendart.fss.or.kr/api/corpCode.xml").mock(
+        return_value=httpx.Response(200, content=_corp_zip())
+    )
     fs_route = respx.get("https://opendart.fss.or.kr/api/fnlttSinglAcntAll.json")
 
     def fs_handler(request: httpx.Request) -> httpx.Response:
@@ -136,7 +149,9 @@ async def test_dart_financials_and_disclosures() -> None:
         return httpx.Response(200, json={"status": "013", "message": "조회된 데이타가 없습니다."})
 
     fs_route.mock(side_effect=fs_handler)
-    respx.get("https://opendart.fss.or.kr/api/list.json").mock(return_value=httpx.Response(200, json=_fx("dart_list.json")))
+    respx.get("https://opendart.fss.or.kr/api/list.json").mock(
+        return_value=httpx.Response(200, json=_fx("dart_list.json"))
+    )
     c = DartClient("k" * 40, db, http=_http(dart.ROUTES))
     fin = await c.financials("005930", date(2026, 11, 2))
     assert fin["available"] and [r["period"] for r in fin["reports"]] == ["2026 반기", "2025 사업보고서"]
@@ -147,14 +162,19 @@ async def test_dart_financials_and_disclosures() -> None:
     disc = await c.disclosures("005930", date(2026, 11, 2))
     assert disc[0]["report_nm"] == "단일판매ㆍ공급계약체결"
     assert await c.financials("000000", date(2026, 11, 2)) == {
-        "symbol": "000000", "available": False, "reason": "DART 고유번호 없음"}
+        "symbol": "000000",
+        "available": False,
+        "reason": "DART 고유번호 없음",
+    }
 
 
 @respx.mock
 async def test_dart_error_status_raises() -> None:
     db = Database("sqlite://")
     db.create_all()
-    respx.get("https://opendart.fss.or.kr/api/corpCode.xml").mock(return_value=httpx.Response(200, content=_corp_zip()))
+    respx.get("https://opendart.fss.or.kr/api/corpCode.xml").mock(
+        return_value=httpx.Response(200, content=_corp_zip())
+    )
     respx.get("https://opendart.fss.or.kr/api/list.json").mock(
         return_value=httpx.Response(200, json={"status": "010", "message": "등록되지 않은 키입니다."})
     )

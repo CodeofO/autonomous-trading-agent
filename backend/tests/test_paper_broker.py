@@ -54,7 +54,9 @@ async def test_open_fill_and_idempotency() -> None:
 
 
 async def test_close_fill_with_costs() -> None:
-    costs = PaperCosts(commission_rate=0.001, sell_tax_rate=0.002, slippage_bps=10, max_volume_participation=1)
+    costs = PaperCosts(
+        commission_rate=0.001, sell_tax_rate=0.002, slippage_bps=10, max_volume_participation=1
+    )
     env = _env(datetime(2026, 11, 2, 10, 0, tzinfo=KST), costs=costs)
     await env.broker.place_order(OrderRequest("c1", "AAA", OrderSide.BUY, 10))
     await _publish(env, D)

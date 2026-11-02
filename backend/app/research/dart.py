@@ -28,16 +28,28 @@ REPORT_NAMES = {"11013": "1분기", "11012": "반기", "11014": "3분기", "1101
 _ACCOUNTS: list[tuple[str, tuple[str, ...], tuple[str, ...], tuple[str, ...]]] = [
     ("revenue", ("ifrs-full_Revenue",), ("매출액", "수익(매출액)", "영업수익", "매출"), ("IS", "CIS")),
     ("operating_income", ("dart_OperatingIncomeLoss",), ("영업이익", "영업이익(손실)"), ("IS", "CIS")),
-    ("net_income", ("ifrs-full_ProfitLoss",), ("당기순이익", "당기순이익(손실)", "분기순이익", "반기순이익"),
-     ("IS", "CIS")),
+    (
+        "net_income",
+        ("ifrs-full_ProfitLoss",),
+        ("당기순이익", "당기순이익(손실)", "분기순이익", "반기순이익"),
+        ("IS", "CIS"),
+    ),
     ("total_assets", ("ifrs-full_Assets",), ("자산총계",), ("BS",)),
     ("total_liabilities", ("ifrs-full_Liabilities",), ("부채총계",), ("BS",)),
     ("total_equity", ("ifrs-full_Equity",), ("자본총계",), ("BS",)),
-    ("operating_cash_flow", ("ifrs-full_CashFlowsFromUsedInOperatingActivities",),
-     ("영업활동현금흐름", "영업활동으로 인한 현금흐름"), ("CF",)),
+    (
+        "operating_cash_flow",
+        ("ifrs-full_CashFlowsFromUsedInOperatingActivities",),
+        ("영업활동현금흐름", "영업활동으로 인한 현금흐름"),
+        ("CF",),
+    ),
     ("capex", ("ifrs-full_PurchaseOfPropertyPlantAndEquipment",), ("유형자산의 취득",), ("CF",)),
-    ("depreciation", ("ifrs-full_AdjustmentsForDepreciationExpense", "ifrs-full_DepreciationExpense"),
-     ("감가상각비",), ("CF", "IS", "CIS")),
+    (
+        "depreciation",
+        ("ifrs-full_AdjustmentsForDepreciationExpense", "ifrs-full_DepreciationExpense"),
+        ("감가상각비",),
+        ("CF", "IS", "CIS"),
+    ),
 ]
 
 
@@ -71,7 +83,9 @@ def extract_summary(rows: list[dict[str, Any]], field: str = "thstrm_amount") ->
         if val is None:
             for r in cands:
                 nm = str(r.get("account_nm", "")).replace(" ", "")
-                if any(nm == n.replace(" ", "") for n in names) or (key == "depreciation" and "감가상각비" in nm):
+                if any(nm == n.replace(" ", "") for n in names) or (
+                    key == "depreciation" and "감가상각비" in nm
+                ):
                     val = _amount(r.get(field))
                     if val is not None:
                         break
@@ -111,8 +125,13 @@ class DartClient:
         for el in root.iter("list"):
             stock = (el.findtext("stock_code") or "").strip()
             if stock:
-                rows.append(CorpCode(stock_code=stock, corp_code=(el.findtext("corp_code") or "").strip(),
-                                     corp_name=(el.findtext("corp_name") or "").strip()))
+                rows.append(
+                    CorpCode(
+                        stock_code=stock,
+                        corp_code=(el.findtext("corp_code") or "").strip(),
+                        corp_name=(el.findtext("corp_name") or "").strip(),
+                    )
+                )
         with self.db.session() as s:
             s.execute(delete(CorpCode))
             s.add_all(rows)
@@ -132,8 +151,12 @@ class DartClient:
             return []
         data = await self._json(
             "list.json",
-            {"corp_code": corp, "bgn_de": (today - timedelta(days=days)).strftime("%Y%m%d"),
-             "end_de": today.strftime("%Y%m%d"), "page_count": 30},
+            {
+                "corp_code": corp,
+                "bgn_de": (today - timedelta(days=days)).strftime("%Y%m%d"),
+                "end_de": today.strftime("%Y%m%d"),
+                "page_count": 30,
+            },
         )
         return [
             {k: it.get(k) for k in ("report_nm", "rcept_dt", "rcept_no", "flr_nm", "corp_name", "rm")}
@@ -155,8 +178,8 @@ class DartClient:
                         return fs_div, rows
                     continue
             data = await self._json(
-                "fnlttSinglAcntAll.json", {"corp_code": corp, "bsns_year": str(year), "reprt_code": reprt,
-                                           "fs_div": fs_div},
+                "fnlttSinglAcntAll.json",
+                {"corp_code": corp, "bsns_year": str(year), "reprt_code": reprt, "fs_div": fs_div},
             )
             rows = data.get("list", []) if data.get("status") == "000" else []
             with self.db.session() as s:
@@ -174,7 +197,9 @@ class DartClient:
         candidates: list[tuple[int, str]] = []
         for y in (today.year, today.year - 1, today.year - 2):
             candidates += [(y, "11014"), (y, "11012"), (y, "11013"), (y, "11011")]
-        candidates.sort(key=lambda x: (x[0], {"11013": 1, "11012": 2, "11014": 3, "11011": 4}[x[1]]), reverse=True)
+        candidates.sort(
+            key=lambda x: (x[0], {"11013": 1, "11012": 2, "11014": 3, "11011": 4}[x[1]]), reverse=True
+        )
         for year, reprt in candidates:
             if len(reports) >= 2 or (reports and annual_found):
                 break
@@ -186,8 +211,15 @@ class DartClient:
             fs_div, rows = got
             cur = extract_summary(rows, "thstrm_amount")
             prior = extract_summary(rows, "frmtrm_q_amount" if reprt != "11011" else "frmtrm_amount")
-            reports.append({"period": f"{year} {REPORT_NAMES[reprt]}", "type": "A" if reprt == "11011" else "Q",
-                            "fs_div": fs_div, **cur, "prior": prior})
+            reports.append(
+                {
+                    "period": f"{year} {REPORT_NAMES[reprt]}",
+                    "type": "A" if reprt == "11011" else "Q",
+                    "fs_div": fs_div,
+                    **cur,
+                    "prior": prior,
+                }
+            )
             annual_found = annual_found or reprt == "11011"
         if not reports:
             return {"symbol": stock_code, "available": False, "reason": "공시된 재무제표 없음"}

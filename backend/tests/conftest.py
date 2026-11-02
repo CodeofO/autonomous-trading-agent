@@ -50,9 +50,20 @@ def _block_network(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
 
 @pytest.fixture(autouse=True)
 def _isolate_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    for key in ("DATA_GO_KR_SERVICE_KEY", "DART_API_KEY", "NAVER_CLIENT_ID", "NAVER_CLIENT_SECRET", "LLM_BASE_URL",
-                "LLM_MODEL", "LLM_API_KEY", "DATA_SOURCE", "CLOCK_MODE", "DATABASE_URL", "TRADING_MODE",
-                "APP_SECRET_KEY"):
+    for key in (
+        "DATA_GO_KR_SERVICE_KEY",
+        "DART_API_KEY",
+        "NAVER_CLIENT_ID",
+        "NAVER_CLIENT_SECRET",
+        "LLM_BASE_URL",
+        "LLM_MODEL",
+        "LLM_API_KEY",
+        "DATA_SOURCE",
+        "CLOCK_MODE",
+        "DATABASE_URL",
+        "TRADING_MODE",
+        "APP_SECRET_KEY",
+    ):
         monkeypatch.delenv(key, raising=False)
     from app.core.config import Settings
 

@@ -24,15 +24,22 @@ def clean(text: str) -> str:
 
 class NaverNewsClient:
     def __init__(self, client_id: str, client_secret: str, http: SafeHttpClient | None = None) -> None:
-        self._headers = {"X-Naver-Client-Id": client_id.strip(), "X-Naver-Client-Secret": client_secret.strip()}
+        self._headers = {
+            "X-Naver-Client-Id": client_id.strip(),
+            "X-Naver-Client-Secret": client_secret.strip(),
+        }
         self.http = http or SafeHttpClient(ROUTES, rate_per_sec=8)
 
     async def search(self, query: str, display: int = 10, sort: str = "date") -> list[dict[str, Any]]:
         display = max(1, min(100, display))
         if sort not in ("date", "sim"):
             sort = "date"
-        r = await self.http.request("GET", URL, params={"query": query, "display": display, "start": 1, "sort": sort},
-                                    headers=self._headers)
+        r = await self.http.request(
+            "GET",
+            URL,
+            params={"query": query, "display": display, "start": 1, "sort": sort},
+            headers=self._headers,
+        )
         if r.status_code != 200:
             try:
                 err = r.json()

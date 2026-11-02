@@ -62,7 +62,9 @@ def test_secret_not_in_repr() -> None:
 def test_mask_and_redact() -> None:
     assert mask("abcdefgh") == "abcd****"
     register_secret("my-very-secret-key-123")
-    out = redact("key=my-very-secret-key-123 and Bearer eyJhbGciOiJSUzI1NiJ9.payload.sig client_secret=s_xyz12345")
+    out = redact(
+        "key=my-very-secret-key-123 and Bearer eyJhbGciOiJSUzI1NiJ9.payload.sig client_secret=s_xyz12345"
+    )
     assert "my-very-secret-key-123" not in out
     assert "eyJhbGciOiJSUzI1NiJ9.payload.sig" not in out
     assert "s_xyz12345" not in out
@@ -115,8 +117,19 @@ def test_calendar_publish_and_fill_basis() -> None:
 
 @pytest.mark.parametrize(
     ("price", "tick"),
-    [(1999, 1), (2000, 5), (4999, 5), (5000, 10), (19990, 10), (20000, 50), (49950, 50), (50000, 100),
-     (199900, 100), (200000, 500), (500000, 1000)],
+    [
+        (1999, 1),
+        (2000, 5),
+        (4999, 5),
+        (5000, 10),
+        (19990, 10),
+        (20000, 50),
+        (49950, 50),
+        (50000, 100),
+        (199900, 100),
+        (200000, 500),
+        (500000, 1000),
+    ],
 )
 def test_tick_size(price: float, tick: int) -> None:
     assert tick_size(price) == tick

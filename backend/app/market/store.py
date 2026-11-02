@@ -16,8 +16,18 @@ log = logging.getLogger(__name__)
 
 def _to_bar(r: DailyPrice) -> Bar:
     return Bar(
-        symbol=r.symbol, day=r.day, open=r.open, high=r.high, low=r.low, close=r.close, volume=r.volume,
-        value=r.value, market_cap=r.market_cap, listed_shares=r.listed_shares, name=r.name, market=r.market,
+        symbol=r.symbol,
+        day=r.day,
+        open=r.open,
+        high=r.high,
+        low=r.low,
+        close=r.close,
+        volume=r.volume,
+        value=r.value,
+        market_cap=r.market_cap,
+        listed_shares=r.listed_shares,
+        name=r.name,
+        market=r.market,
     )
 
 
@@ -46,8 +56,18 @@ class PriceStore:
                     row = DailyPrice(symbol=b.symbol, day=b.day)
                     s.add(row)
                     existing[(b.symbol, b.day)] = row
-                for f in ("open", "high", "low", "close", "volume", "value", "market_cap", "listed_shares",
-                          "name", "market"):
+                for f in (
+                    "open",
+                    "high",
+                    "low",
+                    "close",
+                    "volume",
+                    "value",
+                    "market_cap",
+                    "listed_shares",
+                    "name",
+                    "market",
+                ):
                     setattr(row, f, getattr(b, f))
         return len(bars)
 
@@ -63,11 +83,14 @@ class PriceStore:
     async def ensure_history(self, symbol: str, until: date, days: int = 180) -> None:
         start = until - timedelta(days=days)
         with self.db.session() as s:
-            n = s.scalar(
-                select(func.count()).select_from(DailyPrice).where(
-                    DailyPrice.symbol == symbol, DailyPrice.day >= start, DailyPrice.day <= until
+            n = (
+                s.scalar(
+                    select(func.count())
+                    .select_from(DailyPrice)
+                    .where(DailyPrice.symbol == symbol, DailyPrice.day >= start, DailyPrice.day <= until)
                 )
-            ) or 0
+                or 0
+            )
         # 거래일 비율(~0.68)을 감안해 70% 이상 있으면 충분하다고 본다
         if n >= days * 0.68 * 0.7:
             return

@@ -1,0 +1,553 @@
+"""에이전트 세션 실행기: LLM 도구 루프(또는 JSON 모드/규칙 모드) → 결정 → 리스크 → 주문.
+
+진행 과정은 EventHub 채팅으로 실시간 표시된다(트레이딩 룸).
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import math
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import Any
+
+from sqlalchemy import select
+
+from app.agent.llm import LLMClient, LLMError, ToolsUnsupportedError, extract_json
+from app.agent.prompts import (
+    CHAT_SYSTEM_PROMPT,
+    DEFAULT_PERSONA,
+    DEFAULT_POLICY,
+    JSON_MODE_INSTRUCTIONS,
+    SYSTEM_PROMPT,
+)
+from app.agent.rule_agent import rule_based_decisions
+from app.agent.tools import TERMINAL_TOOL, ToolBox, openai_tools, tool_label
+from app.brokers.base import OrderType
+from app.core.clock import KST, Clock
+from app.db.models import AgentDecision, AgentRun, ChatMessage
+from app.db.session import Database
+from app.engine.events import ANALYST, SYSTEM, USER, EventHub
+from app.engine.orders import OrderManager
+from app.engine.settings_store import SettingsStore
+from app.risk.rules import OrderIntent
+from app.strategies.rules import Strategy
+
+log = logging.getLogger(__name__)
+
+TRIGGER_KO = {"morning": "☀️ 장 시작 전 점검", "afternoon": "🌤️ 오후 점검", "manual": "👆 수동 실행"}
+
+
+class AgentRunner:
+    def __init__(
+        self,
+        db: Database,
+        clock: Clock,
+        hub: EventHub,
+        toolbox: ToolBox,
+        orders: OrderManager,
+        settings: SettingsStore,
+        llm: LLMClient | None,
+        *,
+        tool_mode: str = "auto",
+        max_steps: int = 24,
+        strategies: Callable[[], list[Strategy]] | None = None,
+        names: Callable[[str], str] | None = None,
+    ) -> None:
+        self.db = db
+        self.clock = clock
+        self.hub = hub
+        self.tb = toolbox
+        self.orders = orders
+        self.settings = settings
+        self.llm = llm
+        self.tool_mode = tool_mode
+        self.max_steps = max_steps
+        self.strategies = strategies or (lambda: [])
+        self.names = names or (lambda s: s)
+        self._lock = asyncio.Lock()
+
+    @property
+    def running(self) -> bool:
+        return self._lock.locked()
+
+    def persona(self) -> dict[str, str]:
+        return {**DEFAULT_PERSONA, **self.settings.get("agent_persona")}
+
+    def policy(self) -> str:
+        return str(self.settings.get("agent_policy").get("text") or DEFAULT_POLICY)
+
+    # ================================================================ 세션
+    async def run(self, trigger: str = "manual") -> int | None:
+        if self._lock.locked():
+            self.hub.chat(SYSTEM, "text", "⏳ 이미 판단 세션이 진행 중이에요. 끝나면 다시 시도해 주세요.")
+            return None
+        async with self._lock:
+            mode = "rule" if self.llm is None else ("llm-json" if self.tool_mode == "json" else "llm-tools")
+            with self.db.session() as s:
+                run = AgentRun(
+                    trigger=trigger,
+                    mode=mode,
+                    model=self.llm.model if self.llm else "rule-based",
+                    status="RUNNING",
+                    started_at=self.clock.now(),
+                )
+                s.add(run)
+                s.flush()
+                run_id = run.id
+            p = self.persona()
+            self.hub.chat(
+                SYSTEM,
+                "text",
+                f"{TRIGGER_KO.get(trigger, trigger)} — {p['emoji']} {p['name']} 매니저가 "
+                f"출근했어요. (세션 #{run_id})",
+                run_id=run_id,
+                trigger=trigger,
+            )
+            self.hub.state({"agent_running": True, "run_id": run_id})
+            usage: dict[str, int] = {}
+            try:
+                if self.llm is None:
+                    payload = await self._run_rules(run_id)
+                elif mode == "llm-json":
+                    payload = await self._run_json(run_id, usage)
+                else:
+                    try:
+                        payload = await self._run_tools(run_id, usage)
+                    except ToolsUnsupportedError as e:
+                        if self.tool_mode != "auto":
+                            raise
+                        self.hub.chat(
+                            SYSTEM,
+                            "text",
+                            "🔁 이 LLM 은 도구 호출을 지원하지 않아서 자료를 미리 모아 "
+                            "전달하는 방식으로 바꿀게요.",
+                            run_id=run_id,
+                            detail=str(e)[:200],
+                        )
+                        mode = "llm-json"
+                        payload = await self._run_json(run_id, usage)
+                await self._execute(run_id, payload)
+                status, err = "DONE", None
+            except Exception as e:
+                log.exception("에이전트 세션 실패")
+                status, err = "FAILED", f"{type(e).__name__}: {str(e)[:300]}"
+                self.hub.chat(
+                    SYSTEM,
+                    "text",
+                    f"⚠️ 세션 #{run_id} 중 문제가 생겼어요: {err}. 이번 세션 주문은 내지 않았어요.",
+                    run_id=run_id,
+                )
+            finally:
+                self.hub.typing(ANALYST, False)
+                self.hub.state({"agent_running": False, "run_id": run_id})
+            with self.db.session() as s:
+                done = s.get(AgentRun, run_id)
+                assert done is not None
+                done.status, done.error, done.mode = status, err, mode
+                done.finished_at = self.clock.now()
+                done.usage = usage
+            self.hub.audit(
+                "AGENT_RUN", f"세션 #{run_id} {status}", None, run_id=run_id, mode=mode, usage=usage
+            )
+            return run_id
+
+    # ================================================================ 컨텍스트
+    def _memory(self) -> str:
+        with self.db.session() as s:
+            runs = list(
+                s.scalars(
+                    select(AgentRun).where(AgentRun.status == "DONE").order_by(AgentRun.id.desc()).limit(3)
+                )
+            )
+            lines = []
+            for r in runs:
+                decs = list(s.scalars(select(AgentDecision).where(AgentDecision.run_id == r.id)))
+                acts = (
+                    ", ".join(f"{d.name or d.symbol} {d.action}" for d in decs if d.action != "HOLD")
+                    or "거래 없음"
+                )
+                lines.append(f"- 세션#{r.id} ({_kst(r.started_at)}): {r.summary[:160]} / {acts}")
+            memos = list(
+                s.scalars(
+                    select(ChatMessage)
+                    .where(ChatMessage.role == USER)
+                    .order_by(ChatMessage.id.desc())
+                    .limit(5)
+                )
+            )
+        memo_txt = "\n".join(f"- {_kst(m.ts)}: {m.content[:200]}" for m in reversed(memos)) or "- 없음"
+        return (
+            "최근 판단 기록:\n"
+            + ("\n".join(lines) or "- 없음")
+            + "\n\n투자자 메모(참고용 의견이며 리스크 규칙보다 우선하지 않음):\n"
+            + memo_txt
+        )
+
+    def _system(self) -> str:
+        p = self.persona()
+        return SYSTEM_PROMPT.format(name=p["name"], emoji=p["emoji"], policy=self.policy())
+
+    def _user_context(self, trigger: str) -> str:
+        now = self.clock.now()
+        return (
+            f"현재 시각: {now.astimezone(KST):%Y-%m-%d %H:%M} (KST)\n세션: {TRIGGER_KO.get(trigger, trigger)}\n\n"
+            f"{self._memory()}\n\n지금부터 점검을 시작해 줘. 보유 종목 재평가와 신규 후보 탐색을 모두 하고, "
+            f"마지막에 submit_decisions 로 제출해."
+        )
+
+    # ================================================================ 모드: 도구
+    async def _run_tools(self, run_id: int, usage: dict[str, int]) -> dict[str, Any]:
+        assert self.llm is not None
+        with self.db.session() as s:
+            r = s.get(AgentRun, run_id)
+            trigger = r.trigger if r else "manual"
+        messages: list[dict[str, Any]] = [
+            {"role": "system", "content": self._system()},
+            {"role": "user", "content": self._user_context(trigger)},
+        ]
+        tools = openai_tools()
+        nudged = False
+        for step in range(self.max_steps):
+            force = step == self.max_steps - 1
+            self.hub.typing(ANALYST, True, "생각 중…")
+            res = await self.llm.chat(
+                messages,
+                tools,
+                {"type": "function", "function": {"name": TERMINAL_TOOL}} if force else None,
+            )
+            _acc(usage, res.usage)
+            if res.content:
+                self.hub.chat(ANALYST, "text", res.content[:1500], run_id=run_id)
+            if not res.tool_calls:
+                maybe = extract_json(res.content) if res.content else None
+                if maybe and "decisions" in maybe:
+                    return maybe
+                if nudged:
+                    raise LLMError("모델이 submit_decisions 를 호출하지 않았습니다")
+                nudged = True
+                messages.append({"role": "assistant", "content": res.content or ""})
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": "좋아요. 이제 submit_decisions 도구로 최종 판단을 제출해 주세요.",
+                    }
+                )
+                continue
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": res.content or None,
+                    "tool_calls": [
+                        {
+                            "id": c.id,
+                            "type": "function",
+                            "function": {
+                                "name": c.name,
+                                "arguments": c.raw_arguments or json.dumps(c.arguments, ensure_ascii=False),
+                            },
+                        }
+                        for c in res.tool_calls
+                    ],
+                }
+            )
+            for call in res.tool_calls:
+                if call.name == TERMINAL_TOOL:
+                    return call.arguments
+                label = tool_label(call.name, call.arguments, self.names)
+                self.hub.typing(ANALYST, True, label)
+                result = await self.tb.call(call.name, call.arguments)
+                self.hub.chat(
+                    ANALYST,
+                    "tool",
+                    label,
+                    run_id=run_id,
+                    tool=call.name,
+                    args=call.arguments,
+                    preview=_preview(call.name, result),
+                )
+                messages.append({"role": "tool", "tool_call_id": call.id, "content": self.tb.dumps(result)})
+            if step == self.max_steps - 2:
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": "도구 호출 한도에 가까워요. 지금까지 정보로 submit_decisions 를 제출해 주세요.",
+                    }
+                )
+        raise LLMError("최대 단계 안에 결론을 내지 못했습니다")
+
+    # ================================================================ 모드: JSON
+    async def _run_json(self, run_id: int, usage: dict[str, int]) -> dict[str, Any]:
+        assert self.llm is not None
+        dossier: dict[str, Any] = {}
+
+        async def gather(name: str, args: dict[str, Any]) -> dict[str, Any]:
+            label = tool_label(name, args, self.names)
+            self.hub.typing(ANALYST, True, label)
+            res = await self.tb.call(name, args)
+            self.hub.chat(
+                ANALYST, "tool", label, run_id=run_id, tool=name, args=args, preview=_preview(name, res)
+            )
+            return res
+
+        dossier["portfolio"] = await gather("get_portfolio", {})
+        scr = await gather("screen_stocks", {"sort_by": "market_cap", "limit": 12})
+        dossier["screen"] = scr
+        syms = [p["symbol"] for p in dossier["portfolio"].get("positions", [])]
+        syms += [r["symbol"] for r in scr.get("results", []) if r["symbol"] not in syms][
+            : max(0, 10 - len(syms))
+        ]
+        dossier["stocks"] = {}
+        for sym in syms:
+            name = self.names(sym) or sym
+            dossier["stocks"][sym] = {
+                "price": await gather("get_price_history", {"symbol": sym, "days": 60}),
+                "financials": await gather("get_financials", {"symbol": sym}),
+                "news": await gather("search_news", {"query": name, "limit": 4}),
+            }
+        self.hub.typing(ANALYST, True, "자료 종합 중…")
+        content = (
+            self._user_context("json")
+            + "\n\n"
+            + JSON_MODE_INSTRUCTIONS
+            + "\n자료:\n"
+            + json.dumps(dossier, ensure_ascii=False, default=str)[:60000]
+        )
+        res = await self.llm.chat(
+            [{"role": "system", "content": self._system()}, {"role": "user", "content": content}]
+        )
+        _acc(usage, res.usage)
+        data = extract_json(res.content)
+        if not data or "decisions" not in data:
+            raise LLMError("JSON 결정을 해석하지 못했습니다")
+        for t in (data.get("thoughts") or [])[:8]:
+            self.hub.chat(ANALYST, "text", str(t)[:500], run_id=run_id)
+        return data
+
+    # ================================================================ 모드: 규칙
+    async def _run_rules(self, run_id: int) -> dict[str, Any]:
+        async def say(kind: str, text: str, payload: dict[str, Any]) -> None:
+            self.hub.typing(ANALYST, True, text if kind == "tool" else "생각 중…")
+            self.hub.chat(ANALYST, kind, text, run_id=run_id, **payload)
+
+        return await rule_based_decisions(self.tb, self.strategies(), say)
+
+    # ================================================================ 실행
+    async def _execute(self, run_id: int, payload: dict[str, Any]) -> None:
+        pf = await self.tb.call("get_portfolio", {})
+        equity = float(pf.get("equity") or 0)
+        held = {p["symbol"]: p for p in pf.get("positions", [])}
+        raw = [d for d in (payload.get("decisions") or []) if isinstance(d, dict) and d.get("symbol")]
+        decisions: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for d in raw:
+            sym = str(d["symbol"]).strip()
+            if sym in seen:
+                continue
+            seen.add(sym)
+            decisions.append({**d, "symbol": sym, "action": str(d.get("action", "HOLD")).upper()})
+        for sym in held:  # 언급 안 된 보유 종목은 유지 처리
+            if sym not in seen:
+                decisions.append(
+                    {
+                        "symbol": sym,
+                        "action": "HOLD",
+                        "confidence": 0.0,
+                        "rationale": "에이전트가 이 종목을 언급하지 않아 시스템이 '유지'로 처리했어요.",
+                        "evidence": [],
+                    }
+                )
+        with self.db.session() as s:
+            run = s.get(AgentRun, run_id)
+            assert run is not None
+            run.summary = str(payload.get("summary") or "")[:2000]
+            run.market_view = str(payload.get("market_view") or "")[:2000]
+        if payload.get("market_view"):
+            self.hub.chat(ANALYST, "text", f"🌏 시장 관점: {payload['market_view']}"[:800], run_id=run_id)
+
+        order_rank = {"SELL": 0, "BUY": 1, "HOLD": 2}
+        decisions.sort(key=lambda d: order_rank.get(d["action"], 3))
+        for d in decisions:
+            await self._execute_one(run_id, d, equity, held)
+        self.hub.chat(
+            ANALYST,
+            "summary",
+            str(payload.get("summary") or "오늘 점검 끝!")[:1500],
+            run_id=run_id,
+            counts={a: sum(x["action"] == a for x in decisions) for a in ("BUY", "SELL", "HOLD")},
+        )
+
+    async def _execute_one(self, run_id: int, d: dict[str, Any], equity: float, held: dict[str, Any]) -> None:
+        sym, action = d["symbol"], d["action"]
+        if action not in ("BUY", "SELL", "HOLD"):
+            action = "HOLD"
+        name = self.names(sym) or held.get(sym, {}).get("name", "")
+        quote = await self.orders.broker.get_quote(sym)
+        price = quote.price if quote else 0.0
+        cur_qty = int(held.get(sym, {}).get("quantity", 0))
+        qty = _to_int(d.get("quantity"))
+        tw = _to_float(d.get("target_weight"))
+        if action == "BUY" and not qty and tw is not None and price > 0:
+            qty = max(0, math.floor((equity * tw - cur_qty * price) / price))
+        if action == "SELL" and not qty:
+            qty = (
+                cur_qty
+                if tw is None or tw <= 0 or price <= 0
+                else max(0, cur_qty - math.floor(equity * tw / price))
+            )
+        order_type = (
+            OrderType.LIMIT
+            if str(d.get("order_type", "")).upper() == "LIMIT" and d.get("limit_price")
+            else OrderType.MARKET
+        )
+        limit_price = _to_float(d.get("limit_price")) if order_type == OrderType.LIMIT else None
+        conf = max(0.0, min(1.0, _to_float(d.get("confidence")) or 0.0))
+        evidence = [str(e)[:300] for e in (d.get("evidence") or []) if e][:10]
+        with self.db.session() as s:
+            row = AgentDecision(
+                run_id=run_id,
+                symbol=sym,
+                name=name,
+                action=action,
+                quantity=qty or 0,
+                target_weight=tw,
+                order_type=order_type.value,
+                limit_price=limit_price,
+                confidence=conf,
+                rationale=str(d.get("rationale", ""))[:2000],
+                evidence=evidence,
+                created_at=datetime.now(UTC),
+            )
+            s.add(row)
+            s.flush()
+            dec_id = row.id
+        card = {
+            "decision_id": dec_id,
+            "symbol": sym,
+            "name": name,
+            "action": action,
+            "quantity": qty or 0,
+            "target_weight": tw,
+            "confidence": conf,
+            "rationale": d.get("rationale", ""),
+            "evidence": evidence,
+            "price": price,
+        }
+        emoji = {"BUY": "🟢 매수", "SELL": "🔴 매도", "HOLD": "⚪ 유지"}[action]
+        self.hub.chat(ANALYST, "decision", f"{emoji} {name or sym}", run_id=run_id, **card)
+        self.hub.audit("SIGNAL", f"{action} 결정 (확신도 {conf:.0%})", sym, run_id=run_id, decision_id=dec_id)
+        outcome = "유지"
+        order_id = None
+        if action in ("BUY", "SELL"):
+            if not qty or qty <= 0 or price <= 0:
+                outcome = "수량 0 → 주문 없음"
+            else:
+                order, risk = await self.orders.submit(
+                    OrderIntent(sym, action, qty, limit_price or price, str(d.get("rationale", ""))[:200]),
+                    run_id=run_id,
+                    order_type=order_type,
+                    limit_price=limit_price,
+                )
+                if order is None:
+                    outcome = "리스크 차단: " + "; ".join(risk.reasons)
+                else:
+                    order_id = order.id
+                    outcome = f"주문 {order.status} ({order.quantity}주)"
+        with self.db.session() as s:
+            row2 = s.get(AgentDecision, dec_id)
+            assert row2 is not None
+            row2.order_id, row2.outcome = order_id, outcome[:256]
+
+    # ================================================================ 채팅 Q&A
+    async def answer(self, question: str) -> None:
+        self.hub.chat(USER, "text", question[:1000])
+        p = self.persona()
+        if self.llm is None:
+            self.hub.chat(
+                SYSTEM,
+                "text",
+                "💬 LLM 이 설정되지 않아 대답은 못 하지만, 메모로 저장해 뒀어요. "
+                ".env 에 LLM_BASE_URL·LLM_MODEL·LLM_API_KEY 를 넣으면 대화할 수 있어요.",
+            )
+            return
+        self.hub.typing(ANALYST, True, "답장 쓰는 중…")
+        try:
+            pf = await self.tb.call("get_portfolio", {})
+            ctx = json.dumps(pf, ensure_ascii=False, default=str)[:6000] + "\n\n" + self._memory()
+            res = await self.llm.chat(
+                [
+                    {
+                        "role": "system",
+                        "content": CHAT_SYSTEM_PROMPT.format(name=p["name"], emoji=p["emoji"]),
+                    },
+                    {"role": "user", "content": f"[포트폴리오·기록]\n{ctx}\n\n[질문]\n{question[:1000]}"},
+                ]
+            )
+            self.hub.chat(ANALYST, "text", res.content[:2000] or "음… 잘 모르겠어요 🤔", reply_to="user")
+        except Exception as e:
+            self.hub.chat(SYSTEM, "text", f"⚠️ 답장 중 오류: {type(e).__name__}")
+        finally:
+            self.hub.typing(ANALYST, False)
+
+
+# ==================================================================== 유틸
+def _acc(total: dict[str, int], u: dict[str, int]) -> None:
+    for k, v in u.items():
+        total[k] = total.get(k, 0) + v
+
+
+def _to_int(v: Any) -> int | None:
+    try:
+        return int(float(v)) if v is not None and v != "" else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _to_float(v: Any) -> float | None:
+    try:
+        return float(v) if v is not None and v != "" else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _kst(t: datetime) -> str:
+    t = t if t.tzinfo else t.replace(tzinfo=UTC)
+    return f"{t.astimezone(KST):%m/%d %H:%M}"
+
+
+def _preview(name: str, result: dict[str, Any]) -> dict[str, Any]:
+    """채팅 카드에 띄울 짧은 결과 요약."""
+    if "error" in result:
+        return {"error": result["error"]}
+    if name == "search_news":
+        return {
+            "titles": [i.get("title", "")[:60] for i in result.get("items", [])[:3]],
+            "count": result.get("count"),
+        }
+    if name == "get_price_history":
+        return {
+            "close": (result.get("last") or {}).get("close"),
+            "returns_pct": result.get("returns_pct"),
+            "rsi14": result.get("rsi14"),
+        }
+    if name == "get_financials":
+        r0 = (result.get("reports") or [{}])[0]
+        return {
+            "period": r0.get("period"),
+            "revenue": r0.get("revenue"),
+            "op_margin_pct": r0.get("op_margin_pct"),
+            **{k: (result.get("valuation") or {}).get(k) for k in ("per", "pbr", "roe_pct")},
+        }
+    if name == "screen_stocks":
+        return {"top": [f"{r['name']}" for r in result.get("results", [])[:5]], "as_of": result.get("as_of")}
+    if name == "get_disclosures":
+        return {"items": [i.get("report_nm") for i in result.get("items", [])[:3]]}
+    if name == "get_portfolio":
+        return {
+            "equity": result.get("equity"),
+            "cash": result.get("cash"),
+            "positions": len(result.get("positions", [])),
+        }
+    return {}

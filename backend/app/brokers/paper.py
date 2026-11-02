@@ -81,8 +81,17 @@ class PaperBroker(BrokerInterface):
     # ----------------------------------------------------------- 영속화
     @staticmethod
     def _fresh(initial_cash: float) -> dict[str, Any]:
-        return {"initial_cash": initial_cash, "cash": initial_cash, "positions": {}, "orders": {}, "client_ids": {},
-                "seq": 0, "realized_pnl": 0.0, "fees_paid": 0.0, "taxes_paid": 0.0}
+        return {
+            "initial_cash": initial_cash,
+            "cash": initial_cash,
+            "positions": {},
+            "orders": {},
+            "client_ids": {},
+            "seq": 0,
+            "realized_pnl": 0.0,
+            "fees_paid": 0.0,
+            "taxes_paid": 0.0,
+        }
 
     def _load(self) -> dict[str, Any]:
         with self.db.session() as s:
@@ -117,7 +126,9 @@ class PaperBroker(BrokerInterface):
         return list(self.store.history(symbol, n=n))
 
     def _reserved(self) -> float:
-        return sum(o.get("reserved", 0.0) for o in self.state["orders"].values() if o["status"] not in TERMINAL)
+        return sum(
+            o.get("reserved", 0.0) for o in self.state["orders"].values() if o["status"] not in TERMINAL
+        )
 
     def _pending_qty(self, symbol: str, side: OrderSide) -> int:
         return sum(
@@ -134,8 +145,11 @@ class PaperBroker(BrokerInterface):
             b = self.store.last_bar(sym)
             out.append(
                 Position(
-                    symbol=sym, name=(b.name if b else p.get("name", "")), quantity=int(p["qty"]),
-                    avg_price=float(p["avg_price"]), last_price=float(b.close if b else p["avg_price"]),
+                    symbol=sym,
+                    name=(b.name if b else p.get("name", "")),
+                    quantity=int(p["qty"]),
+                    avg_price=float(p["avg_price"]),
+                    last_price=float(b.close if b else p["avg_price"]),
                     price_day=b.day if b else None,
                     opened_day=date.fromisoformat(p["opened_day"]) if p.get("opened_day") else None,
                 )
@@ -147,33 +161,54 @@ class PaperBroker(BrokerInterface):
         pv = sum(p.market_value for p in positions)
         st = self.state
         return Balance(
-            cash=st["cash"], reserved_cash=self._reserved(), positions_value=pv, equity=st["cash"] + pv,
-            initial_cash=st["initial_cash"], realized_pnl=st["realized_pnl"], fees_paid=st["fees_paid"],
+            cash=st["cash"],
+            reserved_cash=self._reserved(),
+            positions_value=pv,
+            equity=st["cash"] + pv,
+            initial_cash=st["initial_cash"],
+            realized_pnl=st["realized_pnl"],
+            fees_paid=st["fees_paid"],
             taxes_paid=st["taxes_paid"],
         )
 
     def open_orders(self) -> list[dict[str, Any]]:
-        return [dict(o, broker_order_id=k) for k, o in self.state["orders"].items() if o["status"] not in TERMINAL]
+        return [
+            dict(o, broker_order_id=k) for k, o in self.state["orders"].items() if o["status"] not in TERMINAL
+        ]
 
     # ----------------------------------------------------------- 주문
-    def _result(self, oid: str, path: list[OrderStatus] | None = None, new_fills: list[FillInfo] | None = None
-                ) -> OrderResult:
+    def _result(
+        self, oid: str, path: list[OrderStatus] | None = None, new_fills: list[FillInfo] | None = None
+    ) -> OrderResult:
         o = self.state["orders"][oid]
         return OrderResult(
-            broker_order_id=oid, client_order_id=o["client_order_id"], status=OrderStatus(o["status"]),
-            filled_qty=o["filled_qty"], avg_fill_price=o.get("avg_fill_price"), fills=new_fills or [],
-            reject_reason=o.get("reject_reason"), fill_basis=o.get("fill_basis", ""),
-            trade_day=date.fromisoformat(o["trade_day"]) if o.get("trade_day") else None, path=path or [],
+            broker_order_id=oid,
+            client_order_id=o["client_order_id"],
+            status=OrderStatus(o["status"]),
+            filled_qty=o["filled_qty"],
+            avg_fill_price=o.get("avg_fill_price"),
+            fills=new_fills or [],
+            reject_reason=o.get("reject_reason"),
+            fill_basis=o.get("fill_basis", ""),
+            trade_day=date.fromisoformat(o["trade_day"]) if o.get("trade_day") else None,
+            path=path or [],
         )
 
     def _new_order(self, req: OrderRequest, status: OrderStatus, **extra: Any) -> str:
         self.state["seq"] += 1
         oid = f"P{self.state['seq']:08d}"
         self.state["orders"][oid] = {
-            "client_order_id": req.client_order_id, "symbol": req.symbol, "side": req.side.value,
-            "order_type": req.order_type.value, "quantity": req.quantity, "limit_price": req.limit_price,
-            "status": status.value, "filled_qty": 0, "avg_fill_price": None,
-            "created_at": self.clock.now().isoformat(), **extra,
+            "client_order_id": req.client_order_id,
+            "symbol": req.symbol,
+            "side": req.side.value,
+            "order_type": req.order_type.value,
+            "quantity": req.quantity,
+            "limit_price": req.limit_price,
+            "status": status.value,
+            "filled_qty": 0,
+            "avg_fill_price": None,
+            "created_at": self.clock.now().isoformat(),
+            **extra,
         }
         self.state["client_ids"][req.client_order_id] = oid
         return oid
@@ -210,7 +245,10 @@ class PaperBroker(BrokerInterface):
             if req.quantity > held - self._pending_qty(req.symbol, OrderSide.SELL):
                 return self._reject(req, "insufficient-sellable-quantity")
         oid = self._new_order(
-            req, OrderStatus.SUBMITTED, fill_basis=basis, trade_day=now.astimezone(KST).date().isoformat(),
+            req,
+            OrderStatus.SUBMITTED,
+            fill_basis=basis,
+            trade_day=now.astimezone(KST).date().isoformat(),
             reserved=reserved,
         )
         self._save()
@@ -234,8 +272,9 @@ class PaperBroker(BrokerInterface):
 
     # ----------------------------------------------------------- 체결 확정
     def _fill_price(self, o: dict[str, Any], bar: Bar) -> float | None:
-        side, basis, limit = o["side"], o["fill_basis"], o.get("limit_price")
+        side, basis = o["side"], o["fill_basis"]
         is_limit = o["order_type"] == OrderType.LIMIT.value
+        limit = float(o.get("limit_price") or 0.0)
         if basis == "OPEN":
             ref = bar.open
             if not is_limit:

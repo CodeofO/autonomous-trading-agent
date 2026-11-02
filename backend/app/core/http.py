@@ -140,7 +140,9 @@ class SafeHttpClient:
                     if retry_after and retry_after.isdigit()
                     else self._backoff(attempt)
                 )
-                log.warning("외부 호출 %s 응답, %.1fs 후 재시도: %s", resp.status_code, delay, urlsplit(url).path)
+                log.warning(
+                    "외부 호출 %s 응답, %.1fs 후 재시도: %s", resp.status_code, delay, urlsplit(url).path
+                )
                 await asyncio.sleep(delay)
                 attempt += 1
                 continue
