@@ -30,6 +30,15 @@ if [[ -n "$tm" && "$tm" != "paper" ]]; then
   die "TRADING_MODE=$tm — 이 시스템은 모의투자(paper) 전용입니다. .env 에서 TRADING_MODE=paper 로 바꾸세요."
 fi
 
+# 업데이트(git pull) 후 .env.example 에 새로 생긴 설정 안내 (키 이름만 출력, 값은 건드리지 않음)
+missing=()
+while IFS= read -r key; do
+  grep -qE "^[[:space:]]*#?[[:space:]]*${key}[[:space:]]*=" .env || missing+=("$key")
+done < <(grep -oE '^[A-Z][A-Z0-9_]*=' .env.example | tr -d '=')
+if (( ${#missing[@]} )); then
+  warn ".env.example 에 새 설정이 있어요 (없으면 기본값 사용): ${missing[*]}"
+fi
+
 env_val() { grep -E "^[[:space:]]*$1[[:space:]]*=" .env | tail -1 | cut -d= -f2- | tr -d '[:space:]"'"'" || true; }
 FRONTEND_PORT="${FRONTEND_PORT:-$(env_val FRONTEND_PORT)}"; FRONTEND_PORT="${FRONTEND_PORT:-15173}"
 BACKEND_PORT="${BACKEND_PORT:-$(env_val BACKEND_PORT)}"; BACKEND_PORT="${BACKEND_PORT:-18000}"
@@ -96,7 +105,8 @@ run_local() {
   command -v npm >/dev/null 2>&1 || die "Node.js(npm) 가 필요해요: https://nodejs.org (또는 Docker 로 실행)"
   say "백엔드 의존성 설치 (uv)"
   (cd backend && uv sync --frozen --python 3.12 >/dev/null)
-  if [[ ! -d frontend/node_modules ]]; then
+  # 처음이거나 git pull 로 package-lock.json 이 바뀌었으면 다시 설치
+  if [[ ! -f frontend/node_modules/.package-lock.json || frontend/package-lock.json -nt frontend/node_modules/.package-lock.json ]]; then
     say "프론트엔드 의존성 설치 (npm ci)"
     (cd frontend && npm ci --no-audit --no-fund >/dev/null)
   fi
@@ -134,7 +144,7 @@ run_local() {
 
 run_tests() {
   (cd backend && uv sync --frozen --python 3.12 >/dev/null && uv run pytest -q --cov=app --cov-report=term-missing:skip-covered)
-  (cd frontend && { [[ -d node_modules ]] || npm ci --no-audit --no-fund >/dev/null; } && npm test)
+  (cd frontend && { [[ -f node_modules/.package-lock.json && ! package-lock.json -nt node_modules/.package-lock.json ]] || npm ci --no-audit --no-fund >/dev/null; } && npm test)
 }
 
 case "$MODE" in
