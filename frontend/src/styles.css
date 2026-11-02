@@ -1375,11 +1375,12 @@ label.toggle input {
 
 /* 반응형 */
 @media (max-width: 1100px) {
+  /* minmax(0, …): 넓은 표가 열 너비를 밀어 화면 밖으로 넘치지 않게 (표는 카드 안에서 가로 스크롤) */
   .dash-grid,
   .room,
   .two-col,
   .agent-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .tool-groups,
   .rule-grid {
@@ -1389,8 +1390,18 @@ label.toggle input {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+/* 모바일 전용 요소는 넓은 화면에서 숨긴다 */
+.top-brand,
+.conn-dot,
+.top-logout,
+.nav-short {
+  display: none;
+}
+
+/* ---------- 모바일 (휴대폰) ----------
+   상단: 로고·모드 배지·연결 점·킬 스위치 한 줄 + 상태 칩 한 줄(가로 스크롤)
+   하단: 사이드바 메뉴가 탭바로 바뀐다. 페이지는 평소처럼 전체가 스크롤 */
 @media (max-width: 760px) {
-  /* 좁은 화면은 사이드바가 위로 올라가므로 평소처럼 페이지 전체가 스크롤 */
   .app {
     grid-template-columns: 1fr;
     height: auto;
@@ -1398,29 +1409,13 @@ label.toggle input {
   }
   .content {
     overflow-y: visible;
+    padding: 14px 12px;
+  }
+  .disclaimer {
+    padding: 8px 12px calc(84px + env(safe-area-inset-bottom));
   }
   .tool-groups {
     grid-template-columns: 1fr;
-  }
-  .sidebar {
-    position: static;
-    height: auto;
-    flex-direction: row;
-    flex-wrap: wrap;
-    padding: 10px 16px;
-    gap: 10px;
-  }
-  .sidebar nav {
-    flex-direction: row;
-    flex-wrap: wrap;
-  }
-  .sidebar-foot {
-    display: none;
-  }
-  .content,
-  .topbar {
-    padding-left: 16px;
-    padding-right: 16px;
   }
   .grid-3 {
     grid-template-columns: 1fr;
@@ -1428,6 +1423,172 @@ label.toggle input {
   .table {
     display: block;
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .card {
+    padding: 14px;
+  }
+
+  /* 하단 탭바 */
+  .sidebar {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: auto;
+    z-index: 30;
+    padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+    border-right: 0;
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.06);
+  }
+  .sidebar .brand,
+  .sidebar-foot {
+    display: none;
+  }
+  .sidebar nav {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 0;
+  }
+  .sidebar nav a {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    padding: 6px 0 4px;
+    border-radius: 10px;
+    font-size: 10.5px;
+    line-height: 1.2;
+    white-space: nowrap;
+    min-height: 48px;
+    justify-content: center;
+  }
+  .sidebar nav a .nav-icon {
+    font-size: 19px;
+  }
+  .sidebar nav a .nav-label {
+    display: none;
+  }
+  .sidebar nav a .nav-short {
+    display: block;
+  }
+
+  /* 상단 바 */
+  .topbar {
+    padding: calc(8px + env(safe-area-inset-top)) 12px 8px;
+    gap: 8px;
+  }
+  .top-brand {
+    display: inline;
+    font-size: 24px;
+    line-height: 1;
+  }
+  .paper-badge {
+    padding: 5px 11px;
+    font-size: 12.5px;
+    gap: 6px;
+  }
+  .paper-badge b {
+    font-size: 13px;
+  }
+  .conn-dot {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    margin-right: auto;
+  }
+  .conn-dot.on {
+    background: var(--ok);
+  }
+  .topbar .btn.kill,
+  .topbar .btn.resume {
+    padding: 7px 12px;
+    font-size: 13px;
+  }
+  .top-logout {
+    display: inline;
+    font-size: 12px;
+  }
+  .top-info {
+    order: 10;
+    flex: 1 0 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 6px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .top-info::-webkit-scrollbar {
+    display: none;
+  }
+  .top-info > * {
+    flex-shrink: 0;
+    font-size: 11.5px;
+  }
+  .top-info .chip {
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* 대시보드: 지표 → 트레이딩 룸 → 자산 추이·매니저·보유 종목 순 */
+  .kpis {
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .kpi {
+    padding: 12px;
+  }
+  .kpi-value {
+    font-size: 18px;
+  }
+  .dash-grid {
+    gap: 12px;
+  }
+  .room-mini {
+    order: -1;
+  }
+  .room-mini .chat {
+    flex: none;
+    height: 64dvh;
+    min-height: 380px;
+    contain: none;
+  }
+
+  /* 트레이딩 룸: 채팅이 화면을 채운다 (상단 바·탭바 제외) */
+  .room-main .chat {
+    height: calc(100dvh - 268px - env(safe-area-inset-bottom));
+    min-height: 380px;
+  }
+  .runs {
+    max-height: none;
+  }
+
+  /* 채팅 입력: iOS 는 16px 미만 입력창에 포커스하면 화면을 확대한다 */
+  .chat-compose input {
+    font-size: 16px;
+  }
+  .quick {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .quick::-webkit-scrollbar {
+    display: none;
+  }
+  .quick button {
+    flex-shrink: 0;
+  }
+  .chat-row.user {
+    padding-right: 4px;
+  }
+  .chat-col {
+    max-width: 88%;
   }
 }
 

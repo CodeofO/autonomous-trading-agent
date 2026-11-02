@@ -73,6 +73,25 @@ describe("레이아웃", () => {
     expect(screen.queryByRole("status", { name: "모의투자 모드" })).not.toBeInTheDocument();
   });
 
+  it("메뉴는 전체 이름으로 읽히고, 모바일 탭바용 짧은 이름도 함께 둔다", async () => {
+    mockFetch({});
+    renderWithProviders(
+      <Routes>
+        <Route element={<Layout />}>
+          <Route index element={<div>본문</div>} />
+        </Route>
+      </Routes>,
+    );
+    const room = screen.getByRole("link", { name: "트레이딩 룸" });
+    expect(room).toHaveAttribute("href", "/room");
+    expect(room.querySelector(".nav-short")).toHaveTextContent("채팅");
+    expect(
+      screen.getByRole("link", { name: "포트폴리오·주문" }).querySelector(".nav-short"),
+    ).toHaveTextContent("자산");
+    expect(screen.getAllByRole("link")).toHaveLength(7);
+    expect(screen.getByRole("status", { name: /연결/ })).toBeInTheDocument(); // 모바일 상단 연결 점
+  });
+
   it("토스 연결 문제를 배너로 알린다", async () => {
     mockFetch({ "/api/system": { ...SYSTEM, toss_ok: false, toss_issue: "허용 IP 미등록" } });
     renderWithProviders(

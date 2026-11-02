@@ -54,7 +54,6 @@ export function TradingRoom() {
           progress={progress}
           persona={persona}
           showTools={showTools}
-          height="calc(100vh - 260px)"
         />
       </section>
       <aside className="card runs">

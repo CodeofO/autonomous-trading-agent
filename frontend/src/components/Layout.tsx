@@ -22,14 +22,15 @@ export function PaperBadge({ live = false }: { live?: boolean }) {
   );
 }
 
+// short: 모바일 하단 탭바에 쓰는 짧은 이름
 const NAV = [
-  { to: "/", label: "대시보드", icon: "🏠" },
-  { to: "/room", label: "트레이딩 룸", icon: "💬" },
-  { to: "/agent", label: "에이전트 구조", icon: "🗺️" },
-  { to: "/portfolio", label: "포트폴리오·주문", icon: "📒" },
-  { to: "/backtest", label: "백테스트", icon: "🧪" },
-  { to: "/settings", label: "설정", icon: "⚙️" },
-  { to: "/logs", label: "이벤트 로그", icon: "📜" },
+  { to: "/", label: "대시보드", short: "홈", icon: "🏠" },
+  { to: "/room", label: "트레이딩 룸", short: "채팅", icon: "💬" },
+  { to: "/agent", label: "에이전트 구조", short: "구조", icon: "🗺️" },
+  { to: "/portfolio", label: "포트폴리오·주문", short: "자산", icon: "📒" },
+  { to: "/backtest", label: "백테스트", short: "백테스트", icon: "🧪" },
+  { to: "/settings", label: "설정", short: "설정", icon: "⚙️" },
+  { to: "/logs", label: "이벤트 로그", short: "로그", icon: "📜" },
 ];
 
 const STATUS_KO: Record<string, string> = { RUNNING: "실행 중", PAUSED: "일시정지", KILLED: "정지(킬)" };
@@ -50,8 +51,14 @@ export function Layout() {
         </div>
         <nav>
           {NAV.map((n) => (
-            <NavLink key={n.to} to={n.to} end={n.to === "/"}>
-              <span aria-hidden>{n.icon}</span> {n.label}
+            <NavLink key={n.to} to={n.to} end={n.to === "/"} aria-label={n.label}>
+              <span className="nav-icon" aria-hidden>
+                {n.icon}
+              </span>{" "}
+              <span className="nav-label">{n.label}</span>
+              <span className="nav-short" aria-hidden>
+                {n.short}
+              </span>
             </NavLink>
           ))}
         </nav>
@@ -68,7 +75,17 @@ export function Layout() {
       </aside>
       <div className="main">
         <header className="topbar">
+          {/* 모바일 전용: 사이드바가 하단 탭바로 바뀌므로 로고·연결 상태를 위에 둔다 */}
+          <span className="top-brand" aria-hidden>
+            {sys?.persona.emoji ?? "🦉"}
+          </span>
           <PaperBadge live={sys?.trading_mode === "live"} />
+          <span
+            className={`conn-dot ${connected ? "on" : ""}`}
+            title={connected ? "실시간 연결" : "연결 대기"}
+            aria-label={connected ? "실시간 연결" : "연결 대기"}
+            role="status"
+          />
           <div className="top-info">
             <KstClock />
             {sys && (
@@ -89,6 +106,11 @@ export function Layout() {
             )}
           </div>
           {sys && <KillSwitch status={sys.engine_status} />}
+          {authEnabled && (
+            <button className="link top-logout" onClick={logout}>
+              로그아웃
+            </button>
+          )}
         </header>
         {sys && !sys.toss_ok && (
           <div className="banner warn" role="alert">
