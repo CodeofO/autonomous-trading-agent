@@ -96,6 +96,8 @@ class Scheduler:
     async def sim_tick(self) -> None:
         if self.paused_sim or self._busy.locked():
             return
+        if self.engine.runner is not None and self.engine.runner.running:
+            return  # 판단 세션(수동 포함) 중에는 시뮬레이션 시계를 멈춘다
         clock = self.engine.clock
         assert isinstance(clock, SimulatedClock)
         before = clock.now()

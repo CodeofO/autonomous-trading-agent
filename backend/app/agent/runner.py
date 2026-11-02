@@ -9,6 +9,7 @@ import asyncio
 import json
 import logging
 import math
+import re
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
@@ -339,11 +340,18 @@ class AgentRunner:
         pf = await self.tb.call("get_portfolio", {})
         equity = float(pf.get("equity") or 0)
         held = {p["symbol"]: p for p in pf.get("positions", [])}
-        raw = [d for d in (payload.get("decisions") or []) if isinstance(d, dict) and d.get("symbol")]
+        self.hub.audit(
+            "AGENT_PAYLOAD",
+            "최종 결정 원본",
+            None,
+            run_id=run_id,
+            payload=json.dumps(payload, ensure_ascii=False, default=str)[:4000],
+        )
+        raw = normalize_decisions(payload.get("decisions"), self._symbol_lookup(held))
         decisions: list[dict[str, Any]] = []
         seen: set[str] = set()
         for d in raw:
-            sym = str(d["symbol"]).strip()
+            sym = d["symbol"]
             if sym in seen:
                 continue
             seen.add(sym)
@@ -378,6 +386,19 @@ class AgentRunner:
             run_id=run_id,
             counts={a: sum(x["action"] == a for x in decisions) for a in ("BUY", "SELL", "HOLD")},
         )
+
+    def _symbol_lookup(self, held: dict[str, Any]) -> dict[str, str]:
+        """종목명/코드 → 종목코드 (LLM 이 이름으로 답하는 경우 대비)."""
+        out: dict[str, str] = {}
+        for b in self.tb.store.snapshot():
+            out[b.symbol.upper()] = b.symbol
+            if b.name:
+                out[b.name] = b.symbol
+        for sym, p in held.items():
+            out[sym.upper()] = sym
+            if p.get("name"):
+                out[str(p["name"])] = sym
+        return out
 
     async def _execute_one(self, run_id: int, d: dict[str, Any], equity: float, held: dict[str, Any]) -> None:
         sym, action = d["symbol"], d["action"]
@@ -493,6 +514,57 @@ class AgentRunner:
 
 
 # ==================================================================== 유틸
+_SYMBOL_KEYS = ("symbol", "ticker", "code", "stock_code", "종목코드")
+
+
+def normalize_decisions(raw: Any, lookup: dict[str, str]) -> list[dict[str, Any]]:
+    """모델마다 다른 결정 형식을 [{symbol, action, ...}] 로 정규화한다.
+
+    - 배열을 JSON 문자열로 감싸 보내는 경우 (Qwen 등)
+    - {종목코드: {...}} 딕셔너리 형태
+    - symbol 대신 ticker/code 키, 또는 종목명("가온전자", "가온전자(MOCK01)")
+    """
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except json.JSONDecodeError:
+            raw = (extract_json('{"d": ' + raw + "}") or {}).get("d", [])
+    if isinstance(raw, dict):
+        if any(k in raw for k in _SYMBOL_KEYS):
+            raw = [raw]
+        else:
+            raw = [
+                {**v, "symbol": k} if isinstance(v, dict) else {"symbol": k, "action": v}
+                for k, v in raw.items()
+            ]
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for d in raw:
+        if isinstance(d, str):
+            try:
+                d = json.loads(d)
+            except json.JSONDecodeError:
+                continue
+        if not isinstance(d, dict):
+            continue
+        key = (
+            next((str(d[k]).strip() for k in _SYMBOL_KEYS if d.get(k)), "") or str(d.get("name", "")).strip()
+        )
+        sym = lookup.get(key) or lookup.get(key.upper())
+        if sym is None:
+            m = re.search(r"\(([A-Za-z0-9]{4,12})\)", key)  # "가온전자(MOCK01)"
+            sym = lookup.get(m.group(1).upper()) if m else None
+        if sym is None:
+            sym = key
+        if not sym:
+            continue
+        action = str(d.get("action") or d.get("decision") or "HOLD").strip().upper()
+        action = {"매수": "BUY", "매도": "SELL", "유지": "HOLD", "보유": "HOLD"}.get(action, action)
+        out.append({**d, "symbol": sym, "action": action})
+    return out
+
+
 def _acc(total: dict[str, int], u: dict[str, int]) -> None:
     for k, v in u.items():
         total[k] = total.get(k, 0) + v

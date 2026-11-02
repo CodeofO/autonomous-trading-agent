@@ -305,3 +305,47 @@ async def test_simulation_is_deterministic(tmp_path: Path, step: int) -> None:
     sig = lambda c: [(o.symbol, o.side, o.quantity, o.status) for o in _orders(c)]  # noqa: E731
     assert sig(c1) == sig(c2)
     assert (end - timedelta(minutes=step)) <= c1.clock.now()
+
+
+def test_strip_reasoning_blocks() -> None:
+    from app.agent.llm import strip_reasoning
+
+    assert strip_reasoning("<think>내부 추론</think>포트폴리오부터 볼게요") == "포트폴리오부터 볼게요"
+    assert strip_reasoning("앞<THINK>a\nb</THINK> 뒤") == "앞 뒤"
+    assert strip_reasoning("<think>끝나지 않은 추론") == ""
+
+
+def test_normalize_decisions_formats() -> None:
+    from app.agent.runner import normalize_decisions
+
+    lookup = {"MOCK11": "MOCK11", "하늘항공": "MOCK11", "MOCK01": "MOCK01", "가온전자": "MOCK01"}
+    as_str = json.dumps([{"symbol": "MOCK11", "action": "SELL", "target_weight": 0}])
+    assert normalize_decisions(as_str, lookup)[0]["action"] == "SELL"
+    by_dict = {"MOCK01": {"action": "hold", "confidence": 0.5}}
+    assert normalize_decisions(by_dict, lookup) == [{"action": "HOLD", "confidence": 0.5, "symbol": "MOCK01"}]
+    named = [
+        {"ticker": "가온전자(MOCK01)", "decision": "매수"},
+        {"name": "하늘항공", "action": "매도"},
+        "junk",
+        3,
+    ]
+    got = normalize_decisions(named, lookup)
+    assert [(g["symbol"], g["action"]) for g in got] == [("MOCK01", "BUY"), ("MOCK11", "SELL")]
+    assert normalize_decisions(None, lookup) == [] and normalize_decisions("not json", lookup) == []
+
+
+@respx.mock
+async def test_llm_decisions_as_json_string_are_executed(tmp_path: Path) -> None:
+    c = make(tmp_path, llm_base_url="https://llm.test/v1", llm_model="m", llm_api_key="k-123456")
+    await _simulate(c, datetime(2026, 11, 2, 10, 0, tzinfo=KST))
+    decisions = json.dumps(
+        [{"symbol": "가온전자", "action": "BUY", "quantity": 2, "confidence": 0.6, "rationale": "r"}],
+        ensure_ascii=False,
+    )
+    respx.post(LLM_URL).mock(
+        return_value=_resp(None, [_tc("submit_decisions", {"summary": "s", "decisions": decisions}, 1)])
+    )
+    run_id = await c.runner.run("manual")
+    with c.db.session() as s:
+        d = s.scalar(select(AgentDecision).where(AgentDecision.run_id == run_id))
+    assert d is not None and d.symbol == "MOCK01" and d.action == "BUY" and d.order_id is not None

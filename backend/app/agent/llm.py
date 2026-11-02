@@ -47,6 +47,14 @@ def llm_routes(base_url: str) -> list[Route]:
     return [Route((parts.hostname or "").lower(), "POST", re.compile(re.escape(path)))]
 
 
+_THINK = re.compile(r"<think>.*?(</think>|$)", re.S | re.I)
+
+
+def strip_reasoning(text: str) -> str:
+    """추론형 모델(Qwen3 등)이 본문에 섞어 보내는 <think>…</think> 블록 제거."""
+    return _THINK.sub("", text or "").strip()
+
+
 def _parse_args(raw: str | dict[str, Any] | None) -> dict[str, Any]:
     if isinstance(raw, dict):
         return raw
@@ -130,7 +138,7 @@ class LLMClient:
             )
         usage = {k: int(v) for k, v in (data.get("usage") or {}).items() if isinstance(v, int)}
         return ChatResult(
-            content=(msg.get("content") or "").strip(),
+            content=strip_reasoning(msg.get("content") or ""),
             tool_calls=calls,
             usage=usage,
             finish_reason=str(choice.get("finish_reason", "")),
