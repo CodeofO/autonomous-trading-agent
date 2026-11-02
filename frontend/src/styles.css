@@ -911,6 +911,20 @@ label.toggle input {
 .room-main .chat {
   height: calc(100vh - 260px);
 }
+/* 대시보드: 채팅이 왼쪽 열 높이만큼 아래까지 채운다 (내용 높이는 행 높이에 영향을 주지 않음) */
+.room-mini {
+  display: flex;
+  flex-direction: column;
+}
+.room-mini .chat {
+  flex: 1 1 0;
+  height: auto;
+  min-height: 560px;
+  contain: size;
+}
+.chat-scroll {
+  min-height: 0;
+}
 .runs {
   display: flex;
   flex-direction: column;

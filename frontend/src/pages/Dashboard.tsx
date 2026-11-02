@@ -119,7 +119,7 @@ export function Dashboard() {
             <h2>💬 트레이딩 룸</h2>
             <Link to="/room">크게 보기 →</Link>
           </div>
-          <ChatFeed messages={messages} typing={typing} persona={persona} showTools={false} height="560px" />
+          <ChatFeed messages={messages} typing={typing} persona={persona} showTools={false} />
         </section>
       </div>
     </div>
