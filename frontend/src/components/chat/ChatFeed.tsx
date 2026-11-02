@@ -43,17 +43,32 @@ export function ChatFeed({
     onSuccess: () => setText(""),
   });
 
+  const stickRef = useRef(stick);
+  stickRef.current = stick;
+
+  // 메시지가 늘거나 바뀌면(도구 결과·결정 카드가 채워지는 경우 포함) 맨 아래에 붙어 있을 때만 따라 내려간다
   useLayoutEffect(() => {
     const el = box.current;
     if (el && stick) el.scrollTop = el.scrollHeight;
-  }, [visible.length, typing, stick]);
+  }, [visible, typing, progress?.active, stick]);
 
   useEffect(() => {
     const el = box.current;
     if (!el) return;
     const onScroll = () => setStick(el.scrollHeight - el.scrollTop - el.clientHeight < 80);
-    el.addEventListener("scroll", onScroll);
-    return () => el.removeEventListener("scroll", onScroll);
+    el.addEventListener("scroll", onScroll, { passive: true });
+    // 채팅 창 높이가 바뀌어도(키보드·진행 표시·화면 회전) 아래에 붙은 상태를 유지
+    const ro =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(() => {
+            if (stickRef.current) el.scrollTop = el.scrollHeight;
+          });
+    ro?.observe(el);
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      ro?.disconnect();
+    };
   }, []);
 
   const submit = (e: FormEvent) => {

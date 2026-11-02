@@ -2,13 +2,24 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- interactive-widget: 안드로이드 크롬에서 키보드가 뜨면 화면 높이를 줄여 입력창이 키보드 위에 오게 -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
+    />
+    <!-- 휴대폰: 상태 표시줄 색을 상단 바(흰색/어두운 패널)와 맞춘다. 넓은 화면은 그대로 -->
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light) and (max-width: 760px)" />
+    <meta name="theme-color" content="#171b23" media="(prefers-color-scheme: dark) and (max-width: 760px)" />
     <meta name="theme-color" content="#f4f6f9" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0f1218" media="(prefers-color-scheme: dark)" />
     <!-- 휴대폰 '홈 화면에 추가' 시 앱처럼 열리게 -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="AI 펀드매니저" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>AI 펀드매니저</title>
   </head>
   <body>

@@ -1394,25 +1394,58 @@ label.toggle input {
 .top-brand,
 .conn-dot,
 .top-logout,
-.nav-short {
+.nav-short,
+.tab-ind,
+.skeleton {
   display: none;
+}
+/* 넓은 화면: 상자 없이 지나가는 감싸개 — 지금까지처럼 .content 가 스크롤한다 */
+.page-scroll,
+.page {
+  display: contents;
 }
 
 /* ---------- 모바일 (휴대폰) ----------
-   상단: 로고·모드 배지·연결 점·킬 스위치 한 줄 + 상태 칩 한 줄(가로 스크롤)
-   하단: 사이드바 메뉴가 탭바로 바뀐다. 페이지는 평소처럼 전체가 스크롤 */
+   앱 틀: 상단 바(고정) · 본문(.page-scroll 하나만 스크롤) · 하단 탭바(고정).
+   body 는 스크롤하지 않아 고정 바 뒤에서 화면이 출렁이지 않는다.
+   높이는 실제로 보이는 화면(--vvh, 키보드 제외)에 맞춘다 — src/mobile.ts */
 @media (max-width: 760px) {
+  html,
+  body {
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  body {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
   .app {
-    grid-template-columns: 1fr;
-    height: auto;
-    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    height: var(--vvh, 100%);
+  }
+  .main {
+    flex: 1;
+  }
+  .page-scroll {
+    display: block;
+    flex: 1;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .page {
+    display: block;
   }
   .content {
-    overflow-y: visible;
-    padding: 14px 12px;
+    overflow: visible;
+    padding: 14px max(12px, env(safe-area-inset-right)) 14px max(12px, env(safe-area-inset-left));
   }
   .disclaimer {
-    padding: 8px 12px calc(84px + env(safe-area-inset-bottom));
+    padding: 0 12px 16px;
   }
   .tool-groups {
     grid-template-columns: 1fr;
@@ -1420,53 +1453,84 @@ label.toggle input {
   .grid-3 {
     grid-template-columns: 1fr;
   }
+  /* 표는 카드 안에서 가로로 스크롤 (끝에 닿아도 뒤로 가기 제스처로 번지지 않게) */
   .table {
     display: block;
     overflow-x: auto;
+    overscroll-behavior-x: contain;
     -webkit-overflow-scrolling: touch;
   }
   .card {
     padding: 14px;
   }
 
-  /* 하단 탭바 */
+  /* 하단 탭바: 본문 아래에 붙는 마지막 줄 (본문을 가리지 않는다) */
   .sidebar {
-    position: fixed;
+    order: 2;
+    flex: none;
+    position: relative;
     top: auto;
-    bottom: 0;
-    left: 0;
-    right: 0;
     height: auto;
     z-index: 30;
-    padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+    padding: 4px max(4px, env(safe-area-inset-right)) calc(4px + env(safe-area-inset-bottom))
+      max(4px, env(safe-area-inset-left));
     border-right: 0;
     border-top: 1px solid var(--border);
     box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.06);
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  /* 글자 입력 중에는 키보드가 탭바 자리를 쓴다 */
+  .kb-open .sidebar {
+    display: none;
   }
   .sidebar .brand,
   .sidebar-foot {
     display: none;
   }
   .sidebar nav {
+    position: relative;
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: 0;
   }
   .sidebar nav a {
+    position: relative;
+    z-index: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 1px;
     padding: 6px 0 4px;
-    border-radius: 10px;
+    border-radius: 12px;
     font-size: 10.5px;
     line-height: 1.2;
     white-space: nowrap;
-    min-height: 48px;
+    min-height: 52px;
     justify-content: center;
+    color: var(--text-dim);
+    touch-action: manipulation;
+    transition: color 0.2s ease;
+  }
+  .sidebar nav a:hover {
+    background: none;
+  }
+  .sidebar nav a.active {
+    background: none;
+    color: var(--accent);
   }
   .sidebar nav a .nav-icon {
+    display: block;
     font-size: 19px;
+    transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .sidebar nav a.active .nav-icon {
+    transform: translateY(-1px) scale(1.08);
+  }
+  .sidebar nav a:active .nav-icon {
+    transform: scale(0.86);
+    transition-duration: 0.08s;
   }
   .sidebar nav a .nav-label {
     display: none;
@@ -1474,11 +1538,50 @@ label.toggle input {
   .sidebar nav a .nav-short {
     display: block;
   }
+  /* 선택된 탭 뒤의 둥근 표시 — 탭을 바꾸면 옆으로 미끄러진다 */
+  .tab-ind {
+    display: block;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: calc(100% / 7);
+    transform: translateX(calc(var(--tab-i, 0) * 100%));
+    transition: transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+    pointer-events: none;
+  }
+  .tab-ind::before {
+    content: "";
+    position: absolute;
+    inset: 2px 3px;
+    border-radius: 12px;
+    background: var(--accent-soft);
+  }
+  /* View Transition 중에는 브라우저가 옮기므로 CSS 전환은 끈다 */
+  .vt-nav .tab-ind {
+    transition: none;
+    view-transition-name: tab-ind;
+  }
 
   /* 상단 바 */
   .topbar {
-    padding: calc(8px + env(safe-area-inset-top)) 12px 8px;
+    flex: none;
+    position: relative;
+    padding: calc(8px + env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 8px
+      max(12px, env(safe-area-inset-left));
     gap: 8px;
+    transition:
+      box-shadow 0.2s ease,
+      border-color 0.2s ease;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  /* 본문을 내리면 상단 바가 떠 보이게 */
+  .topbar.scrolled {
+    border-bottom-color: transparent;
+    box-shadow:
+      0 1px 0 var(--border),
+      0 6px 16px rgba(0, 0, 0, 0.07);
   }
   .top-brand {
     display: inline;
@@ -1506,8 +1609,17 @@ label.toggle input {
   }
   .topbar .btn.kill,
   .topbar .btn.resume {
+    position: relative;
+    min-height: 34px;
     padding: 7px 12px;
     font-size: 13px;
+  }
+  /* 보이는 크기는 그대로, 누르는 영역만 44px 로 넓힌다 */
+  .topbar .btn.kill::after,
+  .topbar .btn.resume::after {
+    content: "";
+    position: absolute;
+    inset: -5px -4px;
   }
   .top-logout {
     display: inline;
@@ -1518,6 +1630,7 @@ label.toggle input {
     flex: 1 0 100%;
     flex-wrap: nowrap;
     overflow-x: auto;
+    overscroll-behavior-x: contain;
     gap: 6px;
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
@@ -1534,6 +1647,57 @@ label.toggle input {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  /* 터치: 눌림 표시, 44px 누름 영역, 버튼 글자는 선택되지 않게 */
+  .btn,
+  .run-item,
+  .quick button,
+  .jump,
+  button.link,
+  label.toggle,
+  .chip {
+    -webkit-user-select: none;
+    user-select: none;
+    touch-action: manipulation;
+  }
+  .btn,
+  .run-item,
+  .quick button {
+    transition:
+      transform 0.12s ease,
+      opacity 0.12s ease;
+  }
+  .btn {
+    min-height: 44px;
+  }
+  .btn.tiny {
+    min-height: 36px;
+  }
+  .btn:active:not(:disabled),
+  .run-item:active,
+  .quick button:active:not(:disabled) {
+    transform: scale(0.96);
+    opacity: 0.85;
+  }
+  .jump:active {
+    transform: translateX(-50%) scale(0.95);
+  }
+  .content a:active {
+    opacity: 0.6;
+  }
+  label.toggle {
+    min-height: 44px;
+  }
+  /* iOS 는 16px 미만 입력창에 포커스하면 화면을 확대한다 */
+  .content input:not([type="checkbox"]):not([type="radio"]),
+  .content select,
+  .content textarea {
+    font-size: 16px;
+  }
+  .content input:not([type="checkbox"]):not([type="radio"]),
+  .content select {
+    min-height: 44px;
   }
 
   /* 대시보드: 지표 → 트레이딩 룸 → 자산 추이·매니저·보유 종목 순 */
@@ -1560,22 +1724,26 @@ label.toggle input {
     contain: none;
   }
 
-  /* 트레이딩 룸: 채팅이 화면을 채운다 (상단 바·탭바 제외) */
+  /* 트레이딩 룸: 채팅 카드가 상단 바와 탭바 사이 본문을 꽉 채운다 (--scroll-h: 본문 높이, 키보드가 뜨면 줄어든다) */
+  .room-main {
+    display: flex;
+    flex-direction: column;
+    height: calc(var(--scroll-h, 100dvh) - 28px);
+    min-height: 320px;
+  }
   .room-main .chat {
-    height: calc(100dvh - 268px - env(safe-area-inset-bottom));
-    min-height: 380px;
+    flex: 1;
+    min-height: 0;
+    height: auto;
   }
   .runs {
     max-height: none;
   }
 
-  /* 채팅 입력: iOS 는 16px 미만 입력창에 포커스하면 화면을 확대한다 */
-  .chat-compose input {
-    font-size: 16px;
-  }
   .quick {
     flex-wrap: nowrap;
     overflow-x: auto;
+    overscroll-behavior-x: contain;
     scrollbar-width: none;
   }
   .quick::-webkit-scrollbar {
@@ -1583,12 +1751,118 @@ label.toggle input {
   }
   .quick button {
     flex-shrink: 0;
+    min-height: 34px;
   }
   .chat-row.user {
     padding-right: 4px;
   }
   .chat-col {
     max-width: 88%;
+  }
+
+  /* 탭이 아닌 이동(종목 상세·뒤로 가기)은 본문이 살짝 떠오르며 나타난다 */
+  .page.enter {
+    animation: page-rise 0.24s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  }
+
+  /* 데이터를 받기 전 자리 표시 (넓은 화면은 지금처럼 '불러오는 중…' 글자) */
+  .loading-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .skeleton i {
+    display: block;
+    height: 120px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: linear-gradient(90deg, var(--panel) 30%, var(--panel-2) 50%, var(--panel) 70%) 0 0 / 300% 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
+  .skeleton i:first-child {
+    height: 168px;
+  }
+}
+
+/* 탭 전환 (View Transitions, 휴대폰에서만 시작 — Layout.tsx useMobileNav)
+   상단 바·탭바는 그대로 두고 본문만 진행 방향으로 살짝 밀며 바꾼다 */
+.vt-nav .page-scroll {
+  view-transition-name: page;
+}
+html.vt-nav::view-transition-old(root),
+html.vt-nav::view-transition-new(root) {
+  animation: none;
+}
+html.vt-nav::view-transition-old(page) {
+  animation: page-out 0.14s ease-in both;
+}
+html.vt-nav::view-transition-new(page) {
+  animation: page-in 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+html.vt-nav[data-nav-dir="prev"]::view-transition-old(page) {
+  animation-name: page-out-prev;
+}
+html.vt-nav[data-nav-dir="prev"]::view-transition-new(page) {
+  animation-name: page-in-prev;
+}
+html.vt-nav::view-transition-group(tab-ind) {
+  animation-duration: 0.32s;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+}
+@keyframes page-out {
+  to {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+}
+@keyframes page-in-prev {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+}
+@keyframes page-out-prev {
+  to {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+}
+@keyframes page-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .page.enter,
+  .skeleton i {
+    animation: none;
+  }
+  .tab-ind,
+  .sidebar nav a .nav-icon {
+    transition: none;
   }
 }
 

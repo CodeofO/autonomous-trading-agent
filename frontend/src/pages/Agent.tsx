@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { get } from "../api/client";
 import type { AgentStructure, ToolGroup } from "../api/types";
+import { Loading } from "../components/Loading";
 import { fmtWon } from "../utils/format";
 
 const GROUPS: { key: ToolGroup; label: string; icon: string }[] = [
@@ -27,7 +28,7 @@ export function AgentPage() {
     refetchInterval: 5000,
   });
   if (isError) return <p className="error">에이전트 구성을 불러오지 못했어요.</p>;
-  if (!st) return <p className="muted">불러오는 중…</p>;
+  if (!st) return <Loading />;
 
   const { schedule: sc, risk, paper, llm } = st;
   const sessions = sc.sessions;
