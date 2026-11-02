@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import func, select
 
 from app.agent.prompts import DEFAULT_PERSONA, DEFAULT_POLICY
+from app.agent.tools import TERMINAL_TOOL, openai_tools
 from app.api.auth import hash_password, issue_token, verify_password, verify_token
 from app.backtest.engine import run_backtest
 from app.container import Container
@@ -31,6 +32,7 @@ from app.db.models import (
     WatchlistItem,
 )
 from app.engine.orders import order_dict
+from app.engine.scheduler import session_times
 from app.risk.rules import RiskConfig
 from app.strategies.rules import REGISTRY, build, param_schema
 
@@ -318,6 +320,77 @@ def agent_decisions(
         q = q.where(AgentDecision.symbol == symbol)
     with c.db.session() as s:
         return [_decision_dict(d) for d in s.scalars(q)]
+
+
+# 도구 → (분류, 데이터 출처). 에이전트 구조 화면에서 묶어 보여준다.
+TOOL_GROUPS: dict[str, tuple[str, str]] = {
+    "get_portfolio": ("portfolio", "모의계좌"),
+    "screen_stocks": ("market", "토스증권"),
+    "get_price_history": ("market", "토스증권"),
+    "get_market_overview": ("market", "토스증권"),
+    "explore_sector": ("market", "토스증권"),
+    "get_supply_demand": ("market", "토스증권"),
+    "get_stock_status": ("market", "토스증권"),
+    "get_financials": ("research", "DART"),
+    "get_disclosures": ("research", "DART"),
+    "search_news": ("research", "NAVER"),
+    TERMINAL_TOOL: ("decision", "모의계좌"),
+}
+
+
+@router.get("/agent/structure")
+def agent_structure(c: C, _: U) -> dict[str, Any]:
+    """에이전트 구성(도구·데이터 출처·스케줄·리스크 규칙)을 실제 설정값 그대로 돌려준다."""
+    s = c.settings
+    ready = {
+        "토스증권": c.engine._health[0],
+        "DART": c.research.sources["financials"] == "DART",
+        "NAVER": c.research.sources["news"] == "NAVER",
+        "모의계좌": True,
+    }
+    tools = []
+    for t in openai_tools(toss=c.toss is not None):
+        f = t["function"]
+        group, source = TOOL_GROUPS.get(f["name"], ("market", "토스증권"))
+        tools.append(
+            {
+                "name": f["name"],
+                "description": f["description"],
+                "group": group,
+                "source": source,
+                "ready": ready.get(source, False),
+            }
+        )
+    mode = s.llm_tool_mode if s.has_llm else "rules"
+    return {
+        "persona": c.runner.persona(),
+        "llm": {
+            "configured": s.has_llm,
+            "model": s.llm_model if s.has_llm else None,
+            "mode": mode,
+            "max_steps": s.llm_max_steps,
+            "max_tokens": s.llm_max_tokens,
+        },
+        "sources": [{"name": k, "ready": v} for k, v in ready.items()],
+        "tools": tools,
+        "schedule": {
+            "interval_minutes": c.scheduler.interval_minutes,
+            "morning": "08:35",
+            "sessions": [f"{t:%H:%M}" for t in session_times(c.scheduler.interval_minutes)],
+            "report": "15:45",
+            "monitor_minutes": 1,
+            "refresh_minutes": 10,
+        },
+        "risk": c.engine.risk_config().model_dump(),
+        "paper": {
+            "initial_cash": s.paper_initial_cash,
+            "commission_rate": s.paper_commission_rate,
+            "sell_tax_rate": s.paper_sell_tax_rate,
+            "slippage_bps": s.paper_slippage_bps,
+        },
+        "engine_status": c.engine.status,
+        "agent_running": c.runner.running,
+    }
 
 
 class AgentSettingsBody(BaseModel):

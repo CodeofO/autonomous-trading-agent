@@ -84,6 +84,19 @@ def test_system_and_portfolio(client: TestClient) -> None:
     assert client.get("/api/openapi.json").status_code == 200
 
 
+def test_agent_structure(client: TestClient) -> None:
+    h = _login(client)
+    st = client.get("/api/agent/structure", headers=h).json()
+    names = [t["name"] for t in st["tools"]]
+    assert names[-1] == "submit_decisions" and "get_supply_demand" in names  # 토스 도구 포함, 제출은 마지막
+    assert {t["group"] for t in st["tools"]} == {"portfolio", "market", "research", "decision"}
+    assert st["llm"]["mode"] == "rules" and st["llm"]["model"] is None  # LLM 미설정 → 규칙 모드
+    assert st["schedule"]["morning"] == "08:35" and st["schedule"]["sessions"][0] == "10:00"
+    assert st["risk"]["max_order_amount"] == 2_000_000
+    src = {x["name"]: x["ready"] for x in st["sources"]}
+    assert src["DART"] is False and src["NAVER"] is False
+
+
 def test_agent_run_orders_cancel_kill(client: TestClient) -> None:
     h = _login(client)
     assert client.post("/api/agent/run", headers=h).status_code == 202
@@ -207,6 +220,7 @@ def test_secrets_never_exposed(tmp_path: Path) -> None:
         h = _login(c)
         body = c.get("/api/system", headers=h).text
         assert key not in body and "llm.example.com" in body
+        assert key not in c.get("/api/agent/structure", headers=h).text
         assert key not in c.get("/api/openapi.json").text
 
 

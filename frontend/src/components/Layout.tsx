@@ -17,6 +17,7 @@ export function PaperBadge() {
 const NAV = [
   { to: "/", label: "대시보드", icon: "🏠" },
   { to: "/room", label: "트레이딩 룸", icon: "💬" },
+  { to: "/agent", label: "에이전트 구조", icon: "🗺️" },
   { to: "/portfolio", label: "포트폴리오·주문", icon: "📒" },
   { to: "/backtest", label: "백테스트", icon: "🧪" },
   { to: "/settings", label: "설정", icon: "⚙️" },

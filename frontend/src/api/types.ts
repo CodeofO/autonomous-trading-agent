@@ -186,3 +186,24 @@ export interface BacktestResult {
   equity_curve: { day: string; equity: number }[];
   trades_list: { symbol: string; side: string; quantity: number; price: number; day: string }[];
 }
+
+export type ToolGroup = "portfolio" | "market" | "research" | "decision";
+
+export interface AgentStructure {
+  persona: { name: string; emoji: string };
+  llm: { configured: boolean; model: string | null; mode: string; max_steps: number; max_tokens: number };
+  sources: { name: string; ready: boolean }[];
+  tools: { name: string; description: string; group: ToolGroup; source: string; ready: boolean }[];
+  schedule: {
+    interval_minutes: number;
+    morning: string;
+    sessions: string[];
+    report: string;
+    monitor_minutes: number;
+    refresh_minutes: number;
+  };
+  risk: RiskConfig;
+  paper: { initial_cash: number; commission_rate: number; sell_tax_rate: number; slippage_bps: number };
+  engine_status: "RUNNING" | "PAUSED" | "KILLED";
+  agent_running: boolean;
+}

@@ -4,6 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth";
 import { EventsProvider } from "./events";
 import { Layout } from "./components/Layout";
+import { AgentPage } from "./pages/Agent";
 import { Backtest } from "./pages/Backtest";
 import { Dashboard } from "./pages/Dashboard";
 import { Login } from "./pages/Login";
@@ -23,6 +24,7 @@ function Routed() {
         <Route element={<Layout />}>
           <Route index element={<Dashboard />} />
           <Route path="room" element={<TradingRoom />} />
+          <Route path="agent" element={<AgentPage />} />
           <Route path="portfolio" element={<Portfolio />} />
           <Route path="stock/:symbol" element={<Stock />} />
           <Route path="backtest" element={<Backtest />} />
