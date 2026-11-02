@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 from collections.abc import Awaitable, Callable
 from datetime import timedelta
@@ -16,6 +17,7 @@ from app.market.store import PriceStore
 from app.research.service import ResearchService
 from app.strategies.indicators import pct_change, rsi, sma, volatility
 
+log = logging.getLogger(__name__)
 EOK = 1e8  # 억원
 MAX_RESULT_CHARS = 7000
 
@@ -391,8 +393,7 @@ class ToolBox:
         fin = await self.research.financials(symbol)
         if not fin.get("available"):
             return fin
-        last = self.store.last_bar(symbol)
-        mcap = last.market_cap if last else None
+        mcap = await self._market_cap(symbol)
         reports = fin["reports"]
         out_reports = []
         for r in reports:
@@ -453,6 +454,19 @@ class ToolBox:
             "reports": out_reports,
             "valuation": valuation,
         }
+
+    async def _market_cap(self, symbol: str) -> float | None:
+        """시가총액: 토스 현재가 × 발행주식수 (없으면 저장된 일봉 기준)."""
+        if self.toss is not None:
+            try:
+                shares = _f((await self.toss.info([symbol])).get(symbol, {}).get("sharesOutstanding"))
+                q = await self.quote(symbol) if self.quote is not None else None
+                if shares and q is not None and q.price:
+                    return float(q.price * shares)
+            except Exception as e:  # 토스 일시 장애 → 일봉으로 대체
+                log.warning("시가총액 계산 실패 %s: %s", symbol, e)
+        last = self.store.last_bar(symbol)
+        return last.market_cap if last and last.market_cap else None
 
     async def t_get_disclosures(self, symbol: str, days: int = 30) -> dict[str, Any]:
         items = await self.research.disclosures(symbol, max(1, min(180, int(days))))

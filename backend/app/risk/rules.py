@@ -18,7 +18,7 @@ from app.core.market_calendar import MarketCalendar
 
 class RiskConfig(BaseModel):
     max_position_weight: float = Field(0.20, gt=0, le=1, description="종목당 최대 비중")
-    max_order_amount: float = Field(1_000_000, gt=0, description="1회 주문 최대 금액(원)")
+    max_order_amount: float = Field(2_000_000, gt=0, description="1회 주문 최대 금액(원)")
     daily_loss_limit: float = Field(-0.03, lt=0, ge=-1, description="일일 최대 손실 → 신규 매수 중단")
     stop_loss: float = Field(-0.05, lt=0, ge=-1, description="종목별 손절")
     take_profit: float = Field(0.10, gt=0, le=10, description="종목별 익절")

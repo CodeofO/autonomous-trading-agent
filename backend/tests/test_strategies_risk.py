@@ -113,7 +113,7 @@ def _ctx(
     )
 
 
-RM = RiskManager(RiskConfig(min_cash_ratio=0), MarketCalendar())
+RM = RiskManager(RiskConfig(min_cash_ratio=0, max_order_amount=1_000_000), MarketCalendar())
 
 
 def buy(qty: int, px: float = 10_000, sym: str = "AAA") -> OrderIntent:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import io
 import logging
 import re
@@ -98,6 +99,7 @@ class DartClient:
         self._key = api_key.strip()
         self.db = db
         self.http = http or SafeHttpClient(ROUTES, rate_per_sec=5)
+        self._corp_lock = asyncio.Lock()  # 첫 고유번호 다운로드가 동시에 두 번 돌지 않도록
 
     async def _json(self, endpoint: str, params: dict[str, Any]) -> dict[str, Any]:
         r = await self.http.request("GET", f"{BASE}/{endpoint}", params={"crtfc_key": self._key, **params})
@@ -111,6 +113,10 @@ class DartClient:
 
     # ------------------------------------------------------------ 고유번호
     async def refresh_corp_codes(self, force: bool = False) -> int:
+        async with self._corp_lock:
+            return await self._refresh_corp_codes(force)
+
+    async def _refresh_corp_codes(self, force: bool) -> int:
         with self.db.session() as s:
             n = s.scalar(select(func.count()).select_from(CorpCode)) or 0
         if n > 0 and not force:

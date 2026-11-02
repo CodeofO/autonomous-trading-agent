@@ -182,7 +182,7 @@ async def test_llm_tool_loop_uses_toss_tools_and_places_orders(tmp_path: Path) -
     assert decs["005930"].order_id and decs["000660"].order_id and decs["035420"].action == "HOLD"
     o2 = next(o for o in _orders(c) if o.symbol == "000660")
     assert o2.status == "FILLED" and o2.fill_basis == "NOW"  # 장중 현재가 즉시 체결
-    assert o2.quantity * c.toss.client.last_price("000660") < 1_100_000  # 1회 최대 주문금액으로 축소
+    assert o2.quantity * c.toss.client.last_price("000660") < 2_100_000  # 1회 최대 주문금액(200만 원)으로 축소
     chat = _chat(c)
     assert any(m.kind == "tool" and m.payload.get("tool") == "get_supply_demand" for m in chat)
     assert any(m.role == "risk" and "축소" in m.content for m in chat)
@@ -337,3 +337,33 @@ def test_normalize_decisions_formats() -> None:
     got = normalize_decisions(named, lookup)
     assert [(g["symbol"], g["action"]) for g in got] == [("005930", "BUY"), ("005380", "SELL")]
     assert normalize_decisions(None, lookup) == [] and normalize_decisions("not json", lookup) == []
+
+
+async def test_financials_valuation_uses_toss_market_cap(tmp_path: Path) -> None:
+    c = make(tmp_path)
+
+    async def fake_fin(symbol: str) -> dict[str, Any]:
+        return {
+            "symbol": symbol,
+            "available": True,
+            "source": "DART",
+            "reports": [
+                {
+                    "period": "2025 사업보고서",
+                    "type": "A",
+                    "fs_div": "CFS",
+                    "revenue": 3e14,
+                    "operating_income": 4e13,
+                    "net_income": 4.5e13,
+                    "total_equity": 4e14,
+                    "total_liabilities": 1.2e14,
+                    "prior": {},
+                }
+            ],
+        }
+
+    c.research.financials = fake_fin  # type: ignore[method-assign]
+    res = await c.runner.tb.call("get_financials", {"symbol": "005930"})
+    mcap = c.toss.client.last_price("005930") * 5.9e9
+    assert res["valuation"]["market_cap_eok"] == round(mcap / 1e8, 1)
+    assert res["valuation"]["per"] == round(mcap / 4.5e13, 1) and res["valuation"]["pbr"] is not None
