@@ -17,11 +17,36 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
+from sqlalchemy.engine import Dialect
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.types import TypeDecorator
 
 
 def utcnow() -> datetime:
     return datetime.now(UTC)
+
+
+class UTCDateTime(TypeDecorator[datetime]):
+    """항상 UTC 로 저장하고 aware(UTC) 로 돌려준다.
+
+    SQLite 는 시간대 정보를 버리므로, KST 시각을 그대로 넣으면 읽을 때 어긋난다(D-14).
+    naive 값이 들어오면 UTC 로 간주한다.
+    """
+
+    impl = DateTime(timezone=True)
+    cache_ok = True
+
+    def process_bind_param(self, value: datetime | None, dialect: Dialect) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
+
+    def process_result_value(self, value: datetime | None, dialect: Dialect) -> datetime | None:
+        if value is None:
+            return None
+        return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
 
 
 class Base(DeclarativeBase):
@@ -33,7 +58,7 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     username: Mapped[str] = mapped_column(String(64), unique=True)
     password_hash: Mapped[str] = mapped_column(String(256))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
 
 class AppSetting(Base):
@@ -42,7 +67,7 @@ class AppSetting(Base):
     __tablename__ = "app_settings"
     key: Mapped[str] = mapped_column(String(64), primary_key=True)
     value: Mapped[dict[str, Any]] = mapped_column(JSON)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, onupdate=utcnow)
 
 
 class WatchlistItem(Base):
@@ -50,7 +75,7 @@ class WatchlistItem(Base):
     symbol: Mapped[str] = mapped_column(String(16), primary_key=True)
     name: Mapped[str] = mapped_column(String(64), default="")
     active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
 
 class StrategyConfig(Base):
@@ -61,7 +86,7 @@ class StrategyConfig(Base):
     enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     params: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     symbols: Mapped[list[Any]] = mapped_column(JSON, default=list)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, onupdate=utcnow)
 
 
 class DailyPrice(Base):
@@ -99,7 +124,7 @@ class ApiCache(Base):
     __tablename__ = "api_cache"
     key: Mapped[str] = mapped_column(String(256), primary_key=True)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON)
-    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    fetched_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
 
 class Order(Base):
@@ -121,8 +146,8 @@ class Order(Base):
     trade_day: Mapped[date | None] = mapped_column(Date, nullable=True)
     reason: Mapped[str] = mapped_column(String(256), default="")
     reject_reason: Mapped[str | None] = mapped_column(String(256), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, onupdate=utcnow)
 
 
 class Fill(Base):
@@ -135,13 +160,13 @@ class Fill(Base):
     price: Mapped[float] = mapped_column(Float)
     fee: Mapped[float] = mapped_column(Float, default=0.0)
     tax: Mapped[float] = mapped_column(Float, default=0.0)
-    filled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    filled_at: Mapped[datetime] = mapped_column(UTCDateTime())
 
 
 class AuditEvent(Base):
     __tablename__ = "audit_events"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    ts: Mapped[datetime] = mapped_column(UTCDateTime(), index=True)
     type: Mapped[str] = mapped_column(String(24), index=True)
     symbol: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
     message: Mapped[str] = mapped_column(Text)
@@ -154,13 +179,13 @@ class PaperAccountState(Base):
     __tablename__ = "paper_account"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     state: Mapped[dict[str, Any]] = mapped_column(JSON)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, onupdate=utcnow)
 
 
 class EquitySnapshot(Base):
     __tablename__ = "equity_snapshots"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    ts: Mapped[datetime] = mapped_column(UTCDateTime(), index=True)
     equity: Mapped[float] = mapped_column(Float)
     cash: Mapped[float] = mapped_column(Float)
 
@@ -174,8 +199,8 @@ class AgentRun(Base):
     mode: Mapped[str] = mapped_column(String(16))  # llm-tools | llm-json | rule
     model: Mapped[str] = mapped_column(String(128), default="")
     status: Mapped[str] = mapped_column(String(16), default="RUNNING")
-    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    finished_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     market_view: Mapped[str] = mapped_column(Text, default="")
     summary: Mapped[str] = mapped_column(Text, default="")
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -198,7 +223,7 @@ class AgentDecision(Base):
     evidence: Mapped[list[Any]] = mapped_column(JSON, default=list)
     order_id: Mapped[int | None] = mapped_column(ForeignKey("orders.id"), nullable=True)
     outcome: Mapped[str] = mapped_column(String(256), default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
 
 class ChatMessage(Base):
@@ -206,7 +231,7 @@ class ChatMessage(Base):
 
     __tablename__ = "chat_messages"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    ts: Mapped[datetime] = mapped_column(UTCDateTime(), index=True)
     run_id: Mapped[int | None] = mapped_column(ForeignKey("agent_runs.id"), nullable=True, index=True)
     role: Mapped[str] = mapped_column(String(16))  # analyst | risk | broker | system | user
     kind: Mapped[str] = mapped_column(String(16))  # text | tool | decision | fill | block | summary
@@ -218,4 +243,4 @@ class DailyReport(Base):
     __tablename__ = "daily_reports"
     day: Mapped[date] = mapped_column(Date, primary_key=True)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)

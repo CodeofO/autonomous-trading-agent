@@ -16,6 +16,7 @@ from app.agent.prompts import DEFAULT_PERSONA, DEFAULT_POLICY
 from app.api.auth import hash_password, issue_token, verify_password, verify_token
 from app.backtest.engine import run_backtest
 from app.container import Container
+from app.core.clock import KST
 from app.db.models import (
     AgentDecision,
     AgentRun,
@@ -548,7 +549,7 @@ async def candles(symbol: str, c: C, _: U, days: int = Query(180, ge=20, le=1000
         )
     markers = [
         {
-            "time": f.filled_at.date().isoformat() if f.filled_at else None,
+            "time": f.filled_at.astimezone(KST).date().isoformat() if f.filled_at else None,
             "side": f.side,
             "kind": "fill",
             "text": f"{'매수' if f.side == 'BUY' else '매도'} {f.quantity}@{f.price:,.0f}",
@@ -557,7 +558,7 @@ async def candles(symbol: str, c: C, _: U, days: int = Query(180, ge=20, le=1000
     ]
     markers += [
         {
-            "time": d.created_at.date().isoformat() if d.created_at else None,
+            "time": d.created_at.astimezone(KST).date().isoformat() if d.created_at else None,
             "side": d.action,
             "kind": "decision",
             "text": f"AI {d.action} ({d.confidence:.0%})",

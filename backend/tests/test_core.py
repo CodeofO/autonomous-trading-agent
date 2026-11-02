@@ -81,6 +81,16 @@ def test_logging_filter_masks(caplog: pytest.LogCaptureFixture) -> None:
     assert "tsck****" in caplog.text
 
 
+def test_query_tokens_masked_and_args_preserved(caplog: pytest.LogCaptureFixture) -> None:
+    out = redact('127.0.0.1 - "GET /ws/events?token=abcDEF123.sig HTTP/1.1" 101 /x?serviceKey=KEY%2B1&a=1')
+    assert "abcDEF123.sig" not in out and "KEY%2B1" not in out and "&a=1" in out
+    logger = logging.getLogger("test.access")
+    logger.addFilter(RedactingFilter())
+    with caplog.at_level(logging.INFO):
+        logger.info('%s - "%s %s"', "127.0.0.1", "GET", "/ws/events?token=secrettoken99")
+    assert "secrettoken99" not in caplog.text and "127.0.0.1" in caplog.text
+
+
 def test_network_is_blocked() -> None:
     with pytest.raises(RuntimeError, match="차단"):
         socket.create_connection(("8.8.8.8", 443), timeout=1)
@@ -139,3 +149,19 @@ def test_round_to_tick() -> None:
     assert round_to_tick(72_049) == 72_000
     assert round_to_tick(72_051, "up") == 72_100
     assert round_to_tick(72_099, "down") == 72_000
+
+
+def test_datetime_roundtrip_keeps_instant_on_sqlite(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from app.db.models import ChatMessage
+    from app.db.session import Database
+
+    db = Database(f"sqlite:///{tmp_path / 'tz.db'}")
+    db.create_all()
+    t = datetime(2026, 11, 2, 8, 40, tzinfo=KST)
+    with db.session() as s:
+        s.add(ChatMessage(ts=t, role="system", kind="text", content="x", payload={}))
+    with db.session() as s:
+        got = s.get(ChatMessage, 1)
+        assert got is not None
+        assert got.ts == t  # 같은 순간 (UTC 로 정규화돼 돌아옴)
+        assert got.ts.utcoffset() is not None

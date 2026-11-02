@@ -44,11 +44,12 @@ async def rule_based_decisions(
     await say("tool", "💼 포트폴리오 확인", {"tool": "get_portfolio"})
     pf = await tb.call("get_portfolio", {})
     held = {p["symbol"]: p for p in pf.get("positions", [])}
+    pending = {o["symbol"] for o in pf.get("open_orders", [])}
     await say("tool", "🧭 종목 스크리닝 (market_cap)", {"tool": "screen_stocks"})
     scr = await tb.call("screen_stocks", {"sort_by": "market_cap", "limit": max_candidates})
     candidates = [r["symbol"] for r in scr.get("results", [])]
     decisions: list[dict[str, Any]] = []
-    for sym in list(held) + [c for c in candidates if c not in held]:
+    for sym in list(held) + [c for c in candidates if c not in held and c not in pending]:
         name = held.get(sym, {}).get("name") or next(
             (r["name"] for r in scr.get("results", []) if r["symbol"] == sym), sym
         )

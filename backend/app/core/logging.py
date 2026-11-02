@@ -15,6 +15,7 @@ _secrets: set[str] = set()
 
 _PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"(Bearer\s+)([A-Za-z0-9._\-~+/=]{4,})", re.IGNORECASE),
+    re.compile(r"([?&](?:token|serviceKey|crtfc_key)=)([^&\s\"']+)", re.IGNORECASE),
     re.compile(
         r"((?:client_secret|client_id|access_token|password)[\"']?\s*[=:]\s*[\"']?)([^\s&\"',}]{1,})",
         re.IGNORECASE,
@@ -48,10 +49,15 @@ def redact(text: str) -> str:
 
 
 class RedactingFilter(logging.Filter):
+    """메시지 템플릿과 인자를 각각 마스킹한다(인자 구조는 유지 — uvicorn 접근 로그 포매터 호환)."""
+
     def filter(self, record: logging.LogRecord) -> bool:
-        msg = record.getMessage()
-        record.msg = redact(msg)
-        record.args = None
+        if isinstance(record.msg, str):
+            record.msg = redact(record.msg)
+        if isinstance(record.args, tuple):
+            record.args = tuple(redact(a) if isinstance(a, str) else a for a in record.args)
+        elif isinstance(record.args, dict):
+            record.args = {k: redact(v) if isinstance(v, str) else v for k, v in record.args.items()}
         if record.exc_text:
             record.exc_text = redact(record.exc_text)
         return True
@@ -77,3 +83,4 @@ def setup_logging(level: str = "INFO", secrets: list[str] | None = None) -> None
         for h in lg.handlers:
             h.addFilter(RedactingFilter())
     logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("apscheduler").setLevel(logging.WARNING)  # 시뮬레이션 1초 틱 로그 억제
