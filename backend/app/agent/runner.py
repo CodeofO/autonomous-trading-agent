@@ -162,12 +162,12 @@ class AgentRunner:
 
     # ================================================================ 컨텍스트
     def _memory(self) -> str:
+        since_raw = self.settings.get("account_source").get("since")
         with self.db.session() as s:
-            runs = list(
-                s.scalars(
-                    select(AgentRun).where(AgentRun.status == "DONE").order_by(AgentRun.id.desc()).limit(3)
-                )
-            )
+            q = select(AgentRun).where(AgentRun.status == "DONE")
+            if since_raw:  # 계좌를 새로 시작한 이후 기록만 (예전 가상 시장 기록 차단)
+                q = q.where(AgentRun.started_at >= datetime.fromisoformat(since_raw))
+            runs = list(s.scalars(q.order_by(AgentRun.id.desc()).limit(3)))
             lines = []
             for r in runs:
                 decs = list(s.scalars(select(AgentDecision).where(AgentDecision.run_id == r.id)))

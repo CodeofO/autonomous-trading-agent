@@ -9,10 +9,11 @@ from __future__ import annotations
 import logging
 import secrets
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select
 
 from app.agent.llm import LLMClient
 from app.agent.runner import AgentRunner
@@ -23,10 +24,14 @@ from app.core.config import Settings
 from app.core.logging import register_secret
 from app.core.market_calendar import MarketCalendar
 from app.db.models import (
+    AgentDecision,
+    AgentRun,
+    AuditEvent,
     ChatMessage,
     DailyPrice,
     DailyReport,
     EquitySnapshot,
+    Fill,
     Order,
     StrategyConfig,
     WatchlistItem,
@@ -101,27 +106,49 @@ def seed_defaults(db: Database, kv: SettingsStore) -> None:
             )
 
 
-def _reset_on_source_change(db: Database, kv: SettingsStore, broker: PaperBroker, hub: EventHub) -> None:
-    """이전 데이터 소스(가상 시장 등)에서 토스 실데이터로 처음 넘어오면 모의계좌와 목업 흔적을 정리한다(D-25, D-28).
+def purge_legacy(db: Database, since: datetime | None) -> datetime:
+    """가상 시장 시절 기록을 전부 지운다(사용자 요청, D-28).
 
-    정리: 현금·포지션 초기화, 미체결 취소, 자산곡선·일일 리포트·가상 종목 시세·가상 관심종목·트레이딩 룸 채팅.
-    보존: 주문·체결·에이전트 결정·감사 로그(기록용).
+    대상: 세션·결정·주문·체결·감사 로그·채팅·자산곡선·리포트·MOCK 시세·MOCK 관심종목.
+    since 가 없으면 토스 전환 기록(ACCOUNT_RESET) 시각을 기준으로 삼는다. 기준 시각을 돌려준다.
     """
-    prev = kv.get("account_source").get("source")
+    with db.session() as s:
+        if since is None:
+            since = s.scalar(
+                select(func.max(AuditEvent.ts)).where(AuditEvent.type == "ACCOUNT_RESET")
+            ) or datetime.now(UTC)
+        old_runs = select(AgentRun.id).where(AgentRun.started_at < since)
+        old_orders = select(Order.id).where(
+            or_(Order.created_at < since, Order.symbol.like("MOCK%"), Order.run_id.in_(old_runs))
+        )
+        s.execute(delete(AgentDecision).where(AgentDecision.run_id.in_(old_runs)))
+        s.execute(delete(Fill).where(Fill.order_id.in_(old_orders)))
+        s.execute(delete(Order).where(Order.id.in_(old_orders)))
+        s.execute(delete(AgentRun).where(AgentRun.started_at < since))
+        s.execute(delete(AuditEvent).where(AuditEvent.ts < since, AuditEvent.type != "ACCOUNT_RESET"))
+        s.execute(delete(ChatMessage).where(ChatMessage.ts < since))
+        s.execute(delete(EquitySnapshot).where(EquitySnapshot.ts < since))
+        s.execute(delete(DailyReport).where(DailyReport.created_at < since))
+        s.execute(delete(DailyPrice).where(DailyPrice.symbol.like("MOCK%")))
+        s.execute(delete(WatchlistItem).where(WatchlistItem.symbol.like("MOCK%")))
+    return since
+
+
+def _reset_on_source_change(db: Database, kv: SettingsStore, broker: PaperBroker, hub: EventHub) -> None:
+    """이전 데이터 소스(가상 시장 등)에서 토스 실데이터로 처음 넘어오면 모의계좌를 새로 시작하고 그 이전 기록을
+    전부 지운다(D-25, D-28). LLM 이 예전 가짜 종목 기록을 참고하지 않도록 하기 위함이다.
+    """
+    state = kv.get("account_source")
+    prev = state.get("source")
     if prev == SOURCE:
+        if "since" not in state:  # 이전 버전에서 이미 전환된 DB → 남아 있는 목업 기록만 정리
+            since = purge_legacy(db, None)
+            kv.set("account_source", {"source": SOURCE, "since": since.isoformat()})
         return
+    since = hub.clock.now()
     if prev is not None:
         broker.reset()
-        with db.session() as s:
-            for o in s.scalars(
-                select(Order).where(Order.status.in_(["PENDING", "SUBMITTED", "PARTIALLY_FILLED"]))
-            ):
-                o.status, o.reject_reason = "CANCELED", "data-source-changed"
-            s.execute(delete(EquitySnapshot))
-            s.execute(delete(DailyReport))
-            s.execute(delete(ChatMessage))
-            s.execute(delete(DailyPrice).where(DailyPrice.symbol.like("MOCK%")))
-            s.execute(delete(WatchlistItem).where(WatchlistItem.symbol.like("MOCK%")))
+        purge_legacy(db, since)
         kv.set("sod", {})
         kv.set("sim_clock", {})
         hub.audit("ACCOUNT_RESET", f"데이터 소스 변경 {prev} → {SOURCE}: 모의계좌 초기화", None)
@@ -130,7 +157,7 @@ def _reset_on_source_change(db: Database, kv: SettingsStore, broker: PaperBroker
             "text",
             f"🔄 토스증권 실제 시세로 전환했어요. 모의계좌를 새로 시작합니다 (초기 자금 {broker.state['initial_cash']:,.0f}원).",
         )
-    kv.set("account_source", {"source": SOURCE})
+    kv.set("account_source", {"source": SOURCE, "since": since.isoformat()})
 
 
 def build_container(

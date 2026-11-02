@@ -396,7 +396,39 @@ def test_account_resets_once_when_leaving_mock(tmp_path: Path) -> None:
     first.broker.state["positions"]["MOCK01"] = {"qty": 1, "avg_price": 1.0, "opened_day": "2026-11-01"}
     first.broker._save()
     first.hub.chat("analyst", "text", "가짜 종목 이야기")
-    real = make_container(tmp_path, database_url=url, create_schema=False)
+    from datetime import timedelta
+
+    from app.db.models import AgentDecision, AgentRun, Fill, Order
+
+    old = first.clock.now() - timedelta(days=3)
+    with first.db.session() as s:
+        run = AgentRun(
+            trigger="morning", mode="llm-tools", status="DONE", started_at=old, summary="가온전자 매수"
+        )
+        s.add(run)
+        s.flush()
+        s.add(AgentDecision(run_id=run.id, symbol="MOCK01", name="가온전자", action="BUY", created_at=old))
+        o = Order(
+            client_order_id="x",
+            symbol="MOCK01",
+            side="BUY",
+            order_type="MARKET",
+            quantity=1,
+            status="FILLED",
+            run_id=run.id,
+            created_at=old,
+            updated_at=old,
+        )
+        s.add(o)
+        s.flush()
+        s.add(Fill(order_id=o.id, symbol="MOCK01", side="BUY", quantity=1, price=1.0, filled_at=old))
+    assert "가온전자" in first.runner._memory()
+    real = make_container(
+        tmp_path, datetime(2026, 11, 2, 11, 0, tzinfo=KST), database_url=url, create_schema=False
+    )
+    assert "가온전자" not in real.runner._memory()  # 예전 기록이 LLM 컨텍스트로 새지 않음
+    with real.db.session() as s:
+        assert s.query(AgentRun).count() == 0 and s.query(Order).count() == 0 and s.query(Fill).count() == 0
     assert (
         real.broker.state["cash"] == real.settings.paper_initial_cash and real.broker.state["positions"] == {}
     )
@@ -404,7 +436,9 @@ def test_account_resets_once_when_leaving_mock(tmp_path: Path) -> None:
     assert "가짜 종목 이야기" not in msgs and any("토스증권 실제 시세로 전환" in m for m in msgs)
     real.broker.state["cash"] = 123.0
     real.broker._save()
-    again = make_container(tmp_path, database_url=url, create_schema=False)
+    again = make_container(
+        tmp_path, datetime(2026, 11, 2, 12, 0, tzinfo=KST), database_url=url, create_schema=False
+    )
     assert again.broker.state["cash"] == 123.0  # 같은 소스면 유지
 
 
