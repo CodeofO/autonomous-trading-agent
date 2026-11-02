@@ -98,7 +98,7 @@ const RISK_FIELDS: { key: keyof RiskConfig; label: string; pct?: boolean; hint: 
   { key: "daily_loss_limit", label: "일일 최대 손실", pct: true, hint: "음수, 예: -3 → 당일 신규 매수 중단" },
   { key: "stop_loss", label: "종목별 손절", pct: true, hint: "음수, 예: -5" },
   { key: "take_profit", label: "종목별 익절", pct: true, hint: "양수, 예: 10" },
-  { key: "min_order_interval_minutes", label: "같은 종목 최소 주문 간격(분)", hint: "예: 60" },
+  { key: "min_order_interval_minutes", label: "같은 종목 최소 매수 간격(분, 매도 제외)", hint: "예: 60" },
   { key: "max_positions", label: "최대 보유 종목 수", hint: "예: 10" },
   { key: "min_cash_ratio", label: "최소 현금 비중", pct: true, hint: "예: 5" },
 ];

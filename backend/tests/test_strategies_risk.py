@@ -174,6 +174,11 @@ def test_duplicate_interval_kill_maxpos_and_sell_clamp() -> None:
     assert RM.check(buy(1), _ctx(open={"AAA"})).rule == "duplicate"
     assert RM.check(buy(1), _ctx(last={"AAA": OPEN_T - timedelta(minutes=59)})).rule == "min_interval"
     assert RM.check(buy(1), _ctx(last={"AAA": OPEN_T - timedelta(minutes=60)})).allowed
+    # 매도(손절·비중 축소)는 최소 간격에 막히지 않는다
+    recent = {"AAA": OPEN_T - timedelta(minutes=5)}
+    assert RM.check(
+        OrderIntent("AAA", "SELL", 1, 100), _ctx(last=recent, positions=[_pos("AAA", 3, 100, 90)])
+    ).allowed
     assert RM.check(buy(1), _ctx(killed=True)).rule == "kill_switch"
     rm = RiskManager(RiskConfig(max_positions=2, min_cash_ratio=0), MarketCalendar())
     two = [_pos("X", 1, 100, 100), _pos("Y", 1, 100, 100)]

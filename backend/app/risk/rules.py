@@ -22,7 +22,9 @@ class RiskConfig(BaseModel):
     daily_loss_limit: float = Field(-0.03, lt=0, ge=-1, description="일일 최대 손실 → 신규 매수 중단")
     stop_loss: float = Field(-0.05, lt=0, ge=-1, description="종목별 손절")
     take_profit: float = Field(0.10, gt=0, le=10, description="종목별 익절")
-    min_order_interval_minutes: int = Field(60, ge=0, le=7 * 24 * 60, description="동일 종목 최소 주문 간격")
+    min_order_interval_minutes: int = Field(
+        60, ge=0, le=7 * 24 * 60, description="동일 종목 최소 매수 간격(매도는 제외)"
+    )
     max_positions: int = Field(10, ge=1, le=100, description="최대 보유 종목 수")
     min_cash_ratio: float = Field(0.05, ge=0, lt=1, description="최소 현금 비중")
     allow_new_buys: bool = True
@@ -84,12 +86,6 @@ class RiskManager:
             return block("invalid", "수량/가격이 올바르지 않습니다")
         if it.symbol in ctx.open_order_symbols:
             return block("duplicate", "같은 종목에 미체결 주문이 이미 있습니다")
-        last = ctx.last_order_at.get(it.symbol)
-        if last is not None and ctx.now - last < timedelta(minutes=c.min_order_interval_minutes):
-            return block(
-                "min_interval", f"같은 종목은 {c.min_order_interval_minutes}분 안에 다시 주문할 수 없습니다"
-            )
-
         held = {p.symbol: p for p in ctx.positions}
         qty = it.quantity
         notes: list[str] = []
@@ -104,6 +100,12 @@ class RiskManager:
             return RiskDecision(True, qty, notes=notes)
 
         # ---- BUY ----
+        # 최소 주문 간격은 매수에만 적용: 손절·비중 축소 같은 위험을 줄이는 매도를 막지 않는다 (D-33)
+        last = ctx.last_order_at.get(it.symbol)
+        if last is not None and ctx.now - last < timedelta(minutes=c.min_order_interval_minutes):
+            return block(
+                "min_interval", f"같은 종목은 {c.min_order_interval_minutes}분 안에 다시 매수할 수 없습니다"
+            )
         if not c.allow_new_buys:
             return block("buys_disabled", "신규 매수가 꺼져 있습니다")
         pnl = self.daily_pnl_pct(ctx)
