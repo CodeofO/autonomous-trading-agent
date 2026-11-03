@@ -42,9 +42,11 @@ from app.db.models import (
 from app.db.session import Database
 from app.engine.engine import TradingEngine
 from app.engine.events import SYSTEM, EventHub
+from app.engine.push import PushNotifier
 from app.engine.scheduler import Scheduler
 from app.engine.settings_store import SettingsStore
 from app.engine.trades import trade_ledger
+from app.market.indicators import MarketIndicators
 from app.market.store import PriceStore
 from app.market.toss import TossClient, TossMarketProvider
 from app.research.dart import DartClient
@@ -75,6 +77,8 @@ class Container:
     scheduler: Scheduler
     toss: TossMarketProvider
     secret_key: bytes
+    push: PushNotifier
+    indicators: MarketIndicators
     trading: TossTradingClient | None = None  # 실거래 모드의 토스 주문 클라이언트
 
 
@@ -323,6 +327,15 @@ def build_container(
             quotes=toss,  # 토스 실시간 현재가로 체결
         )
     hub = EventHub(db, clock)
+    push = PushNotifier(
+        kv,
+        settings.vapid_private_key.get_secret_value() if settings.vapid_private_key else None,
+        settings.vapid_subject,
+        names=store.name_of,
+        now=clock.now,
+        live=settings.is_live,
+    )
+    hub.listeners.append(push.on_audit)
     seed_defaults(db, kv)
     _reset_on_source_change(db, kv, broker, hub, LIVE_SOURCE if settings.is_live else SOURCE)
     engine = TradingEngine(db, clock, cal, store, broker, hub, kv, toss=toss)
@@ -372,5 +385,7 @@ def build_container(
         scheduler,
         toss,
         _secret_key(settings),
+        push,
+        MarketIndicators(toss.client, clock),
         trading,
     )

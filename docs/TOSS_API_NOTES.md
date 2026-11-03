@@ -58,7 +58,7 @@
 | GET | `/api/v1/stocks/{symbol}/warnings` | 매수 유의사항 | STOCK |
 | GET | `/api/v1/stocks/{symbol}/investor-trading` · `program-trades` · `short-selling` · `credit-trades` · `securities-lending` | 수급 (`get_supply_demand`, 종목 상세 화면) | STOCK_TRADING_TREND 10/s → 8/s |
 | GET | `/api/v1/exchange-rate` | 원/달러 환율 | MARKET_INFO |
-| GET | `/api/v1/market-indicators/prices`, `/{KOSPI\|KOSDAQ}/candles`, `/{KOSPI\|KOSDAQ}/investor-trading` | 지수·지수 투자자 매매 (`get_market_overview`) | MARKET_INDICATOR 10/s → 8/s · CHART 5/s → 4/s |
+| GET | `/api/v1/market-indicators/prices`, `/{KOSPI\|KOSDAQ\|KR_BOND_10Y}/candles`, `/{KOSPI\|KOSDAQ}/investor-trading` | 지수·국채·지수 투자자 매매 (`get_market_overview`, 대시보드 주요 지표 D-40). 지원 심볼은 코스피·코스닥·KR_BOND_* 8종뿐 — 미국 지수는 QQQ·SPY ETF 시세(`/prices`·`/candles`)로 대신 | MARKET_INDICATOR 10/s → 8/s · CHART 5/s → 4/s |
 | GET | `/api/v1/sectors`, `/sectors/{id}`, `/sectors/{id}/stocks`, `/sectors/rankings` | 섹터 (`explore_sector`, 시장 개요) | SECTOR · SECTOR_RANKING 5/s → 4/s |
 | GET | `/api/v1/rankings/investor-trading` | 외국인·기관·개인 순매수 상위 (시장 개요, 수급 스크리닝) | RANKING |
 

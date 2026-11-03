@@ -229,3 +229,64 @@ export interface AgentStructure {
   engine_status: "RUNNING" | "PAUSED" | "KILLED";
   agent_running: boolean;
 }
+
+export interface PushPrefs {
+  fills: boolean;
+  risk: boolean;
+  alerts: boolean;
+  agent: boolean;
+}
+
+export interface PushDevice {
+  id: string;
+  label: string;
+  created_at: string;
+  last_ok: string | null;
+}
+
+export interface PushStatus {
+  available: boolean;
+  reason: string | null;
+  public_key: string | null;
+  devices: PushDevice[];
+  prefs: PushPrefs;
+}
+
+export interface PushSubscribeResult {
+  id: string;
+  devices: number;
+}
+
+export interface PushTestResult {
+  sent: number;
+  failed: number;
+  removed: number;
+}
+
+// 대시보드 '주요 지표' (GET /api/market/indicators, 서버 60초 캐시)
+export type IndicatorKind = "index" | "etf" | "fx" | "bond";
+export type IndicatorUnit = "pt" | "$" | "원" | "%";
+
+export interface Indicator {
+  key: string;
+  name: string;
+  kind: IndicatorKind;
+  unit: IndicatorUnit;
+  /** 보조 설명 (예: "QQQ ETF" — 지수 대신 ETF 로 대신 보여준다는 표시) */
+  note: string | null;
+  price: number | null;
+  prev_close: number | null;
+  /** 전일 대비 — 채권은 %p, 환율은 없음(null) */
+  change: number | null;
+  change_pct: number | null;
+  /** 환율처럼 숫자 없이 방향만 주는 지표 */
+  direction: "up" | "down" | null;
+  /** 최근 값들 (오래된 것 → 최신) */
+  spark: number[];
+  error: boolean;
+}
+
+export interface MarketIndicators {
+  as_of: string;
+  items: Indicator[];
+}

@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { get } from "./api/client";
-import type { Portfolio, SystemInfo } from "./api/types";
+import type { MarketIndicators, Portfolio, SystemInfo } from "./api/types";
 
 export const useSystem = () =>
   useQuery({ queryKey: ["system"], queryFn: () => get<SystemInfo>("/api/system"), refetchInterval: 5000 });
@@ -11,6 +11,17 @@ export const usePortfolio = () =>
     queryKey: ["portfolio"],
     queryFn: () => get<Portfolio>("/api/portfolio"),
     refetchInterval: 10000,
+  });
+
+// 주요 지표: 서버가 60초 캐시하므로 1분마다. 실패해도 직전 값을 그대로 두고 오류는 띄우지 않는다 (재시도는 앱 기본값 1회)
+export const useMarketIndicators = () =>
+  useQuery({
+    queryKey: ["market-indicators"],
+    queryFn: () => get<MarketIndicators>("/api/market/indicators"),
+    refetchInterval: 60_000,
+    staleTime: 55_000,
+    placeholderData: keepPreviousData,
+    refetchOnWindowFocus: false,
   });
 
 export const DEFAULT_PERSONA = { name: "알파", emoji: "🦉" };

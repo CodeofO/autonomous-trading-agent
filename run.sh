@@ -39,6 +39,24 @@ case "$tm" in
   *) die "TRADING_MODE=$tm — 'paper'(모의투자) 또는 'live'(실거래)만 쓸 수 있어요." ;;
 esac
 
+# 휴대폰 알림(Web Push) 서명키: 없으면 만들어 .env 에 넣는다 (값은 화면에 출력하지 않음)
+if ! grep -qE '^[[:space:]]*VAPID_PRIVATE_KEY[[:space:]]*=[[:space:]]*[^[:space:]#]+' .env; then
+  # P-256 개인키 = 곡선 위수(n)보다 작은 32바이트 난수 (base64url)
+  if vapid="$(python3 -c 'import base64,secrets
+n=0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551
+while True:
+    k=secrets.token_bytes(32)
+    if 0<int.from_bytes(k,"big")<n: break
+print(base64.urlsafe_b64encode(k).rstrip(b"=").decode())' 2>/dev/null)" && [[ -n "$vapid" ]]; then
+    { grep -vE '^[[:space:]]*VAPID_PRIVATE_KEY[[:space:]]*=' .env || true; printf 'VAPID_PRIVATE_KEY=%s\n' "$vapid"; } > .env.tmp
+    cat .env.tmp > .env && rm -f .env.tmp
+    unset vapid
+    say "휴대폰 알림 서명키(VAPID)를 만들어 .env 에 넣었어요"
+  else
+    warn "python3 가 없어 휴대폰 알림 서명키를 만들지 못했어요 (알림만 꺼지고 나머지는 정상)"
+  fi
+fi
+
 # 업데이트(git pull) 후 .env.example 에 새로 생긴 설정 안내 (키 이름만 출력, 값은 건드리지 않음)
 missing=()
 while IFS= read -r key; do

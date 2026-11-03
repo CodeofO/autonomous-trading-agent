@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
@@ -32,6 +33,8 @@ class EventHub:
         self.db = db
         self.clock = clock
         self._subs: set[asyncio.Queue[dict[str, Any]]] = set()
+        # 감사 로그가 남을 때마다 호출 (휴대폰 알림 등). 실패해도 기록·방송은 그대로 진행
+        self.listeners: list[Callable[[dict[str, Any]], None]] = []
 
     # ------------------------------------------------------------ 구독
     def subscribe(self) -> asyncio.Queue[dict[str, Any]]:
@@ -70,6 +73,11 @@ class EventHub:
             }
         log.info("[%s] %s %s", type_, symbol or "", message)
         self.broadcast({"channel": "audit", "data": out})
+        for fn in list(self.listeners):
+            try:
+                fn(out)
+            except Exception:
+                log.exception("감사 로그 리스너 실패")
         return out
 
     def chat(

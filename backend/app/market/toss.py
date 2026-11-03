@@ -46,6 +46,8 @@ ROUTES = [
     Route(HOST, "GET", re.compile(r"/api/v1/exchange-rate")),
     Route(HOST, "GET", re.compile(r"/api/v1/market-indicators/prices")),
     Route(HOST, "GET", re.compile(r"/api/v1/market-indicators/(KOSPI|KOSDAQ)/(candles|investor-trading)")),
+    # 국채 금리는 일봉만 (공식 심볼 카탈로그: KR_BOND_2Y·3Y·5Y·10Y·20Y·30Y)
+    Route(HOST, "GET", re.compile(r"/api/v1/market-indicators/KR_BOND_(2Y|3Y|5Y|10Y|20Y|30Y)/candles")),
     Route(HOST, "GET", re.compile(r"/api/v1/sectors")),
     Route(HOST, "GET", re.compile(r"/api/v1/sectors/rankings")),
     Route(HOST, "GET", re.compile(r"/api/v1/sectors/[0-9A-Za-z\-]+(/stocks)?")),

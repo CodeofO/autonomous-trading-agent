@@ -58,6 +58,11 @@ def test_allowed_routes_pass() -> None:
     check_outbound("GET", naver.URL, ALL_ROUTES)
     with pytest.raises(OutboundBlockedError):  # 메서드가 다르면 차단
         check_outbound("POST", naver.URL, ALL_ROUTES)
+    # 국채 금리는 일봉만 허용 (투자자 매매는 코스피·코스닥만)
+    check_outbound("GET", f"{toss.BASE}/api/v1/market-indicators/KR_BOND_10Y/candles", ALL_ROUTES)
+    for path in ("KR_BOND_10Y/investor-trading", "KR_BOND_7Y/candles", "NASDAQ/candles"):
+        with pytest.raises(OutboundBlockedError):
+            check_outbound("GET", f"{toss.BASE}/api/v1/market-indicators/{path}", ALL_ROUTES)
 
 
 @respx.mock

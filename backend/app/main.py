@@ -49,6 +49,7 @@ def create_app(settings: Settings | None = None, **container_overrides: Any) -> 
             settings.agent_interval_minutes,
         )
         resume: asyncio.Task[None] | None = None
+        c.push.bind_loop(asyncio.get_running_loop())
         await c.engine.refresh_calendar()
         try:
             await c.engine.sync_data()

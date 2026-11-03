@@ -56,6 +56,12 @@ class Settings(BaseSettings):
     llm_max_steps: int = Field(default=24, ge=2, le=80)
     llm_timeout_sec: float = 180.0
 
+    # --- 휴대폰 알림 (Web Push, D-39) ----------------------------------------
+    # VAPID 개인키(P-256, base64url). ./run.sh 가 비어 있으면 만들어 .env 에 넣는다. 비우면 알림 꺼짐
+    vapid_private_key: SecretStr | None = None
+    # 푸시 서비스(애플·구글)가 문제 있을 때 연락할 곳. mailto:주소 또는 https://호스트 (경로 없이)
+    vapid_subject: str = "https://github.com"
+
     # --- 판단 주기 --------------------------------------------------------
     # 장중 LLM 판단 간격(분). 60 → 10:00~15:00 매시 정각 (+ 08:35 장전). 0 → 14:00 한 번
     agent_interval_minutes: int = Field(default=60, ge=0, le=390)
@@ -119,6 +125,10 @@ class Settings(BaseSettings):
         return _filled(self.naver_client_id) and _filled(self.naver_client_secret)
 
     @property
+    def has_push(self) -> bool:
+        return _filled(self.vapid_private_key)
+
+    @property
     def has_llm(self) -> bool:
         return bool(self.llm_base_url and self.llm_model and _filled(self.llm_api_key))
 
@@ -140,6 +150,7 @@ class Settings(BaseSettings):
             self.naver_client_secret,
             self.llm_api_key,
             self.app_secret_key,
+            self.vapid_private_key,
         ):
             if _filled(s):
                 assert s is not None

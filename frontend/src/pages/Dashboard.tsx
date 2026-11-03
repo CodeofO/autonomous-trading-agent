@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { errorText, get, post } from "../api/client";
 import { ChatFeed } from "../components/chat/ChatFeed";
 import { EquityChart } from "../components/charts";
+import { IndicatorStrip } from "../components/IndicatorStrip";
 import { useEvents } from "../events";
 import { DEFAULT_PERSONA, usePortfolio, useShowTools, useSystem } from "../hooks";
 import { fmtDateTime, fmtPct, fmtWon, signClass } from "../utils/format";
@@ -37,6 +38,8 @@ export function Dashboard() {
 
   return (
     <div className="dashboard">
+      <IndicatorStrip />
+
       <section className="kpis">
         <Kpi
           label="총자산"
