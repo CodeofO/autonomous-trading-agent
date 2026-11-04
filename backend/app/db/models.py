@@ -239,6 +239,29 @@ class ChatMessage(Base):
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
 
+class LlmUsage(Base):
+    """LLM 호출 1회(또는 예전 세션 합계)의 토큰 사용량 — 비용 예상용 (D-41).
+
+    cached_tokens 는 '같은 세션의 바로 전 호출 입력과 겹치는 앞부분' 추정치다. 실제 캐시 여부는
+    제공사마다 다르므로, 비용 계산에서 '캐시 적용' 시나리오에만 쓴다.
+    """
+
+    __tablename__ = "llm_usage"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ts: Mapped[datetime] = mapped_column(UTCDateTime(), index=True)
+    kind: Mapped[str] = mapped_column(String(16))  # session | chat
+    run_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    model: Mapped[str] = mapped_column(String(128), default="")
+    calls: Mapped[int] = mapped_column(Integer, default=1)
+    input_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    cached_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    max_input_tokens: Mapped[int] = mapped_column(
+        Integer, default=0
+    )  # 호출 1회 최대 입력 (장문 요금 구간 판단)
+    source: Mapped[str] = mapped_column(String(16), default="live")  # live | backfill
+
+
 class DailyReport(Base):
     __tablename__ = "daily_reports"
     day: Mapped[date] = mapped_column(Date, primary_key=True)

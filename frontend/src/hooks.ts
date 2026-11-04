@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { get } from "./api/client";
-import type { MarketIndicators, Portfolio, SystemInfo } from "./api/types";
+import type { LlmCosts, MarketIndicators, Portfolio, SystemInfo } from "./api/types";
 
 export const useSystem = () =>
   useQuery({ queryKey: ["system"], queryFn: () => get<SystemInfo>("/api/system"), refetchInterval: 5000 });
@@ -21,6 +21,15 @@ export const useMarketIndicators = () =>
     refetchInterval: 60_000,
     staleTime: 55_000,
     placeholderData: keepPreviousData,
+    refetchOnWindowFocus: false,
+  });
+
+// LLM 비용 예상: 자주 바뀌지 않으므로 주기적으로 다시 받지 않는다 (다시 들어왔을 때 1분이 지났으면 한 번)
+export const useLlmCosts = (months = 12) =>
+  useQuery({
+    queryKey: ["llm-costs", months],
+    queryFn: () => get<LlmCosts>(`/api/llm/costs?months=${months}`),
+    staleTime: 60_000,
     refetchOnWindowFocus: false,
   });
 

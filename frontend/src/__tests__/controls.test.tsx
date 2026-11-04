@@ -88,7 +88,10 @@ describe("레이아웃", () => {
     expect(
       screen.getByRole("link", { name: "포트폴리오·주문" }).querySelector(".nav-short"),
     ).toHaveTextContent("자산");
-    expect(screen.getAllByRole("link")).toHaveLength(7);
+    // 하단 탭바는 7칸 + 넓은 화면 사이드바에만 있는 'LLM 비용'
+    const links = screen.getAllByRole("link");
+    expect(links.filter((a) => !a.classList.contains("desktop-only"))).toHaveLength(7);
+    expect(links.filter((a) => a.classList.contains("desktop-only"))).toHaveLength(1);
     expect(screen.getByRole("status", { name: /연결/ })).toBeInTheDocument(); // 모바일 상단 연결 점
   });
 

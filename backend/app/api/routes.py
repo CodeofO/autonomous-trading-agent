@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import func, select
 
 from app.agent.activity import TOOL_GROUPS
+from app.agent.costs import summary
 from app.agent.prompts import DEFAULT_PERSONA, DEFAULT_POLICY
 from app.agent.tools import openai_tools
 from app.api.auth import hash_password, issue_token, verify_password, verify_token
@@ -416,6 +417,17 @@ def agent_decisions(
 def agent_progress(c: C, _: U) -> dict[str, Any]:
     """진행 중인 판단 세션의 현재 단계 (트레이딩 룸 활동 패널을 새로고침 직후에도 채우기 위함)."""
     return c.runner.progress
+
+
+@router.get("/llm/costs")
+async def llm_costs(c: C, _: U, months: int = Query(12, ge=1, le=36)) -> dict[str, Any]:
+    """토큰 사용량(월별)과 상용 모델로 환산한 예상 요금 (D-41)."""
+    per_day = 1 + len(session_times(c.scheduler.interval_minutes))  # 08:35 장전 + 장중 판단
+    out = summary(c.db, c.clock.now(), c.cal, months, sessions_per_day=per_day)
+    fx = next((i for i in (await c.indicators.snapshot())["items"] if i["key"] == "USDKRW"), None)
+    out["usd_krw"] = fx["price"] if fx else None
+    out["current_model"] = c.settings.llm_model if c.settings.has_llm else None
+    return out
 
 
 @router.get("/agent/structure")

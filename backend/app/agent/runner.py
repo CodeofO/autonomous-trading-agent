@@ -18,6 +18,7 @@ from typing import Any
 from sqlalchemy import select
 
 from app.agent.activity import preview, result_line, tool_source
+from app.agent.costs import record_usage
 from app.agent.llm import LLMClient, LLMError, ToolsUnsupportedError, extract_json
 from app.agent.prompts import (
     ACCOUNT_DESC,
@@ -296,6 +297,7 @@ class AgentRunner:
         nudged = False
         force_submit = False
         resubmitted = False
+        prev_input = 0  # 바로 전 호출 입력 — 다음 호출 앞부분과 겹친다(캐시 적중 추정, D-41)
         for step in range(self.max_steps):
             force = force_submit or step == self.max_steps - 1
             self._step("생각 중…", phase="thinking", step=step + 1, tool=None, source=None)
@@ -304,6 +306,8 @@ class AgentRunner:
                 tools,
                 {"type": "function", "function": {"name": TERMINAL_TOOL}} if force else None,
             )
+            self._log_usage("session", run_id, res.usage, prev_input)
+            prev_input = int(res.usage.get("prompt_tokens") or 0)
             _acc(usage, res.usage)
             self._run["tokens"] = usage.get("total_tokens", 0)
             if res.content:
@@ -417,6 +421,7 @@ class AgentRunner:
         res = await self.llm.chat(
             [{"role": "system", "content": self._system()}, {"role": "user", "content": content}]
         )
+        self._log_usage("session", run_id, res.usage)
         _acc(usage, res.usage)
         self._run["tokens"] = usage.get("total_tokens", 0)
         data = extract_json(res.content)
@@ -652,6 +657,10 @@ class AgentRunner:
                 out.append({"role": "assistant", "content": m.content[:600]})
         return out
 
+    def _log_usage(self, kind: str, run_id: int | None, usage: dict[str, int], cached: int = 0) -> None:
+        model = self.llm.model if self.llm else ""
+        record_usage(self.db, self.clock.now(), kind, run_id, model, usage, cached)
+
     async def _reply(self, question: str, question_id: int | None = None) -> None:
         p = self.persona()
         if self.llm is None:
@@ -691,6 +700,7 @@ class AgentRunner:
                     {"role": "user", "content": question[:1000]},
                 ]
             )
+            self._log_usage("chat", None, res.usage)
             text = strip_disclaimers(res.content)[:2000]
             self.hub.chat(
                 ANALYST, "text", text or "음… 잘 모르겠어요 🤔", reply_to="user", question_id=question_id

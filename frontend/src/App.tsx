@@ -6,6 +6,7 @@ import { EventsProvider } from "./events";
 import { Layout } from "./components/Layout";
 import { AgentPage } from "./pages/Agent";
 import { Backtest } from "./pages/Backtest";
+import { Costs } from "./pages/Costs";
 import { Dashboard } from "./pages/Dashboard";
 import { Login } from "./pages/Login";
 import { Logs } from "./pages/Logs";
@@ -29,6 +30,7 @@ function Routed() {
           <Route path="stock/:symbol" element={<Stock />} />
           <Route path="backtest" element={<Backtest />} />
           <Route path="settings" element={<Settings />} />
+          <Route path="costs" element={<Costs />} />
           <Route path="logs" element={<Logs />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

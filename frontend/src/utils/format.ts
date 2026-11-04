@@ -74,6 +74,48 @@ export function fmtDateTime(iso: string): string {
   });
 }
 
+// ---------- LLM 비용 ----------
+const usd = (max: number, min = 2) =>
+  new Intl.NumberFormat("en-US", { minimumFractionDigits: min, maximumFractionDigits: max });
+const usd2 = usd(2);
+const usd3 = usd(3);
+const usd4 = usd(4);
+
+/** 달러 금액: $1,234.56 · $0.123 · $0.0042 · 아주 작으면 <$0.0001 */
+export function fmtUsd(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v)) return "—";
+  const a = Math.abs(v);
+  const sign = v < 0 ? "-" : "";
+  if (a === 0) return "$0";
+  if (a < 0.0001) return `<${sign}$0.0001`;
+  const f = a >= 1 ? usd2 : a >= 0.01 ? usd3 : usd4;
+  return `${sign}$${f.format(a)}`;
+}
+
+/** 달러 금액을 원으로 (반올림). 0보다 크지만 1원이 안 되면 '1원 미만' */
+export function fmtKrwFromUsd(v: number | null | undefined, rate: number): string {
+  if (v == null || !Number.isFinite(v)) return "—";
+  const krw = v * rate;
+  if (krw > 0 && krw < 0.5) return "1원 미만";
+  return fmtWon(Math.round(krw));
+}
+
+/** 100만 토큰당 가격: $4.00 · $0.075 */
+export const fmtUsdPrice = (v: number | null | undefined) =>
+  v == null || !Number.isFinite(v) ? "—" : `$${usd3.format(v)}`;
+
+const tok1 = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 1 });
+const tok2 = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 2 });
+
+/** 토큰 수: 9,876 · 12.3만 · 3.45억 (정확한 값은 fmtNum) */
+export function fmtTokens(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v)) return "—";
+  const a = Math.abs(v);
+  if (a < 10_000) return fmtNum(v);
+  if (a < 100_000_000) return `${tok1.format(v / 10_000)}만`;
+  return `${tok2.format(v / 100_000_000)}억`;
+}
+
 export const ACTION_KO: Record<string, string> = { BUY: "매수", SELL: "매도", HOLD: "유지" };
 export const BASIS_KO: Record<string, string> = { OPEN: "시가", CLOSE: "종가", NOW: "현재가" };
 

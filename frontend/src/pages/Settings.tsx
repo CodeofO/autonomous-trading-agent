@@ -28,6 +28,12 @@ import { fmtDateTime } from "../utils/format";
 export function Settings() {
   return (
     <div className="stack">
+      <Link to="/costs" className="card link-card">
+        <b>💸 LLM 비용 예상 →</b>
+        <small className="muted">
+          지금 사용량을 OpenAI·Google·Anthropic 요금으로 바꾸면 한 달에 얼마인지
+        </small>
+      </Link>
       <PushSettings />
       <AgentSettings />
       <RiskSettings />

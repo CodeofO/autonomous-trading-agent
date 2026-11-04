@@ -11,9 +11,13 @@ const matches = (query: string) =>
 export const isMobile = () => matches(MOBILE_QUERY);
 export const prefersReducedMotion = () => matches("(prefers-reduced-motion: reduce)");
 
-/** 하단 탭 순서상 위치 (종목 상세는 '자산' 탭 아래로 본다). 탭이 아니면 -1 */
+/** 하단 탭 순서상 위치 (종목 상세는 '자산', LLM 비용은 '설정' 탭 아래로 본다). 탭이 아니면 -1 */
 export function navIndex(pathname: string, tabs: readonly string[]): number {
-  const path = pathname.startsWith("/stock/") ? "/portfolio" : pathname;
+  const path = pathname.startsWith("/stock/")
+    ? "/portfolio"
+    : pathname === "/costs" || pathname.startsWith("/costs/")
+      ? "/settings"
+      : pathname;
   return tabs.findIndex((to) => (to === "/" ? path === "/" : path === to || path.startsWith(`${to}/`)));
 }
 

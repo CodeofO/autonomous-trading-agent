@@ -290,3 +290,70 @@ export interface MarketIndicators {
   as_of: string;
   items: Indicator[];
 }
+
+// LLM 비용 예상 (GET /api/llm/costs?months=12) — 같은 토큰 사용량을 상용 모델 요금으로 환산
+export type LlmProvider = "anthropic" | "openai" | "google";
+/** 캐시 적용(추정) / 캐시 없음 */
+export type LlmScenario = "cache" | "nocache";
+export type LlmScenarioCost = Record<LlmScenario, number>;
+
+export interface LlmUsageMonth {
+  /** "2026-11" */
+  month: string;
+  calls: number;
+  /** 입력 토큰 전체 (cached 포함) */
+  input: number;
+  /** 캐시 적중으로 추정한 입력 토큰 (input 의 일부) */
+  cached: number;
+  output: number;
+  sessions: number;
+  chats: number;
+  /** 예전 세션 합계에서 가져온 기록 수 (호출별 정보 없음) */
+  backfill: number;
+}
+
+export interface LlmModelPrice {
+  /** USD / 100만 토큰 (오늘 기준) */
+  input: number;
+  cached: number;
+  output: number;
+  cache_write: number | null;
+  /** 호출 1회 입력이 이 토큰 수를 넘으면 장문 요금 */
+  long_from: number | null;
+}
+
+export interface LlmModelCost {
+  id: string;
+  provider: LlmProvider;
+  name: string;
+  tier: string;
+  note: string;
+  price: LlmModelPrice;
+  /** 월("2026-11") → USD */
+  months: Record<string, LlmScenarioCost>;
+  /** 이번 달 예상 USD (지금까지 + 하루 평균 × 남은 거래일) */
+  projection: LlmScenarioCost;
+  daily_avg: LlmScenarioCost;
+  /** 판단 세션 1회 평균 USD (최근 30일) */
+  per_session?: LlmScenarioCost;
+}
+
+export interface LlmCosts {
+  checked: string;
+  sources: Partial<Record<LlmProvider, string>>;
+  current_model: string | null;
+  usd_krw: number | null;
+  /** 오래된 달 → 이번 달 */
+  months: LlmUsageMonth[];
+  models: LlmModelCost[];
+  projection: {
+    month: string;
+    remaining_trading_days: number;
+    basis_days: number;
+    basis_window_days: number;
+    /** schedule: 세션당 평균 × 지금 일정의 하루 세션 수 / history: 최근 사용한 날의 하루 평균 */
+    method?: "schedule" | "history";
+    sessions_per_day?: number | null;
+    basis_sessions?: number;
+  };
+}

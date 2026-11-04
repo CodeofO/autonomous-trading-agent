@@ -31,8 +31,8 @@ export function PaperBadge({ live = false }: { live?: boolean }) {
   );
 }
 
-// short: 모바일 하단 탭바에 쓰는 짧은 이름
-const NAV = [
+// short: 모바일 하단 탭바에 쓰는 짧은 이름. mobile: false 는 넓은 화면 사이드바에만 (하단 탭바는 7칸 그대로)
+const NAV: { to: string; label: string; short: string; icon: string; mobile?: false }[] = [
   { to: "/", label: "대시보드", short: "홈", icon: "🏠" },
   { to: "/room", label: "트레이딩 룸", short: "채팅", icon: "💬" },
   { to: "/agent", label: "에이전트 구조", short: "구조", icon: "🗺️" },
@@ -40,8 +40,10 @@ const NAV = [
   { to: "/backtest", label: "백테스트", short: "백테스트", icon: "🧪" },
   { to: "/settings", label: "설정", short: "설정", icon: "⚙️" },
   { to: "/logs", label: "이벤트 로그", short: "로그", icon: "📜" },
+  // 휴대폰에서는 설정 화면의 링크로 들어간다
+  { to: "/costs", label: "LLM 비용", short: "비용", icon: "💸", mobile: false },
 ];
-const TABS = NAV.map((n) => n.to);
+const TABS = NAV.filter((n) => n.mobile !== false).map((n) => n.to);
 
 const STATUS_KO: Record<string, string> = { RUNNING: "실행 중", PAUSED: "일시정지", KILLED: "정지(킬)" };
 
@@ -66,13 +68,14 @@ export function Layout() {
         <nav style={{ "--tab-i": active } as CSSProperties}>
           {/* 모바일 탭바: 선택된 탭 뒤를 미끄러지듯 옮겨 다니는 표시 */}
           {active >= 0 && <span className="tab-ind" aria-hidden />}
-          {NAV.map((n, i) => (
+          {NAV.map((n) => (
             <NavLink
               key={n.to}
               to={n.to}
               end={n.to === "/"}
               aria-label={n.label}
-              onClick={(e) => onTab(e, n.to, i)}
+              className={n.mobile === false ? "desktop-only" : undefined}
+              onClick={(e) => onTab(e, n.to, TABS.indexOf(n.to))}
             >
               <span className="nav-icon" aria-hidden>
                 {n.icon}
