@@ -1,12 +1,22 @@
 import { useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { get, post } from "../api/client";
-import type { Bar, Decision, Marker } from "../api/types";
-import { CandleChart } from "../components/charts";
-import { ACTION_KO, fmtDateTime, fmtNum, signClass } from "../utils/format";
+import type { Bar, Currency, Decision, Marker } from "../api/types";
+import { CandleChart, ChartPlaceholder } from "../components/LazyCharts";
+import { SkeletonLines } from "../components/Skeleton";
+import { errorText } from "../api/client";
+import { useApi, useCurrency } from "../market";
+import { toast } from "../ui/toast";
+import { ACTION_KO, fmtDateTime, fmtNum, price, signClass } from "../utils/format";
+
+/** 미장 등에서 이 데이터가 없을 때 서버가 주는 모양 */
+interface Unavailable {
+  available?: false;
+  reason?: string;
+}
 
 interface Research {
   name: string;
+  currency?: Currency;
   financials: {
     available?: boolean;
     reason?: string;
@@ -16,8 +26,8 @@ interface Research {
     valuation?: Record<string, number | string | null>;
   };
   news: { items?: { title: string; description: string; pubDate: string; link: string }[] };
-  disclosures: { items?: { report_nm: string; rcept_dt: string }[] };
-  supply?: {
+  disclosures: { items?: { report_nm: string; rcept_dt: string }[] } & Unavailable;
+  supply?: Unavailable & {
     error?: string;
     investor_net_buy_daily?: {
       date: string;
@@ -30,9 +40,13 @@ interface Research {
   };
   status?: {
     error?: string;
+    /** 미장: 영문 이름·거래소 */
+    english_name?: string;
+    market?: string;
+    note?: string;
     warnings?: { warningType: string; startDate: string; endDate: string | null }[];
     trading_suspended?: boolean;
-    price_limits?: { upper: number; lower: number };
+    price_limits?: { upper: number; lower: number } | null;
     spread_pct?: number | null;
     bid_ask_volume_ratio?: number | null;
     orderbook_top5?: { asks: [number, number][]; bids: [number, number][] };
@@ -49,10 +63,29 @@ const WARN_KO: Record<string, string> = {
   LIQUIDATION_TRADING: "정리매매",
 };
 
-function SupplyPanel({ r }: { r: Research }) {
+function SupplyPanel({ r, currency }: { r: Research; currency: Currency }) {
   const sup = r.supply;
   const st = r.status;
   if (!sup && !st) return null;
+  // 미장은 투자자별 순매수·공매도·신용 데이터가 없다 — 호가 상태만
+  if (sup?.available === false) {
+    return (
+      <section className="card">
+        <h2>
+          호가·상태 <small className="muted">(토스증권)</small>
+        </h2>
+        <div className="flow">
+          <div>
+            <span className="muted">호가 스프레드 · 매수/매도 잔량비</span>
+            <b>
+              {st?.spread_pct == null ? "—" : `${st.spread_pct}%`} · {st?.bid_ask_volume_ratio ?? "—"}
+            </b>
+          </div>
+        </div>
+        <p className="muted">{st?.note ?? sup.reason}</p>
+      </section>
+    );
+  }
   const daily = sup?.investor_net_buy_daily ?? [];
   const sum = (k: "foreigner" | "institution" | "individual") => daily.reduce((a, d) => a + (d[k] ?? 0), 0);
   const short = sup?.short_selling_volume_rate_pct?.[0]?.rate;
@@ -97,7 +130,7 @@ function SupplyPanel({ r }: { r: Research }) {
       </div>
       {st?.price_limits && (
         <p className="muted">
-          상한가 {fmtNum(st.price_limits.upper)} · 하한가 {fmtNum(st.price_limits.lower)}
+          상한가 {price(st.price_limits.upper, currency)} · 하한가 {price(st.price_limits.lower, currency)}
           {st.trading_suspended ? " · ⛔ 거래정지" : ""}
         </p>
       )}
@@ -140,55 +173,89 @@ const FIN_ROWS: [string, string][] = [
 export function Stock() {
   const { symbol = "" } = useParams();
   const qc = useQueryClient();
+  const api = useApi();
+  const cur = useCurrency();
   const candles = useQuery({
-    queryKey: ["candles", symbol],
+    queryKey: api.key("candles", symbol),
     queryFn: () =>
-      get<{ name: string; bars: Bar[]; markers: Marker[] }>(`/api/market/${symbol}/candles?days=180`),
+      api.get<{ name: string; bars: Bar[]; markers: Marker[] }>(`/api/market/${symbol}/candles?days=180`),
   });
   const research = useQuery({
-    queryKey: ["research", symbol],
-    queryFn: () => get<Research>(`/api/market/${symbol}/research`),
+    queryKey: api.key("research", symbol),
+    queryFn: () => api.get<Research>(`/api/market/${symbol}/research`),
   });
   const decisions = useQuery({
-    queryKey: ["decisions", symbol],
-    queryFn: () => get<Decision[]>(`/api/agent/decisions?symbol=${symbol}&limit=30`),
+    queryKey: api.key("decisions", symbol),
+    queryFn: () => api.get<Decision[]>(`/api/agent/decisions?symbol=${symbol}&limit=30`),
   });
   const watch = useMutation({
-    mutationFn: () => post("/api/watchlist", { symbol }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["watchlist"] }),
+    mutationFn: () => api.post("/api/watchlist", { symbol }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: api.key("watchlist") });
+      toast(`⭐ ${candles.data?.name || symbol} 을(를) 관심 종목에 넣었어요`);
+    },
+    onError: (e) => toast.error(`관심 종목에 넣지 못했어요: ${errorText(e)}`),
   });
   const fin = research.data?.financials;
   const last = candles.data?.bars.at(-1);
+  const name = candles.data?.name || research.data?.name || symbol;
+  // 미장: 한글 이름 옆에 영문 이름·거래소 (예: 애플 Apple · AAPL · NASDAQ)
+  const english = research.data?.status?.english_name;
+  const exchange = cur === "USD" ? research.data?.status?.market : undefined;
 
   return (
     <div className="stack">
       <section className="card">
         <div className="card-head">
           <h2>
-            {candles.data?.name || symbol} <small className="muted">{symbol}</small>
+            {name}
+            {english && english !== name && <span className="stock-en"> {english}</span>}{" "}
+            <small className="muted">
+              {symbol}
+              {exchange ? ` · ${exchange}` : ""}
+              {cur === "USD" ? " · USD" : ""}
+            </small>
           </h2>
           <div className="btn-row">
             {last && (
               <span className="chip">
-                종가 {fmtNum(last.close)} ({last.time})
+                종가 {price(last.close, cur)} ({last.time})
               </span>
             )}
-            <button className="btn ghost" onClick={() => watch.mutate()}>
+            <button className="btn ghost" onClick={() => watch.mutate()} disabled={watch.isPending}>
               ⭐ 관심종목 추가
             </button>
           </div>
         </div>
-        {candles.data && <CandleChart bars={candles.data.bars} markers={candles.data.markers} />}
+        {/* 일봉을 받는 동안에도 차트 자리를 잡아 둔다 (도착하면서 아래 내용이 밀리지 않게) */}
+        {candles.data ? (
+          <CandleChart bars={candles.data.bars} markers={candles.data.markers} currency={cur} />
+        ) : (
+          candles.isPending && <ChartPlaceholder />
+        )}
         <p className="muted legend">▲▼ 체결 · ● AI 결정 (빨강=상승/매수, 파랑=하락/매도)</p>
       </section>
 
-      {research.data && <SupplyPanel r={research.data} />}
+      {research.data ? (
+        <SupplyPanel r={research.data} currency={cur} />
+      ) : (
+        // 수급·상태 카드 자리 (국장은 표가 두 줄, 미장은 호가 한 줄)
+        research.isPending && (
+          <section className={`card supply-skel ${cur === "USD" ? "us" : "kr"}`} aria-hidden>
+            <SkeletonLines lines={cur === "USD" ? 2 : 4} />
+          </section>
+        )
+      )}
 
       <div className="two-col">
         <section className="card">
           <h2>재무 요약 {fin?.source && <small className="muted">({fin.source}, 억원)</small>}</h2>
           {!fin ? (
-            <p className="muted">불러오는 중…</p>
+            research.isError ? (
+              <p className="muted">재무 정보를 불러오지 못했어요.</p>
+            ) : (
+              <SkeletonLines lines={5} label="재무 요약 불러오는 중" />
+            )
           ) : fin.error || fin.available === false ? (
             <p className="muted">{fin.error ?? fin.reason ?? "재무 데이터 없음"}</p>
           ) : (
@@ -250,6 +317,9 @@ export function Stock() {
             )}
           </ul>
           <h2>공시</h2>
+          {research.data?.disclosures.available === false && (
+            <p className="muted">{research.data.disclosures.reason ?? "공시 데이터 없음"}</p>
+          )}
           <ul className="disclosures">
             {(research.data?.disclosures.items ?? []).map((d, i) => (
               <li key={i}>
@@ -262,8 +332,12 @@ export function Stock() {
 
       <section className="card">
         <h2>AI 결정 이력</h2>
-        {(decisions.data ?? []).length === 0 && (
-          <p className="muted empty">이 종목에 대한 결정이 아직 없어요.</p>
+        {decisions.isPending ? (
+          <SkeletonLines lines={3} label="결정 이력 불러오는 중" />
+        ) : (
+          (decisions.data ?? []).length === 0 && (
+            <p className="muted empty">이 종목에 대한 결정이 아직 없어요.</p>
+          )
         )}
         <ul className="decision-list">
           {decisions.data?.map((d) => (

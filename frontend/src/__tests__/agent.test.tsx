@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgentPage } from "../pages/Agent";
 import { mockFetch, renderWithProviders } from "./utils";
@@ -77,5 +77,116 @@ describe("에이전트 구조 (실거래)", () => {
     expect(await screen.findByText("토스증권 실주문")).toBeInTheDocument();
     expect(screen.getByText(/하루 매수 총액 상한 5,000,000원/)).toBeInTheDocument();
     expect(screen.queryByText("모의 체결")).not.toBeInTheDocument();
+  });
+});
+
+const MEMORY = {
+  rules: [
+    {
+      name: "최근 판단 세션",
+      where: "판단 세션·답장",
+      detail: "완료된 세션 최근 3개의 요약(160자)과 사고판 종목",
+    },
+    { name: "투자자 메모", where: "판단 세션·답장", detail: "트레이딩 룸에 보낸 내 메시지 최근 5개(200자)" },
+    { name: "오늘 대화", where: "답장", detail: "오늘(한국 시각) 트레이딩 룸 대화 최근 30개" },
+    { name: "계좌·매매 내역", where: "판단 세션·답장", detail: "기억이 아니라 매번 새로 조회" },
+  ],
+  sessions: [
+    { run_id: 42, at: "11/04 10:15", summary: "반도체 비중 유지", actions: "삼성전자 BUY" },
+    { run_id: 41, at: "11/04 10:00", summary: "관망", actions: "거래 없음" },
+  ],
+  memos: [{ id: 7, at: "10/30 14:02", text: "카카오는 사지 마" }],
+};
+
+const memoryCard = () => screen.findByRole("region", { name: "🧠 매니저의 기억" });
+
+describe("매니저의 기억", () => {
+  it("규칙과 지금 기억하는 판단 세션·투자자 메모를 보여 준다", async () => {
+    mockFetch({ "/api/agent/structure": { ...STRUCTURE, memory: MEMORY } });
+    renderWithProviders(<AgentPage />);
+    const card = await memoryCard();
+    expect(card).toHaveTextContent(
+      "별도 장기 기억 저장소는 없고, 판단·답장 때마다 아래 내용을 DB에서 다시 읽어 넣어요",
+    );
+
+    const rules = within(card).getByRole("list", { name: "기억 규칙" });
+    const rows = within(rules).getAllByRole("listitem");
+    expect(rows).toHaveLength(4);
+    expect(rows[2]).toHaveTextContent("오늘 대화");
+    expect(rows[2]).toHaveTextContent("답장");
+    expect(rows[2]).toHaveTextContent("오늘(한국 시각) 트레이딩 룸 대화 최근 30개");
+
+    const sessions = within(within(card).getByRole("list", { name: "최근 판단 세션" })).getAllByRole(
+      "listitem",
+    );
+    expect(sessions).toHaveLength(2);
+    expect(sessions[0]).toHaveTextContent("세션 #42");
+    expect(sessions[0]).toHaveTextContent("11/04 10:15");
+    expect(sessions[0]).toHaveTextContent("반도체 비중 유지");
+    expect(sessions[0]).toHaveTextContent("매매: 삼성전자 BUY");
+
+    const memos = within(within(card).getByRole("list", { name: "투자자 메모" })).getAllByRole("listitem");
+    expect(memos).toHaveLength(1);
+    expect(memos[0]).toHaveTextContent("10/30 14:02");
+    expect(memos[0]).toHaveTextContent("카카오는 사지 마");
+    // 날짜와 관계없이 최근 5개라는 점을 강조
+    expect(within(card).getByText("날짜와 관계없이 최근 5개")).toBeInTheDocument();
+  });
+
+  it("기억할 세션·메모가 없으면 빈 안내를 보여 준다", async () => {
+    mockFetch({ "/api/agent/structure": { ...STRUCTURE, memory: { ...MEMORY, sessions: [], memos: [] } } });
+    renderWithProviders(<AgentPage />);
+    const card = await memoryCard();
+    expect(within(card).getByText("아직 완료된 판단 세션이 없어요.")).toBeInTheDocument();
+    expect(within(card).getByText("아직 보낸 메시지가 없어요.")).toBeInTheDocument();
+    expect(within(card).queryByRole("list", { name: "최근 판단 세션" })).not.toBeInTheDocument();
+  });
+
+  it("메모 카드 관리 링크가 있고, 켜진 메모 카드를 짧게 보여 준다", async () => {
+    mockFetch({
+      "/api/agent/structure": {
+        ...STRUCTURE,
+        memory: {
+          ...MEMORY,
+          cards: [
+            { kind: "focus", symbol: "000660", name: "SK하이닉스", text: "HBM 수주 확인되면 매수 검토" },
+            { kind: "note", symbol: null, name: null, text: "현금 비중 30% 이상" },
+          ],
+        },
+      },
+    });
+    renderWithProviders(<AgentPage />);
+    const card = await memoryCard();
+    expect(within(card).getByRole("link", { name: "메모 카드 관리 →" })).toHaveAttribute("href", "/memo");
+    const rows = within(within(card).getByRole("list", { name: "켜진 메모 카드" })).getAllByRole("listitem");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent("주목할 종목");
+    expect(rows[0]).toHaveTextContent("SK하이닉스 000660");
+    expect(rows[0]).toHaveTextContent("HBM 수주 확인되면 매수 검토");
+    expect(rows[1]).toHaveTextContent("운용 지시");
+    expect(rows[1]).toHaveTextContent("현금 비중 30% 이상");
+  });
+
+  it("켜진 메모 카드가 없으면 만들기 링크를, 예전 서버(cards 없음)면 목록 자체를 숨긴다", async () => {
+    mockFetch({ "/api/agent/structure": { ...STRUCTURE, memory: { ...MEMORY, cards: [] } } });
+    const { unmount } = renderWithProviders(<AgentPage />);
+    let card = await memoryCard();
+    expect(within(card).getByText(/켜진 메모 카드가 없어요/)).toBeInTheDocument();
+    expect(within(card).getByRole("link", { name: "메모 카드 만들기 →" })).toHaveAttribute("href", "/memo");
+    unmount();
+    vi.unstubAllGlobals();
+
+    mockFetch({ "/api/agent/structure": { ...STRUCTURE, memory: MEMORY } });
+    renderWithProviders(<AgentPage />);
+    card = await memoryCard();
+    expect(within(card).queryByText("켜진 메모 카드")).not.toBeInTheDocument();
+    expect(within(card).getByRole("link", { name: "메모 카드 관리 →" })).toBeInTheDocument();
+  });
+
+  it("예전 서버(memory 없음)면 카드를 그리지 않는다", async () => {
+    mockFetch({ "/api/agent/structure": STRUCTURE });
+    renderWithProviders(<AgentPage />);
+    expect(await screen.findByText("알파 매니저")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "🧠 매니저의 기억" })).not.toBeInTheDocument();
   });
 });

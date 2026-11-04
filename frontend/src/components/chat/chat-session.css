@@ -1,0 +1,479 @@
+/* 트레이딩 룸: 판단 세션 블록 (세션 단위로 시장 판단·결정·확인한 정보를 묶어 보여준다) */
+.session {
+  --src-toss: #3182f6;
+  --src-dart: #7048e8;
+  --src-naver: #03a94d;
+  --src-account: #e8590c;
+  --session-c: var(--hold);
+  flex: none;
+  margin: 2px 16px 2px 0;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--session-c);
+  border-radius: 12px;
+  background: var(--panel);
+  font-size: 13px;
+  min-width: 0;
+  animation: pop-in 0.25s ease-out;
+}
+.session.done {
+  --session-c: var(--ok);
+}
+.session.running {
+  --session-c: var(--accent);
+}
+.session.failed {
+  --session-c: var(--danger);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .session {
+    --src-toss: #5b9dff;
+    --src-dart: #9775fa;
+    --src-naver: #38d27a;
+    --src-account: #ffa94d;
+  }
+}
+
+/* 머리줄: 세션 번호 · 상태 · 시작 시각 · 소요 · 도구 수 */
+.session-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  width: 100%;
+  padding: 9px 12px;
+  background: none;
+  border: 0;
+  border-radius: 12px;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.session-head:hover {
+  background: var(--panel-2);
+}
+.session-title {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.session-trigger {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.session-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--session-c);
+  background: color-mix(in srgb, var(--session-c) 14%, transparent);
+}
+.session-status .live-dot {
+  width: 6px;
+  height: 6px;
+}
+.session-meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  font-size: 12px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.session-meta > span + span::before {
+  content: "· ";
+}
+.session-caret {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.session-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 12px 10px;
+  min-width: 0;
+}
+.session-body:empty {
+  display: none;
+}
+
+.session-text {
+  margin: 0;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.session-text.clamp,
+.session-live-note.clamp {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+.session-tag {
+  display: inline-block;
+  margin-right: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.session-text + .session-text {
+  margin-top: 4px;
+}
+
+/* 섹션: 시장 판단 · 결정 · 확인한 정보 · 매니저 메모 */
+.session-sec {
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+  min-width: 0;
+}
+.session-sec-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-dim);
+}
+.session-sec-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.session-icon {
+  font-size: 13px;
+}
+.session-counts {
+  margin-left: auto;
+}
+.session-counts .pill {
+  margin: 0;
+}
+.session-empty {
+  margin: 0;
+  font-size: 12px;
+}
+.session-sec .decision-card {
+  max-width: 560px;
+}
+
+/* 펼치기 버튼(섹션 제목 자리) */
+button.session-toggle {
+  width: 100%;
+  margin-bottom: 0;
+  padding: 4px 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+button.session-sec-title.session-toggle {
+  font-weight: 700;
+  color: var(--text-dim);
+}
+button.session-toggle:hover .session-caret,
+button.session-toggle[aria-expanded="true"] .session-caret {
+  color: var(--accent);
+}
+.session-sec button.session-toggle[aria-expanded="true"] {
+  margin-bottom: 6px;
+}
+.session-sum {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-weight: 400;
+}
+.session-cat-chip {
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text-dim);
+  border-radius: 999px;
+  padding: 0 7px;
+  font-size: 11px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.session-cat-chip b {
+  color: var(--text);
+}
+
+/* 확인한 정보: 분류별 묶음 */
+.session-tools {
+  gap: 10px;
+}
+.session-cat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.session-cat-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 12px;
+}
+.session-src {
+  --c: var(--text-dim);
+  color: var(--c);
+  background: color-mix(in srgb, var(--c) 14%, transparent);
+  border-radius: 6px;
+  padding: 0 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 17px;
+}
+.session-src.toss {
+  --c: var(--src-toss);
+}
+.session-src.dart {
+  --c: var(--src-dart);
+}
+.session-src.naver {
+  --c: var(--src-naver);
+}
+.session-src.account {
+  --c: var(--src-account);
+}
+.session-src.fail {
+  --c: var(--danger);
+}
+/* 채팅 줄 들여쓰기(아바타 자리)는 세션 블록 안에서는 필요 없다 */
+.session .tool-row {
+  padding-left: 0;
+}
+
+/* 결정: 접힌 세션의 한 줄 요약 */
+.session-decs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.session-decs li,
+.session-holds .session-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.session .action-badge {
+  flex: none;
+  white-space: nowrap;
+}
+.session-decs a {
+  font-weight: 700;
+  color: var(--text);
+}
+.session-holds {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.session-holds .session-toggle {
+  color: var(--text);
+}
+.session-holds-names {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+/* 리스크봇 메모 (차단·수량 조정) */
+.session-risk {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+.session-risk li {
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: var(--bubble-risk);
+  overflow-wrap: anywhere;
+}
+.session-risk li.block {
+  font-weight: 600;
+}
+
+/* 실패 */
+.session-fail {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--danger) 9%, transparent);
+  font-size: 12px;
+}
+.session-fail p {
+  margin: 0;
+  color: var(--danger);
+  font-weight: 600;
+}
+.session-fail details {
+  margin-top: 4px;
+}
+.session-fail summary {
+  cursor: pointer;
+  color: var(--text-dim);
+}
+.session-fail code {
+  display: block;
+  margin-top: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* 진행 중: 지금 하는 일 한 줄 + 방금 확인한 도구 */
+.session-live {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--accent-soft), transparent 70%), var(--panel-2);
+  font-size: 12px;
+  min-width: 0;
+}
+.session-live-now {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.session-live-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--text);
+}
+.session-live-now .muted {
+  margin-left: auto;
+  white-space: nowrap;
+}
+.session-live-last {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.session-live-cap {
+  flex: none;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+.session-live-note {
+  margin: 0;
+  color: var(--text-dim);
+}
+
+/* 매니저 메모 */
+.session-notes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 12px;
+}
+.session-notes li {
+  display: flex;
+  gap: 8px;
+  line-height: 1.5;
+}
+.session-notes li.system {
+  color: var(--text-dim);
+}
+.session-notes time {
+  flex: none;
+  font-size: 11px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.session-notes span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+/* 오른쪽 세션 목록: 요약은 두 줄, 오류는 한 줄로 */
+.runs-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 2px;
+}
+.runs-head h3 {
+  margin: 0;
+}
+.run-item .run-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.run-item .run-line .pill {
+  margin-left: auto;
+}
+.run-item .run-summary {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+.run-item .run-error {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .session {
+    margin-right: 0;
+  }
+  .session-head {
+    padding: 10px;
+    min-height: 44px;
+  }
+  .session-body {
+    padding: 0 10px 10px;
+  }
+  button.session-toggle {
+    min-height: 36px;
+  }
+  .session-live-last {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .session {
+    animation: none;
+  }
+}

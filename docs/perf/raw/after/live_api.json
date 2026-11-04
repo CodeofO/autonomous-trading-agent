@@ -1,0 +1,696 @@
+{
+  "schema": "live_api/v1",
+  "started_at": "2026-11-04T14:41:19.004991+00:00",
+  "finished_at": "2026-11-04T14:43:36.606764+00:00",
+  "base": "http://127.0.0.1:18000",
+  "auth": {
+    "auth_enabled": false,
+    "setup_required": false
+  },
+  "params": {
+    "n": 15,
+    "warmup": 2,
+    "min_interval_s": 0.2
+  },
+  "client": {
+    "python": "3.13.11",
+    "platform": "macOS-27.2-arm64-arm-64bit-Mach-O"
+  },
+  "server_state_before": {
+    "KR": {
+      "enabled": true,
+      "open_now": false,
+      "agent_running": false,
+      "engine_status": "RUNNING"
+    },
+    "US": {
+      "enabled": true,
+      "open_now": true,
+      "agent_running": false,
+      "engine_status": "RUNNING"
+    }
+  },
+  "server_state_after": {
+    "KR": {
+      "enabled": true,
+      "open_now": false,
+      "agent_running": false,
+      "engine_status": "RUNNING"
+    },
+    "US": {
+      "enabled": true,
+      "open_now": true,
+      "agent_running": false,
+      "engine_status": "RUNNING"
+    }
+  },
+  "total_requests": 649,
+  "endpoints": {
+    "overview": {
+      "path": "/api/overview",
+      "source": "toss_cached",
+      "note": "FX 60s module cache + portfolio() per market (quotes 5s cache)",
+      "n": 15,
+      "p50_ms": 12.57,
+      "p95_ms": 14.59,
+      "max_ms": 14.69,
+      "min_ms": 7.15,
+      "mean_ms": 12.44,
+      "bytes": 1289,
+      "bytes_gzip": 626,
+      "items": 2,
+      "status": {
+        "200": 15
+      }
+    },
+    "markets": {
+      "path": "/api/markets",
+      "source": "db",
+      "note": "kv reads + calendar math for each market",
+      "n": 15,
+      "p50_ms": 4.95,
+      "p95_ms": 6.18,
+      "max_ms": 6.87,
+      "min_ms": 3.52,
+      "mean_ms": 4.82,
+      "bytes": 932,
+      "bytes_gzip": 365,
+      "items": 2,
+      "status": {
+        "200": 15
+      }
+    },
+    "system": {
+      "path": "/api/system",
+      "source": "db",
+      "note": "polled every 5s per market by Layout",
+      "n": 15,
+      "p50_ms": 6.68,
+      "p95_ms": 8.31,
+      "max_ms": 8.79,
+      "min_ms": 5.56,
+      "mean_ms": 6.99,
+      "bytes": 993,
+      "bytes_gzip": 660,
+      "items": 4,
+      "status": {
+        "200": 15
+      }
+    },
+    "portfolio": {
+      "path": "/api/portfolio",
+      "source": "toss_cached",
+      "note": "PaperBroker quotes via Toss prices (5s cache)",
+      "n": 15,
+      "p50_ms": 9.19,
+      "p95_ms": 12.32,
+      "max_ms": 15.35,
+      "min_ms": 7.15,
+      "mean_ms": 9.64,
+      "bytes": 1818,
+      "bytes_gzip": 857,
+      "items": 5,
+      "status": {
+        "200": 15
+      }
+    },
+    "agent_structure": {
+      "path": "/api/agent/structure",
+      "source": "db",
+      "note": "polled every 5s on Agent page",
+      "n": 15,
+      "p50_ms": 12.17,
+      "p95_ms": 13.07,
+      "max_ms": 13.73,
+      "min_ms": 5.12,
+      "mean_ms": 11.17,
+      "bytes": 7320,
+      "bytes_gzip": 3413,
+      "items": 13,
+      "status": {
+        "200": 15
+      }
+    },
+    "chat": {
+      "path": "/api/chat?limit=200",
+      "source": "db",
+      "note": "events.tsx initial load",
+      "n": 15,
+      "p50_ms": 16.44,
+      "p95_ms": 18.46,
+      "max_ms": 20.02,
+      "min_ms": 8.64,
+      "mean_ms": 15.86,
+      "bytes": 104448,
+      "bytes_gzip": 22865,
+      "items": 200,
+      "status": {
+        "200": 15
+      }
+    },
+    "events": {
+      "path": "/api/events?limit=200",
+      "source": "db",
+      "note": "events.tsx initial load",
+      "n": 15,
+      "p50_ms": 15.84,
+      "p95_ms": 18.08,
+      "max_ms": 20.19,
+      "min_ms": 11.91,
+      "mean_ms": 15.51,
+      "bytes": 141648,
+      "bytes_gzip": 32892,
+      "items": 200,
+      "status": {
+        "200": 15
+      }
+    },
+    "orders": {
+      "path": "/api/orders?limit=300",
+      "source": "db",
+      "note": "Portfolio page",
+      "n": 15,
+      "p50_ms": 9.05,
+      "p95_ms": 10.71,
+      "max_ms": 11.57,
+      "min_ms": 4.18,
+      "mean_ms": 8.8,
+      "bytes": 15107,
+      "bytes_gzip": 4759,
+      "items": 19,
+      "status": {
+        "200": 15
+      }
+    },
+    "fills": {
+      "path": "/api/fills?limit=200",
+      "source": "db",
+      "note": "Portfolio page",
+      "n": 15,
+      "p50_ms": 7.29,
+      "p95_ms": 10.02,
+      "max_ms": 10.53,
+      "min_ms": 3.36,
+      "mean_ms": 7.4,
+      "bytes": 3414,
+      "bytes_gzip": 935,
+      "items": 19,
+      "status": {
+        "200": 15
+      }
+    },
+    "equity": {
+      "path": "/api/equity?limit=1000",
+      "source": "db",
+      "note": "Dashboard chart",
+      "n": 15,
+      "p50_ms": 16.14,
+      "p95_ms": 33.86,
+      "max_ms": 68.19,
+      "min_ms": 12.69,
+      "mean_ms": 19.33,
+      "bytes": 44083,
+      "bytes_gzip": 5653,
+      "items": 520,
+      "status": {
+        "200": 15
+      }
+    },
+    "agent_runs": {
+      "path": "/api/agent/runs?limit=20",
+      "source": "db",
+      "note": "TradingRoom",
+      "n": 15,
+      "p50_ms": 7.96,
+      "p95_ms": 11.38,
+      "max_ms": 11.65,
+      "min_ms": 6.43,
+      "mean_ms": 8.36,
+      "bytes": 24898,
+      "bytes_gzip": 7660,
+      "items": 20,
+      "status": {
+        "200": 15
+      }
+    },
+    "agent_decisions": {
+      "path": "/api/agent/decisions?limit=100",
+      "source": "db",
+      "note": "Portfolio page (extra)",
+      "n": 15,
+      "p50_ms": 13.11,
+      "p95_ms": 16.87,
+      "max_ms": 20.55,
+      "min_ms": 6.52,
+      "mean_ms": 12.46,
+      "bytes": 86697,
+      "bytes_gzip": 21613,
+      "items": 100,
+      "status": {
+        "200": 15
+      }
+    },
+    "agent_progress": {
+      "path": "/api/agent/progress",
+      "source": "db",
+      "note": "in-memory only (extra)",
+      "n": 15,
+      "p50_ms": 4.15,
+      "p95_ms": 5.09,
+      "max_ms": 5.81,
+      "min_ms": 2.71,
+      "mean_ms": 3.97,
+      "bytes": 47,
+      "bytes_gzip": 60,
+      "items": null,
+      "status": {
+        "200": 15
+      }
+    },
+    "llm_profile": {
+      "path": "/api/llm/profile",
+      "source": "db",
+      "note": "kv reads; OpenRouter model list from in-process cache",
+      "n": 15,
+      "p50_ms": 4.8,
+      "p95_ms": 8.02,
+      "max_ms": 8.4,
+      "min_ms": 4.15,
+      "mean_ms": 5.35,
+      "bytes": 3103,
+      "bytes_gzip": 899,
+      "items": null,
+      "status": {
+        "200": 15
+      }
+    },
+    "llm_costs": {
+      "path": "/api/llm/costs?months=12",
+      "source": "toss_cached",
+      "note": "llm_usage scan + indicators snapshot (60s cache)",
+      "n": 15,
+      "p50_ms": 10.01,
+      "p95_ms": 12.72,
+      "max_ms": 13.1,
+      "min_ms": 3.46,
+      "mean_ms": 9.6,
+      "bytes": 11452,
+      "bytes_gzip": 1554,
+      "items": 12,
+      "status": {
+        "200": 15
+      }
+    },
+    "watchlist": {
+      "path": "/api/watchlist",
+      "source": "db",
+      "note": "1 query per watchlist row (last_bar)",
+      "n": 15,
+      "p50_ms": 6.15,
+      "p95_ms": 9.1,
+      "max_ms": 9.36,
+      "min_ms": 4.22,
+      "mean_ms": 6.55,
+      "bytes": 2,
+      "bytes_gzip": 22,
+      "items": 0,
+      "status": {
+        "200": 15
+      }
+    },
+    "market_universe": {
+      "path": "/api/market/universe?limit=40",
+      "source": "toss_cached",
+      "note": "Toss stocks_all, 20h cache",
+      "n": 15,
+      "p50_ms": 5.03,
+      "p95_ms": 8.07,
+      "max_ms": 9.28,
+      "min_ms": 3.92,
+      "mean_ms": 5.59,
+      "bytes": 2373,
+      "bytes_gzip": 572,
+      "items": 40,
+      "status": {
+        "200": 15
+      }
+    },
+    "market_indicators": {
+      "path": "/api/market/indicators",
+      "source": "toss_cached",
+      "note": "6 indicators, ~9 Toss calls per refresh, 60s cache",
+      "n": 15,
+      "p50_ms": 4.73,
+      "p95_ms": 5.97,
+      "max_ms": 6.65,
+      "min_ms": 3.2,
+      "mean_ms": 4.71,
+      "bytes": 2190,
+      "bytes_gzip": 996,
+      "items": 6,
+      "status": {
+        "200": 15
+      }
+    },
+    "reports": {
+      "path": "/api/reports",
+      "source": "db",
+      "note": "daily_reports payloads (limit 30)",
+      "n": 15,
+      "p50_ms": 9.82,
+      "p95_ms": 11.23,
+      "max_ms": 12.16,
+      "min_ms": 8.15,
+      "mean_ms": 9.84,
+      "bytes": 32876,
+      "bytes_gzip": 8635,
+      "items": 3,
+      "status": {
+        "200": 15
+      }
+    },
+    "schedule": {
+      "path": "/api/schedule",
+      "source": "db",
+      "note": "scheduler.view(): kv reads + calendar math",
+      "n": 15,
+      "p50_ms": 4.79,
+      "p95_ms": 6.62,
+      "max_ms": 7.61,
+      "min_ms": 3.85,
+      "mean_ms": 5.0,
+      "bytes": 784,
+      "bytes_gzip": 358,
+      "items": 9,
+      "status": {
+        "200": 15
+      }
+    },
+    "memory_cards": {
+      "path": "/api/memory/cards",
+      "source": "db",
+      "note": "all memory cards",
+      "n": 15,
+      "p50_ms": 6.26,
+      "p95_ms": 7.64,
+      "max_ms": 8.86,
+      "min_ms": 5.05,
+      "mean_ms": 6.44,
+      "bytes": 93,
+      "bytes_gzip": 95,
+      "items": 0,
+      "status": {
+        "200": 15
+      }
+    },
+    "us_system": {
+      "path": "/api/us/system",
+      "source": "db",
+      "note": "",
+      "n": 15,
+      "p50_ms": 5.56,
+      "p95_ms": 7.78,
+      "max_ms": 9.67,
+      "min_ms": 3.59,
+      "mean_ms": 5.75,
+      "bytes": 1104,
+      "bytes_gzip": 748,
+      "items": 4,
+      "status": {
+        "200": 15
+      }
+    },
+    "us_portfolio": {
+      "path": "/api/us/portfolio",
+      "source": "toss_cached",
+      "note": "quotes 5s cache",
+      "n": 15,
+      "p50_ms": 7.05,
+      "p95_ms": 10.22,
+      "max_ms": 10.75,
+      "min_ms": 4.21,
+      "mean_ms": 7.4,
+      "bytes": 1087,
+      "bytes_gzip": 686,
+      "items": 9,
+      "status": {
+        "200": 15
+      }
+    },
+    "us_agent_structure": {
+      "path": "/api/us/agent/structure",
+      "source": "db",
+      "note": "",
+      "n": 15,
+      "p50_ms": 8.64,
+      "p95_ms": 9.87,
+      "max_ms": 10.08,
+      "min_ms": 5.62,
+      "mean_ms": 8.29,
+      "bytes": 5030,
+      "bytes_gzip": 2450,
+      "items": 10,
+      "status": {
+        "200": 15
+      }
+    },
+    "us_chat": {
+      "path": "/api/us/chat?limit=200",
+      "source": "db",
+      "note": "",
+      "n": 15,
+      "p50_ms": 6.72,
+      "p95_ms": 8.48,
+      "max_ms": 9.38,
+      "min_ms": 5.25,
+      "mean_ms": 6.85,
+      "bytes": 1899,
+      "bytes_gzip": 685,
+      "items": 7,
+      "status": {
+        "200": 15
+      }
+    },
+    "us_events": {
+      "path": "/api/us/events?limit=200",
+      "source": "db",
+      "note": "",
+      "n": 15,
+      "p50_ms": 7.21,
+      "p95_ms": 9.1,
+      "max_ms": 9.41,
+      "min_ms": 4.15,
+      "mean_ms": 6.94,
+      "bytes": 1711,
+      "bytes_gzip": 530,
+      "items": 6,
+      "status": {
+        "200": 15
+      }
+    },
+    "us_orders": {
+      "path": "/api/us/orders?limit=300",
+      "source": "db",
+      "note": "",
+      "n": 15,
+      "p50_ms": 6.06,
+      "p95_ms": 8.65,
+      "max_ms": 9.96,
+      "min_ms": 3.89,
+      "mean_ms": 6.3,
+      "bytes": 2,
+      "bytes_gzip": 22,
+      "items": 0,
+      "status": {
+        "200": 15
+      }
+    },
+    "us_fills": {
+      "path": "/api/us/fills?limit=200",
+      "source": "db",
+      "note": "",
+      "n": 15,
+      "p50_ms": 5.9,
+      "p95_ms": 7.96,
+      "max_ms": 9.37,
+      "min_ms": 3.31,
+      "mean_ms": 6.02,
+      "bytes": 2,
+      "bytes_gzip": 22,
+      "items": 0,
+      "status": {
+        "200": 15
+      }
+    },
+    "us_equity": {
+      "path": "/api/us/equity?limit=1000",
+      "source": "db",
+      "note": "",
+      "n": 15,
+      "p50_ms": 7.38,
+      "p95_ms": 9.22,
+      "max_ms": 9.39,
+      "min_ms": 3.63,
+      "mean_ms": 7.12,
+      "bytes": 1185,
+      "bytes_gzip": 222,
+      "items": 16,
+      "status": {
+        "200": 15
+      }
+    },
+    "us_agent_runs": {
+      "path": "/api/us/agent/runs?limit=20",
+      "source": "db",
+      "note": "",
+      "n": 15,
+      "p50_ms": 6.01,
+      "p95_ms": 7.15,
+      "max_ms": 7.78,
+      "min_ms": 3.67,
+      "mean_ms": 5.87,
+      "bytes": 1082,
+      "bytes_gzip": 319,
+      "items": 3,
+      "status": {
+        "200": 15
+      }
+    },
+    "us_agent_decisions": {
+      "path": "/api/us/agent/decisions?limit=100",
+      "source": "db",
+      "note": "(extra)",
+      "n": 15,
+      "p50_ms": 6.08,
+      "p95_ms": 7.25,
+      "max_ms": 7.33,
+      "min_ms": 3.25,
+      "mean_ms": 5.74,
+      "bytes": 2,
+      "bytes_gzip": 22,
+      "items": 0,
+      "status": {
+        "200": 15
+      }
+    },
+    "us_agent_progress": {
+      "path": "/api/us/agent/progress",
+      "source": "db",
+      "note": "(extra)",
+      "n": 15,
+      "p50_ms": 4.63,
+      "p95_ms": 5.98,
+      "max_ms": 6.17,
+      "min_ms": 2.15,
+      "mean_ms": 4.66,
+      "bytes": 47,
+      "bytes_gzip": 60,
+      "items": null,
+      "status": {
+        "200": 15
+      }
+    },
+    "us_llm_profile": {
+      "path": "/api/us/llm/profile",
+      "source": "db",
+      "note": "",
+      "n": 15,
+      "p50_ms": 5.78,
+      "p95_ms": 7.02,
+      "max_ms": 7.6,
+      "min_ms": 4.45,
+      "mean_ms": 5.73,
+      "bytes": 3117,
+      "bytes_gzip": 916,
+      "items": null,
+      "status": {
+        "200": 15
+      }
+    },
+    "us_watchlist": {
+      "path": "/api/us/watchlist",
+      "source": "db",
+      "note": "",
+      "n": 15,
+      "p50_ms": 8.3,
+      "p95_ms": 11.19,
+      "max_ms": 11.93,
+      "min_ms": 4.39,
+      "mean_ms": 8.43,
+      "bytes": 807,
+      "bytes_gzip": 335,
+      "items": 9,
+      "status": {
+        "200": 15
+      }
+    },
+    "us_market_universe": {
+      "path": "/api/us/market/universe?limit=40",
+      "source": "toss_cached",
+      "note": "20h cache",
+      "n": 15,
+      "p50_ms": 5.86,
+      "p95_ms": 7.42,
+      "max_ms": 8.02,
+      "min_ms": 4.03,
+      "mean_ms": 6.0,
+      "bytes": 2499,
+      "bytes_gzip": 625,
+      "items": 40,
+      "status": {
+        "200": 15
+      }
+    },
+    "us_reports": {
+      "path": "/api/us/reports",
+      "source": "db",
+      "note": "",
+      "n": 15,
+      "p50_ms": 6.12,
+      "p95_ms": 8.8,
+      "max_ms": 9.8,
+      "min_ms": 4.63,
+      "mean_ms": 6.41,
+      "bytes": 2,
+      "bytes_gzip": 22,
+      "items": 0,
+      "status": {
+        "200": 15
+      }
+    },
+    "us_schedule": {
+      "path": "/api/us/schedule",
+      "source": "db",
+      "note": "",
+      "n": 15,
+      "p50_ms": 4.92,
+      "p95_ms": 7.16,
+      "max_ms": 8.01,
+      "min_ms": 3.12,
+      "mean_ms": 5.02,
+      "bytes": 796,
+      "bytes_gzip": 382,
+      "items": 9,
+      "status": {
+        "200": 15
+      }
+    },
+    "us_memory_cards": {
+      "path": "/api/us/memory/cards",
+      "source": "db",
+      "note": "",
+      "n": 15,
+      "p50_ms": 5.2,
+      "p95_ms": 7.8,
+      "max_ms": 8.35,
+      "min_ms": 3.87,
+      "mean_ms": 5.7,
+      "bytes": 93,
+      "bytes_gzip": 95,
+      "items": 0,
+      "status": {
+        "200": 15
+      }
+    }
+  }
+}

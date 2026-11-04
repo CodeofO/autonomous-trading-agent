@@ -49,6 +49,10 @@ class Settings(BaseSettings):
     naver_client_secret: SecretStr | None = None
     # 뉴스 검색 키를 받은 곳: hub = 네이버 클라우드 NAVER API HUB, developers = 네이버 개발자센터 (D-44)
     naver_api: Literal["hub", "developers"] = "hub"
+    # 구글 검색 (Gemini API 'Grounding with Google Search', D-49) — 유료(결제 등록 필요). 키가 비면 꺼짐
+    gemini_api_key: SecretStr | None = None
+    google_search_model: str = "gemini-3.5-flash-lite"
+    google_search_max_per_session: int = Field(default=3, ge=1, le=20)  # 판단 세션 1회당 검색 상한 (비용)
 
     # --- LLM (OpenAI 호환 Chat Completions) -------------------------------
     llm_base_url: str = ""
@@ -90,6 +94,16 @@ class Settings(BaseSettings):
     paper_slippage_bps: float = 5.0
     paper_max_volume_participation: float = Field(default=0.05, gt=0, le=1)
 
+    # --- 미장 모의투자 (D-48) — 미국 주식은 TRADING_MODE 와 관계없이 항상 모의계좌 -----------------
+    us_market_enabled: bool = True
+    # 비우면 sqlite:///{DATA_DIR}/us_market.db (국장 DB 가 메모리면 미장도 메모리)
+    us_database_url: str = ""
+    paper_us_initial_cash: float = Field(default=10_000, gt=0)  # 달러
+    paper_us_commission_rate: float = Field(default=0.001, ge=0, lt=0.05)
+    paper_us_slippage_bps: float = Field(default=5.0, ge=0)
+    # 장중 판단 간격(분). 비우면 AGENT_INTERVAL_MINUTES 와 같음. 0 → 정규장 중간 한 번
+    us_agent_interval_minutes: int | None = Field(default=None, ge=0, le=390)
+
     # --- 앱 --------------------------------------------------------------
     database_url: str = f"sqlite:///{BACKEND_DIR / 'data' / 'app.db'}"
     data_dir: Path = BACKEND_DIR / "data"
@@ -109,6 +123,11 @@ class Settings(BaseSettings):
         if m not in ("paper", "live"):
             raise ValueError("TRADING_MODE 는 'paper'(모의투자) 또는 'live'(실거래)만 쓸 수 있습니다.")
         return m
+
+    @field_validator("us_agent_interval_minutes", mode="before")
+    @classmethod
+    def _blank_none(cls, v: object) -> object:
+        return None if isinstance(v, str) and not v.strip() else v
 
     @model_validator(mode="after")
     def _live_needs_confirm(self) -> Settings:
@@ -130,6 +149,22 @@ class Settings(BaseSettings):
 
     # --- 파생 값 ---------------------------------------------------------
     @property
+    def us_interval_minutes(self) -> int:
+        return (
+            self.agent_interval_minutes
+            if self.us_agent_interval_minutes is None
+            else self.us_agent_interval_minutes
+        )
+
+    def us_db_url(self) -> str:
+        """미장 DB 주소: US_DATABASE_URL → (국장이 메모리 DB 면 메모리) → data/us_market.db."""
+        if self.us_database_url.strip():
+            return self.us_database_url.strip()
+        if self.database_url in ("sqlite://", "sqlite:///:memory:"):
+            return "sqlite://"
+        return f"sqlite:///{Path(self.data_dir) / 'us_market.db'}"
+
+    @property
     def has_toss(self) -> bool:
         return _filled(self.toss_client_id) and _filled(self.toss_client_secret)
 
@@ -140,6 +175,10 @@ class Settings(BaseSettings):
     @property
     def has_naver(self) -> bool:
         return _filled(self.naver_client_id) and _filled(self.naver_client_secret)
+
+    @property
+    def has_google_search(self) -> bool:
+        return _filled(self.gemini_api_key) and bool(self.google_search_model.strip())
 
     @property
     def has_test_llm(self) -> bool:
@@ -181,6 +220,7 @@ class Settings(BaseSettings):
             self.app_secret_key,
             self.vapid_private_key,
             self.llm_test_api_key,
+            self.gemini_api_key,
         ):
             if _filled(s):
                 assert s is not None

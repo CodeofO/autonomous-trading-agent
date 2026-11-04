@@ -66,6 +66,7 @@ def _isolate_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "TOSS_ACCOUNT_SEQ",
         "APP_SECRET_KEY",
         "AUTH_ENABLED",
+        "GEMINI_API_KEY",
     ):
         monkeypatch.delenv(key, raising=False)
     from app.core.config import Settings

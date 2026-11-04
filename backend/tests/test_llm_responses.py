@@ -8,9 +8,10 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+import pytest
 import respx
 
-from app.agent.llm import LLMClient, llm_routes, resolve_api
+from app.agent.llm import LLMClient, LLMError, llm_routes, resolve_api
 from tests.fake_toss import at
 from tests.helpers import make_container
 
@@ -126,6 +127,67 @@ async def test_incomplete_and_temperature_adaptation() -> None:
     res = await c.chat([{"role": "user", "content": "hi"}])
     assert ["temperature" in b for b in sent] == [True, False]
     assert res.finish_reason == "length" and res.content == ""
+
+
+@respx.mock
+async def test_real_responses_error_shape_drops_temperature_and_effort() -> None:
+    """Responses API 의 실제 거절 형식: code 는 null, 메시지에만 'Unsupported parameter' (2026-11-04 세션 #72)."""
+    sent: list[dict[str, Any]] = []
+    replies = [
+        httpx.Response(
+            400,
+            json={
+                "error": {
+                    "message": "Unsupported parameter: 'temperature' is not supported with this model.",
+                    "type": "invalid_request_error",
+                    "param": "temperature",
+                    "code": None,
+                }
+            },
+        ),
+        httpx.Response(
+            400,
+            json={
+                "error": {
+                    "message": "Unsupported value: 'xhigh' is not supported with this model.",
+                    "type": "invalid_request_error",
+                    "param": "reasoning.effort",
+                    "code": None,
+                }
+            },
+        ),
+        _resp([{"type": "message", "content": [{"type": "output_text", "text": "ok"}]}]),
+        _resp([{"type": "message", "content": [{"type": "output_text", "text": "again"}]}]),
+    ]
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        sent.append(json.loads(req.content))
+        return replies.pop(0)
+
+    respx.post(URL).mock(side_effect=handler)
+    c = LLMClient("https://api.openai.com/v1", "gpt-x", "sk-test-123456", reasoning_effort="xhigh")
+    assert (await c.chat([{"role": "user", "content": "hi"}])).content == "ok"
+    assert [("temperature" in b, "reasoning" in b) for b in sent] == [
+        (True, True),
+        (False, True),
+        (False, False),
+    ]
+    await c.chat([{"role": "user", "content": "hi"}])  # 기억해서 다음 호출부터 바로 뺀다
+    assert len(sent) == 4 and "temperature" not in sent[3] and "reasoning" not in sent[3]
+
+
+@respx.mock
+async def test_other_invalid_request_is_not_retried() -> None:
+    route = respx.post(URL).mock(
+        return_value=httpx.Response(
+            400,
+            json={"error": {"message": "Invalid 'input': empty.", "param": "input", "code": None}},
+        )
+    )
+    c = LLMClient("https://api.openai.com/v1", "gpt-x", "sk-test-123456")
+    with pytest.raises(LLMError, match="400"):
+        await c.chat([{"role": "user", "content": "hi"}])
+    assert route.call_count == 1
 
 
 @respx.mock

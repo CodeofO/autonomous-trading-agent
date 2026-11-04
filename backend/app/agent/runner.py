@@ -14,12 +14,14 @@ import time
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 
 from app.agent.activity import preview, result_line, tool_source
 from app.agent.costs import record_usage
 from app.agent.llm import RAW_KEY, ChatResult, LLMClient, LLMError, ToolsUnsupportedError, extract_json
+from app.agent.memo import RECENT_MESSAGES, live_cards, memory_settings, render_cards
 from app.agent.prompts import (
     ACCOUNT_DESC,
     CHAT_SYSTEM_PROMPT,
@@ -27,11 +29,15 @@ from app.agent.prompts import (
     DEFAULT_POLICY,
     JSON_MODE_INSTRUCTIONS,
     SYSTEM_PROMPT,
+    US_ACCOUNT_DESC,
+    US_DEFAULT_POLICY,
+    US_MARKET_NOTES,
 )
 from app.agent.rule_agent import rule_based_decisions
 from app.agent.tools import TERMINAL_TOOL, ToolBox, openai_tools, tool_label
 from app.brokers.base import OrderType
 from app.core.clock import KST, Clock
+from app.core.market import MarketSpec
 from app.db.models import AgentDecision, AgentRun, ChatMessage
 from app.db.session import Database
 from app.engine.events import ANALYST, SYSTEM, USER, EventHub
@@ -66,8 +72,13 @@ class AgentRunner:
         strategies: Callable[[], list[Strategy]] | None = None,
         names: Callable[[str], str] | None = None,
         live: bool = False,
+        market: MarketSpec | None = None,
     ) -> None:
         self.live = live  # 실거래 모드 (프롬프트의 계좌 설명이 달라진다)
+        # 시장 프로필 (D-48): 미장이면 프롬프트·도구 목록·'오늘'(뉴욕 거래일)이 달라진다
+        self.market = market
+        self.us = market is not None and market.code == "US"
+        self.tz = market.tz if market else KST
         self.db = db
         self.clock = clock
         self.hub = hub
@@ -118,7 +129,7 @@ class AgentRunner:
         source = tool_source(name, self.live)
         self._step(label, phase="tool", tool=name, source=source)
         t0 = time.monotonic()
-        result = await self.tb.call(name, args)
+        result = await self.tb.call(name, args, run_id=run_id)
         ms = round((time.monotonic() - t0) * 1000)
         sources = dict(self._run.get("sources") or {})
         sources[source] = sources.get(source, 0) + 1
@@ -143,7 +154,28 @@ class AgentRunner:
         return {**DEFAULT_PERSONA, **self.settings.get("agent_persona")}
 
     def policy(self) -> str:
-        return str(self.settings.get("agent_policy").get("text") or DEFAULT_POLICY)
+        default = US_DEFAULT_POLICY if self.us else DEFAULT_POLICY
+        return str(self.settings.get("agent_policy").get("text") or default)
+
+    def _account(self) -> str:
+        return US_ACCOUNT_DESC if self.us else ACCOUNT_DESC[self.live]
+
+    def _market_notes(self) -> str:
+        """미장 안내(정규장 한국 시각 등). 국장은 빈 문자열."""
+        if not self.us:
+            return ""
+        cal = self.orders.risk.cal
+        s = cal.next_session(self.clock.now())
+        return "\n" + US_MARKET_NOTES.format(
+            open_kst=f"{s.open.astimezone(KST):%H:%M}", close_kst=f"{s.close.astimezone(KST):%H:%M}"
+        )
+
+    def _tools(self) -> list[dict[str, Any]]:
+        return openai_tools(
+            toss=self.tb.toss is not None,
+            market=self.market.code if self.market else "KR",
+            web_limit=self.tb.web_limit,
+        )
 
     # ================================================================ 세션
     async def run(self, trigger: str = "manual") -> int | None:
@@ -235,7 +267,22 @@ class AgentRunner:
             return run_id
 
     # ================================================================ 컨텍스트
-    def _memory(self) -> str:
+    MEMORY_RUNS = 3  # 최근 판단 세션 요약 몇 개를 다음 세션·답장에 넣는지
+    MEMORY_MEMOS = (
+        RECENT_MESSAGES  # 사용자 메시지 몇 개를 '최근 대화 메모'로 넣는지 (날짜와 관계없이 최근 순)
+    )
+
+    def memory_snapshot(self) -> dict[str, Any]:
+        """매니저가 지금 '기억'으로 받는 내용 (D-47, D-52). 판단 세션·답장 프롬프트와 에이전트 구조 화면이 같이 쓴다.
+
+        cards: 켜져 있고 만료 안 된 메모 카드 / memos: 최근 대화 메모 (설정에서 끄면 빈 목록)
+        """
+        use_recent = bool(memory_settings(self.settings)["use_recent_messages"])
+        today = (
+            self.market.local_date(self.clock.now())
+            if self.market
+            else self.clock.now().astimezone(KST).date()
+        )
         since_raw = self.settings.get("account_source").get("since")
         with self.db.session() as s:
             q = select(AgentRun).where(AgentRun.status == "DONE")
@@ -244,41 +291,76 @@ class AgentRunner:
                     AgentRun.started_at >= datetime.fromisoformat(since_raw),
                     AgentRun.started_at <= self.clock.now(),
                 )
-            runs = list(s.scalars(q.order_by(AgentRun.id.desc()).limit(3)))
-            lines = []
+            runs = list(s.scalars(q.order_by(AgentRun.id.desc()).limit(self.MEMORY_RUNS)))
+            by_run: dict[int, list[AgentDecision]] = {r.id: [] for r in runs}
+            if runs:  # 세션별 결정은 한 번에 읽는다
+                for d in s.scalars(
+                    select(AgentDecision)
+                    .where(AgentDecision.run_id.in_(list(by_run)))
+                    .order_by(AgentDecision.id)
+                ):
+                    by_run[d.run_id].append(d)
+            sessions = []
             for r in runs:
-                decs = list(s.scalars(select(AgentDecision).where(AgentDecision.run_id == r.id)))
+                decs = by_run[r.id]
                 acts = (
                     ", ".join(f"{d.name or d.symbol} {d.action}" for d in decs if d.action != "HOLD")
                     or "거래 없음"
                 )
-                lines.append(f"- 세션#{r.id} ({_kst(r.started_at)}): {r.summary[:160]} / {acts}")
-            memos = list(
-                s.scalars(
-                    select(ChatMessage)
-                    .where(ChatMessage.role == USER)
-                    .order_by(ChatMessage.id.desc())
-                    .limit(5)
+                sessions.append(
+                    {"run_id": r.id, "at": _kst(r.started_at), "summary": r.summary[:160], "actions": acts}
                 )
+            memos = (
+                list(
+                    s.scalars(
+                        select(ChatMessage)
+                        .where(ChatMessage.role == USER)
+                        .order_by(ChatMessage.id.desc())
+                        .limit(self.MEMORY_MEMOS)
+                    )
+                )
+                if use_recent
+                else []
             )
-        memo_txt = "\n".join(f"- {_kst(m.ts)}: {m.content[:200]}" for m in reversed(memos)) or "- 없음"
-        return (
-            "최근 판단 기록:\n"
-            + ("\n".join(lines) or "- 없음")
-            + "\n\n투자자 메모(참고용 의견이며 리스크 규칙보다 우선하지 않음):\n"
-            + memo_txt
-        )
+        return {
+            "cards": live_cards(self.db, today),
+            "sessions": sessions,
+            "memos": [{"id": m.id, "at": _kst(m.ts), "text": m.content[:200]} for m in reversed(memos)],
+            "use_recent_messages": use_recent,
+        }
+
+    def _memory(self) -> str:
+        """프롬프트의 기억 부분: 메모 카드 → 최근 판단 기록 → 최근 대화 메모(설정에서 켰을 때만)."""
+        snap = self.memory_snapshot()
+        lines = [
+            f"- 세션#{x['run_id']} ({x['at']}): {x['summary']} / {x['actions']}" for x in snap["sessions"]
+        ]
+        cards = render_cards(snap["cards"])
+        out = (cards + "\n\n" if cards else "") + "최근 판단 기록:\n" + ("\n".join(lines) or "- 없음")
+        if snap["use_recent_messages"]:
+            memo_txt = "\n".join(f"- {m['at']}: {m['text']}" for m in snap["memos"]) or "- 없음"
+            out += (
+                "\n\n최근 대화 메모(트레이딩 룸에 보낸 메시지 — 참고용 의견이며 리스크 규칙보다 우선하지 않음):\n"
+                + memo_txt
+            )
+        return out
 
     def _system(self) -> str:
         p = self.persona()
-        return SYSTEM_PROMPT.format(
-            name=p["name"], emoji=p["emoji"], policy=self.policy(), account=ACCOUNT_DESC[self.live]
+        return (
+            SYSTEM_PROMPT.format(
+                name=p["name"], emoji=p["emoji"], policy=self.policy(), account=self._account()
+            )
+            + self._market_notes()
         )
 
     def _user_context(self, trigger: str) -> str:
         now = self.clock.now()
+        when = f"{now.astimezone(KST):%Y-%m-%d %H:%M} (KST)"
+        if self.us:
+            when += f" = 뉴욕 {now.astimezone(self.tz):%Y-%m-%d %H:%M}"
         return (
-            f"현재 시각: {now.astimezone(KST):%Y-%m-%d %H:%M} (KST)\n세션: {TRIGGER_KO.get(trigger, trigger)}\n\n"
+            f"현재 시각: {when}\n세션: {TRIGGER_KO.get(trigger, trigger)}\n\n"
             f"{self._memory()}\n\n지금부터 점검을 시작해 줘. 보유 종목 재평가와 신규 후보 탐색을 모두 하고, "
             f"마지막에 submit_decisions 로 제출해."
         )
@@ -293,7 +375,7 @@ class AgentRunner:
             {"role": "system", "content": self._system()},
             {"role": "user", "content": self._user_context(trigger)},
         ]
-        tools = openai_tools(toss=self.tb.toss is not None)
+        tools = self._tools()
         nudged = False
         force_submit = False
         resubmitted = False
@@ -406,11 +488,11 @@ class AgentRunner:
         dossier["stocks"] = {}
         for sym in syms:
             name = self.names(sym) or sym
-            dossier["stocks"][sym] = {
-                "price": await gather("get_price_history", {"symbol": sym, "days": 60}),
-                "financials": await gather("get_financials", {"symbol": sym}),
-                "news": await gather("search_news", {"query": name, "limit": 4}),
-            }
+            stock = {"price": await gather("get_price_history", {"symbol": sym, "days": 60})}
+            if not self.us:  # 재무제표(DART)는 국내 전용
+                stock["financials"] = await gather("get_financials", {"symbol": sym})
+            stock["news"] = await gather("search_news", {"query": name, "limit": 4})
+            dossier["stocks"][sym] = stock
         self._step("자료 종합 중…", phase="thinking", tool=None, source=None)
         content = (
             self._user_context("json")
@@ -619,7 +701,7 @@ class AgentRunner:
             rows = list(
                 s.scalars(
                     select(ChatMessage)
-                    .where(ChatMessage.ts >= _today_start(self.clock.now()))
+                    .where(ChatMessage.ts >= _today_start(self.clock.now(), self.tz))
                     .where(ChatMessage.role.in_([USER, ANALYST]), ChatMessage.kind == "text")
                     .order_by(ChatMessage.id.desc())
                     .limit(50)
@@ -634,12 +716,12 @@ class AgentRunner:
         return (newest.id, newest.content) if newest is not None and newest.id > answered else None
 
     def _today_chat(self, limit: int = 30) -> list[dict[str, str]]:
-        """오늘(KST) 트레이딩 룸 대화: 사용자 질문·매니저 답변·세션 요약. DB 에서 읽으므로 재시작해도 이어진다."""
+        """오늘(국장 KST, 미장 뉴욕 거래일) 트레이딩 룸 대화: 사용자 질문·매니저 답변·세션 요약. DB 에서 읽으므로 재시작해도 이어진다."""
         with self.db.session() as s:
             rows = list(
                 s.scalars(
                     select(ChatMessage)
-                    .where(ChatMessage.ts >= _today_start(self.clock.now()))
+                    .where(ChatMessage.ts >= _today_start(self.clock.now(), self.tz))
                     .where(
                         (ChatMessage.role == USER)
                         | ((ChatMessage.role == ANALYST) & ChatMessage.kind.in_(["text", "summary"]))
@@ -692,8 +774,9 @@ class AgentRunner:
                     {
                         "role": "system",
                         "content": CHAT_SYSTEM_PROMPT.format(
-                            name=p["name"], emoji=p["emoji"], account=ACCOUNT_DESC[self.live]
+                            name=p["name"], emoji=p["emoji"], account=self._account()
                         )
+                        + self._market_notes()
                         + "\n\n"
                         + ctx,
                     },
@@ -730,8 +813,9 @@ def strip_disclaimers(text: str) -> str:
     return "".join(out).strip()
 
 
-def _today_start(now: datetime) -> datetime:
-    k = now.astimezone(KST)
+def _today_start(now: datetime, tz: ZoneInfo = KST) -> datetime:
+    """오늘 0시. 미장은 뉴욕 0시(한국 시각 13~14시) — 밤새 이어지는 정규장 대화가 한 '오늘'에 묶인다."""
+    k = now.astimezone(tz)
     return k.replace(hour=0, minute=0, second=0, microsecond=0)
 
 

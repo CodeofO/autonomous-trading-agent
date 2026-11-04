@@ -1,8 +1,20 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { useMutation } from "@tanstack/react-query";
-import { errorText, post } from "../../api/client";
-import type { AgentProgress, ChatMsg, Role } from "../../api/types";
+import { errorText } from "../../api/client";
+import type { AgentProgress, AgentRun, ChatMsg, Role } from "../../api/types";
+import { useApi } from "../../market";
 import { ChatMessage, roleMeta, type Persona } from "./ChatMessage";
+import { SessionBlock } from "./SessionBlock";
+import { groupFeed, SessionViewCache, stabilizeGroups, type FeedItem } from "./sessions";
 
 interface Props {
   messages: ChatMsg[];
@@ -12,6 +24,12 @@ interface Props {
   showInput?: boolean;
   showTools?: boolean;
   height?: string;
+  /** 판단 세션(run_id) 메시지를 세션 단위 블록으로 묶어 보여준다 (트레이딩 룸) */
+  groupSessions?: boolean;
+  /** 세션 머리줄의 상태·소요 시간 보강용 (없으면 메시지로만 추정) */
+  runs?: AgentRun[];
+  /** 채팅 기록을 아직 받는 중 — 비어 있어도 '아직 조용하네요' 대신 말풍선 자리 표시 */
+  loading?: boolean;
 }
 
 const QUICK = [
@@ -21,7 +39,7 @@ const QUICK = [
   "다음엔 반도체 좀 더 봐줘",
 ];
 
-export function ChatFeed({
+export const ChatFeed = memo(function ChatFeed({
   messages,
   typing,
   progress,
@@ -29,17 +47,50 @@ export function ChatFeed({
   showInput = true,
   showTools = true,
   height,
+  groupSessions = false,
+  runs,
+  loading = false,
 }: Props) {
   const box = useRef<HTMLDivElement>(null);
   const [stick, setStick] = useState(true);
   const [text, setText] = useState("");
   const visible = useMemo(
-    () => (showTools ? messages : messages.filter((m) => m.kind !== "tool")),
-    [messages, showTools],
+    // 세션으로 묶을 때 세션 안 도구 기록은 블록이 알아서 접거나 숨긴다
+    () =>
+      showTools ? messages : messages.filter((m) => m.kind !== "tool" || (groupSessions && m.run_id != null)),
+    [messages, showTools, groupSessions],
+  );
+  // 세션 묶음은 내용이 그대로면 지난번 배열을 그대로 쓴다 — 새 메시지가 와도 다른 세션 블록은 다시 그리지 않는다
+  const prevItems = useRef<FeedItem[]>([]);
+  const items = useMemo<FeedItem[]>(() => {
+    const next: FeedItem[] = groupSessions
+      ? groupFeed(visible)
+      : visible.map((msg) => ({ type: "msg", msg }));
+    return stabilizeGroups(prevItems.current, next);
+  }, [visible, groupSessions]);
+  useEffect(() => {
+    prevItems.current = items;
+  }, [items]);
+  const runById = useMemo(() => new Map((runs ?? []).map((r) => [r.id, r])), [runs]);
+  // 세션 요약도 입력(메시지 묶음·서버 기록·진행 여부)이 같으면 지난 것을 그대로
+  const [viewCache] = useState(() => new SessionViewCache());
+  const latestRun = useMemo(() => {
+    for (let i = items.length - 1; i >= 0; i--) {
+      const it = items[i];
+      if (it.type === "session") return it.runId;
+    }
+    return null;
+  }, [items]);
+  // 사용자가 직접 펼치거나 접은 세션만 기억 — 나머지는 최신 세션만 펼친다
+  const [openRuns, setOpenRuns] = useState<Record<number, boolean>>({});
+  const onToggle = useCallback(
+    (runId: number, open: boolean) => setOpenRuns((o) => ({ ...o, [runId]: open })),
+    [],
   );
 
+  const api = useApi();
   const send = useMutation({
-    mutationFn: (message: string) => post("/api/chat", { message }),
+    mutationFn: (message: string) => api.post("/api/chat", { message }),
     onSuccess: () => setText(""),
   });
 
@@ -81,14 +132,35 @@ export function ChatFeed({
     <div className="chat" style={height ? { height } : undefined}>
       {progress?.active && <ActivityPanel progress={progress} />}
       <div className="chat-scroll" ref={box} data-testid="chat-scroll">
-        {visible.length === 0 && (
-          <div className="chat-empty">
-            <div className="big-emoji">{persona.emoji}</div>
-            <p>아직 조용하네요. 판단 세션이 시작되면 여기서 실시간으로 생각을 들려드릴게요.</p>
-          </div>
-        )}
-        {visible.map((m, i) => {
-          const prev = visible[i - 1];
+        {visible.length === 0 &&
+          (loading ? (
+            <ChatSkeleton />
+          ) : (
+            <div className="chat-empty">
+              <div className="big-emoji">{persona.emoji}</div>
+              <p>아직 조용하네요. 판단 세션이 시작되면 여기서 실시간으로 생각을 들려드릴게요.</p>
+            </div>
+          ))}
+        {items.map((it, i) => {
+          if (it.type === "session") {
+            const live = !!progress?.active && progress.run_id === it.runId;
+            const view = viewCache.get(it.runId, it.msgs, runById.get(it.runId), progress ? live : undefined);
+            const expanded = openRuns[it.runId] ?? (live || it.runId === latestRun);
+            return (
+              <SessionBlock
+                key={`run-${it.runId}`}
+                view={view}
+                expanded={expanded}
+                onToggle={onToggle}
+                // 진행 표시는 지금 도는 세션에만 — 진행 이벤트마다 다른 세션 블록이 다시 그려지지 않게
+                progress={view.status === "running" ? progress : null}
+                showTools={showTools}
+              />
+            );
+          }
+          const m = it.msg;
+          const before = items[i - 1];
+          const prev = before?.type === "msg" ? before.msg : undefined;
           const compact =
             !!prev &&
             prev.role === m.role &&
@@ -133,6 +205,20 @@ export function ChatFeed({
           {send.isError && <p className="error">{errorText(send.error)}</p>}
         </div>
       )}
+    </div>
+  );
+});
+
+/** 채팅 기록을 받는 동안의 말풍선 모양 자리 (왼쪽 매니저 · 오른쪽 나) */
+function ChatSkeleton() {
+  return (
+    <div className="chat-skel" role="status" aria-label="대화 불러오는 중" aria-busy="true">
+      {["l w80", "l w55", "r w45", "l w70", "l w35"].map((c, i) => (
+        <div key={i} className={`chat-skel-row ${c.split(" ")[0]}`} aria-hidden>
+          {c.startsWith("l") && <i className="chat-skel-avatar" />}
+          <i className={`chat-skel-bubble ${c.split(" ")[1]}`} />
+        </div>
+      ))}
     </div>
   );
 }
@@ -200,7 +286,15 @@ function ActivityPanel({ progress }: { progress: AgentProgress }) {
   );
 }
 
-export function TypingIndicator({ role, label, persona }: { role: Role; label: string; persona: Persona }) {
+export const TypingIndicator = memo(function TypingIndicator({
+  role,
+  label,
+  persona,
+}: {
+  role: Role;
+  label: string;
+  persona: Persona;
+}) {
   const meta = roleMeta(role, persona);
   return (
     <div className={`chat-row ${meta.cls}`} data-testid="typing">
@@ -219,4 +313,4 @@ export function TypingIndicator({ role, label, persona }: { role: Role; label: s
       </div>
     </div>
   );
-}
+});

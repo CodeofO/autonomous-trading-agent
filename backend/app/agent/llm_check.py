@@ -72,22 +72,31 @@ def _usage(u: dict[str, int]) -> str:
     return " ".join(f"{k.split('_')[0]}={u[k]}" for k in keys if u.get(k))
 
 
-async def check(c: LLMClient) -> bool:
+async def check(c: LLMClient, results: list[dict[str, Any]] | None = None, quiet: bool = False) -> bool:
+    """짧은 요청 4개. results 를 주면 단계별 결과({label, ok, detail})를 담는다(설정 화면 '연결 확인')."""
     ok = True
-    print(f"대상: {c.model} · {c.api} API")
+    out = results if results is not None else []
+
+    def say(line: str) -> None:
+        if not quiet:
+            print(line)
+
+    say(f"대상: {c.model} · {c.api} API")
 
     async def step(label: str, coro: Any) -> Any:
         nonlocal ok
         try:
             res = await coro
             calls = [(t.name, t.arguments) for t in res.tool_calls]
-            print(
-                f"  ✅ {label}: finish={res.finish_reason} tools={calls} text={res.content[:50]!r} {_usage(res.usage)}"
-            )
+            detail = f"finish={res.finish_reason} tools={calls} text={res.content[:50]!r} {_usage(res.usage)}"
+            say(f"  ✅ {label}: {detail}")
+            out.append({"label": label, "ok": True, "detail": detail.strip()})
             return res
         except Exception as e:
             ok = False
-            print(f"  ❌ {label}: {type(e).__name__}: {str(e)[:300]}")
+            detail = f"{type(e).__name__}: {str(e)[:300]}"
+            say(f"  ❌ {label}: {detail}")
+            out.append({"label": label, "ok": False, "detail": detail})
             return None
 
     await step("일반 답", c.chat([{"role": "user", "content": "한 단어로만 답해: 하늘은 무슨 색?"}]))
@@ -120,8 +129,15 @@ async def check(c: LLMClient) -> bool:
         await step("도구 결과 되돌려 받기", c.chat(follow, TOOLS))
     elif first is not None:
         ok = False
-        print("  ❌ 도구 결과 되돌려 받기: 모델이 도구를 부르지 않아 확인하지 못함")
-    print(
+        say("  ❌ 도구 결과 되돌려 받기: 모델이 도구를 부르지 않아 확인하지 못함")
+        out.append(
+            {
+                "label": "도구 결과 되돌려 받기",
+                "ok": False,
+                "detail": "모델이 도구를 부르지 않아 확인하지 못함",
+            }
+        )
+    say(
         f"  매개변수: 토큰 한도={c._token_param if c.api == 'chat' else 'max_output_tokens'} temperature={'보냄' if c._send_temperature else '안 보냄'}"
     )
     await c.http.aclose()

@@ -1,19 +1,34 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { errorText, get, post } from "../api/client";
+import { errorText } from "../api/client";
 import type { BacktestResult, Strategy } from "../api/types";
-import { EquityChart } from "../components/charts";
-import { ACTION_KO, fmtNum, fmtPct, fmtWon, signClass } from "../utils/format";
+import { EquityChart } from "../components/LazyCharts";
+import { useApi, useCurrency } from "../market";
+import { ACTION_KO, fmtNum, fmtPct, money, price, signClass } from "../utils/format";
+
+type StockChoice = { symbol: string; name: string };
 
 export function Backtest() {
+  const api = useApi();
+  const currency = useCurrency();
+  const us = api.market === "US";
   const strategies = useQuery({
-    queryKey: ["strategies"],
-    queryFn: () => get<Strategy[]>("/api/strategies"),
+    queryKey: api.key("strategies"),
+    queryFn: () => api.get<Strategy[]>("/api/strategies"),
   });
   const universe = useQuery({
-    queryKey: ["universe"],
-    queryFn: () => get<{ symbol: string; name: string }[]>("/api/market/universe?limit=40"),
+    queryKey: api.key("universe"),
+    queryFn: () => api.get<StockChoice[]>("/api/market/universe?limit=40"),
   });
+  // 미장 종목 목록은 알파벳 순이라 앞쪽이 낯선 종목 — 관심 종목(애플·엔비디아 등)을 먼저 보여 준다
+  const watchlist = useQuery({
+    queryKey: api.key("watchlist"),
+    queryFn: () => api.get<StockChoice[]>("/api/watchlist"),
+    enabled: us,
+  });
+  const picks: StockChoice[] = [];
+  for (const u of [...(us ? (watchlist.data ?? []) : []), ...(universe.data ?? [])])
+    if (!picks.some((p) => p.symbol === u.symbol)) picks.push(u);
   const [type, setType] = useState("ma_cross");
   const [symbols, setSymbols] = useState<string[]>([]);
   const [start, setStart] = useState("2026-01-02");
@@ -22,7 +37,7 @@ export function Backtest() {
   const strat = strategies.data?.find((s) => s.type === type);
   const run = useMutation({
     mutationFn: () =>
-      post<BacktestResult>("/api/backtest", {
+      api.post<BacktestResult>("/api/backtest", {
         strategy_type: type,
         params: strat?.params ?? {},
         symbols,
@@ -81,7 +96,7 @@ export function Backtest() {
           <div className="full">
             <span className="muted">종목 선택 ({symbols.length}/20)</span>
             <div className="symbol-picker">
-              {universe.data?.map((u) => (
+              {picks.map((u) => (
                 <button
                   type="button"
                   key={u.symbol}
@@ -120,10 +135,15 @@ export function Backtest() {
             <div className="card-head">
               <h2>자산 곡선</h2>
               <span className="muted">
-                {fmtWon(r.initial_cash)} → {fmtWon(r.final_equity)} · 리스크 차단 {r.risk_blocks}건
+                {money(r.initial_cash, currency)} → {money(r.final_equity, currency)} · 리스크 차단{" "}
+                {r.risk_blocks}건
               </span>
             </div>
-            <EquityChart points={r.equity_curve.map((p) => ({ t: p.day, v: p.equity }))} height={280} />
+            <EquityChart
+              points={r.equity_curve.map((p) => ({ t: p.day, v: p.equity }))}
+              height={280}
+              currency={currency}
+            />
           </section>
           <section className="card">
             <h2>거래 내역</h2>
@@ -144,7 +164,7 @@ export function Backtest() {
                     <td>{t.symbol}</td>
                     <td className={t.side === "BUY" ? "up" : "down"}>{ACTION_KO[t.side]}</td>
                     <td className="r">{fmtNum(t.quantity)}</td>
-                    <td className="r">{fmtNum(t.price, 2)}</td>
+                    <td className="r">{price(t.price, currency, 2)}</td>
                   </tr>
                 ))}
               </tbody>

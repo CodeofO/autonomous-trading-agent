@@ -1,0 +1,2436 @@
+{
+  "schema": "db/v1",
+  "taken_at": "2026-11-04T14:06:03.130594+00:00",
+  "kr_postgres": {
+    "engine": "postgresql",
+    "version": "16.15",
+    "database_bytes": 15408151,
+    "extensions": [
+      "plpgsql"
+    ],
+    "settings": {
+      "autovacuum": "on",
+      "effective_cache_size": "524288",
+      "shared_buffers": "16384",
+      "track_counts": "on",
+      "work_mem": "4096"
+    },
+    "tables": {
+      "chat_messages": {
+        "rows": 2172,
+        "total_bytes": 1630208,
+        "heap_bytes": 1343488,
+        "index_bytes": 188416,
+        "toast_bytes": 65536,
+        "n_live_tup": 2172,
+        "n_dead_tup": 0,
+        "seq_scan": 11,
+        "seq_tup_read": 23463,
+        "idx_scan": 251,
+        "n_tup_ins": 267,
+        "n_tup_upd": 0,
+        "n_tup_del": 0,
+        "n_tup_hot_upd": 0,
+        "last_autovacuum": null,
+        "last_autoanalyze": "2026-11-04T12:46:20.43143+00:00",
+        "autovacuum_count": 0
+      },
+      "api_cache": {
+        "rows": 198,
+        "total_bytes": 1261568,
+        "heap_bytes": 49152,
+        "index_bytes": 32768,
+        "toast_bytes": 1155072,
+        "n_live_tup": 18,
+        "n_dead_tup": 3,
+        "seq_scan": 169,
+        "seq_tup_read": 32154,
+        "idx_scan": 15,
+        "n_tup_ins": 18,
+        "n_tup_upd": 32,
+        "n_tup_del": 0,
+        "n_tup_hot_upd": 31,
+        "last_autovacuum": null,
+        "last_autoanalyze": null,
+        "autovacuum_count": 0
+      },
+      "daily_prices": {
+        "rows": 4523,
+        "total_bytes": 1253376,
+        "heap_bytes": 638976,
+        "index_bytes": 581632,
+        "toast_bytes": 0,
+        "n_live_tup": 4523,
+        "n_dead_tup": 62,
+        "seq_scan": 4,
+        "seq_tup_read": 9048,
+        "idx_scan": 16020,
+        "n_tup_ins": 434,
+        "n_tup_upd": 410,
+        "n_tup_del": 0,
+        "n_tup_hot_upd": 409,
+        "last_autovacuum": null,
+        "last_autoanalyze": "2026-11-04T05:42:59.946469+00:00",
+        "autovacuum_count": 0
+      },
+      "corp_codes": {
+        "rows": 4009,
+        "total_bytes": 786432,
+        "heap_bytes": 524288,
+        "index_bytes": 229376,
+        "toast_bytes": 0,
+        "n_live_tup": 0,
+        "n_dead_tup": 0,
+        "seq_scan": 35,
+        "seq_tup_read": 140315,
+        "idx_scan": 33,
+        "n_tup_ins": 0,
+        "n_tup_upd": 0,
+        "n_tup_del": 0,
+        "n_tup_hot_upd": 0,
+        "last_autovacuum": null,
+        "last_autoanalyze": null,
+        "autovacuum_count": 0
+      },
+      "agent_decisions": {
+        "rows": 336,
+        "total_bytes": 614400,
+        "heap_bytes": 524288,
+        "index_bytes": 49152,
+        "toast_bytes": 8192,
+        "n_live_tup": 25,
+        "n_dead_tup": 7,
+        "seq_scan": 6,
+        "seq_tup_read": 2016,
+        "idx_scan": 226,
+        "n_tup_ins": 25,
+        "n_tup_upd": 25,
+        "n_tup_del": 0,
+        "n_tup_hot_upd": 25,
+        "last_autovacuum": null,
+        "last_autoanalyze": null,
+        "autovacuum_count": 0
+      },
+      "audit_events": {
+        "rows": 536,
+        "total_bytes": 483328,
+        "heap_bytes": 131072,
+        "index_bytes": 98304,
+        "toast_bytes": 221184,
+        "n_live_tup": 76,
+        "n_dead_tup": 0,
+        "seq_scan": 107,
+        "seq_tup_read": 55561,
+        "idx_scan": 8,
+        "n_tup_ins": 76,
+        "n_tup_upd": 0,
+        "n_tup_del": 0,
+        "n_tup_hot_upd": 0,
+        "last_autovacuum": null,
+        "last_autoanalyze": null,
+        "autovacuum_count": 0
+      },
+      "equity_snapshots": {
+        "rows": 517,
+        "total_bytes": 172032,
+        "heap_bytes": 81920,
+        "index_bytes": 65536,
+        "toast_bytes": 0,
+        "n_live_tup": 518,
+        "n_dead_tup": 43,
+        "seq_scan": 12,
+        "seq_tup_read": 5323,
+        "idx_scan": 189,
+        "n_tup_ins": 145,
+        "n_tup_upd": 0,
+        "n_tup_del": 0,
+        "n_tup_hot_upd": 0,
+        "last_autovacuum": null,
+        "last_autoanalyze": "2026-11-04T06:12:01.563026+00:00",
+        "autovacuum_count": 0
+      },
+      "agent_runs": {
+        "rows": 51,
+        "total_bytes": 155648,
+        "heap_bytes": 106496,
+        "index_bytes": 16384,
+        "toast_bytes": 8192,
+        "n_live_tup": 9,
+        "n_dead_tup": 5,
+        "seq_scan": 83,
+        "seq_tup_read": 4055,
+        "idx_scan": 425,
+        "n_tup_ins": 9,
+        "n_tup_upd": 12,
+        "n_tup_del": 0,
+        "n_tup_hot_upd": 11,
+        "last_autovacuum": null,
+        "last_autoanalyze": null,
+        "autovacuum_count": 0
+      },
+      "paper_account": {
+        "rows": 1,
+        "total_bytes": 131072,
+        "heap_bytes": 24576,
+        "index_bytes": 16384,
+        "toast_bytes": 65536,
+        "n_live_tup": 0,
+        "n_dead_tup": 5,
+        "seq_scan": 6,
+        "seq_tup_read": 6,
+        "idx_scan": 26,
+        "n_tup_ins": 0,
+        "n_tup_upd": 5,
+        "n_tup_del": 0,
+        "n_tup_hot_upd": 5,
+        "last_autovacuum": null,
+        "last_autoanalyze": null,
+        "autovacuum_count": 0
+      },
+      "daily_reports": {
+        "rows": 3,
+        "total_bytes": 122880,
+        "heap_bytes": 16384,
+        "index_bytes": 16384,
+        "toast_bytes": 65536,
+        "n_live_tup": 1,
+        "n_dead_tup": 0,
+        "seq_scan": 4,
+        "seq_tup_read": 12,
+        "idx_scan": 35,
+        "n_tup_ins": 1,
+        "n_tup_upd": 0,
+        "n_tup_del": 0,
+        "n_tup_hot_upd": 0,
+        "last_autovacuum": null,
+        "last_autoanalyze": null,
+        "autovacuum_count": 0
+      },
+      "orders": {
+        "rows": 19,
+        "total_bytes": 114688,
+        "heap_bytes": 16384,
+        "index_bytes": 65536,
+        "toast_bytes": 8192,
+        "n_live_tup": 4,
+        "n_dead_tup": 5,
+        "seq_scan": 432,
+        "seq_tup_read": 7914,
+        "idx_scan": 0,
+        "n_tup_ins": 4,
+        "n_tup_upd": 5,
+        "n_tup_del": 0,
+        "n_tup_hot_upd": 0,
+        "last_autovacuum": null,
+        "last_autoanalyze": null,
+        "autovacuum_count": 0
+      },
+      "llm_usage": {
+        "rows": 68,
+        "total_bytes": 90112,
+        "heap_bytes": 16384,
+        "index_bytes": 49152,
+        "toast_bytes": 0,
+        "n_live_tup": 68,
+        "n_dead_tup": 0,
+        "seq_scan": 61,
+        "seq_tup_read": 3553,
+        "idx_scan": 36,
+        "n_tup_ins": 68,
+        "n_tup_upd": 0,
+        "n_tup_del": 0,
+        "n_tup_hot_upd": 0,
+        "last_autovacuum": null,
+        "last_autoanalyze": "2026-11-04T12:18:19.049524+00:00",
+        "autovacuum_count": 0
+      },
+      "app_settings": {
+        "rows": 10,
+        "total_bytes": 65536,
+        "heap_bytes": 8192,
+        "index_bytes": 16384,
+        "toast_bytes": 8192,
+        "n_live_tup": 2,
+        "n_dead_tup": 2,
+        "seq_scan": 11164,
+        "seq_tup_read": 107235,
+        "idx_scan": 0,
+        "n_tup_ins": 2,
+        "n_tup_upd": 14,
+        "n_tup_del": 0,
+        "n_tup_hot_upd": 14,
+        "last_autovacuum": null,
+        "last_autoanalyze": null,
+        "autovacuum_count": 0
+      },
+      "strategies": {
+        "rows": 2,
+        "total_bytes": 49152,
+        "heap_bytes": 8192,
+        "index_bytes": 32768,
+        "toast_bytes": 8192,
+        "n_live_tup": 0,
+        "n_dead_tup": 0,
+        "seq_scan": 89,
+        "seq_tup_read": 178,
+        "idx_scan": 0,
+        "n_tup_ins": 0,
+        "n_tup_upd": 0,
+        "n_tup_del": 0,
+        "n_tup_hot_upd": 0,
+        "last_autovacuum": null,
+        "last_autoanalyze": null,
+        "autovacuum_count": 0
+      },
+      "fills": {
+        "rows": 19,
+        "total_bytes": 40960,
+        "heap_bytes": 8192,
+        "index_bytes": 32768,
+        "toast_bytes": 0,
+        "n_live_tup": 4,
+        "n_dead_tup": 0,
+        "seq_scan": 52,
+        "seq_tup_read": 939,
+        "idx_scan": 1,
+        "n_tup_ins": 4,
+        "n_tup_upd": 0,
+        "n_tup_del": 0,
+        "n_tup_hot_upd": 0,
+        "last_autovacuum": null,
+        "last_autoanalyze": null,
+        "autovacuum_count": 0
+      },
+      "alembic_version": {
+        "rows": 1,
+        "total_bytes": 24576,
+        "heap_bytes": 8192,
+        "index_bytes": 16384,
+        "toast_bytes": 0,
+        "n_live_tup": 0,
+        "n_dead_tup": 2,
+        "seq_scan": 18,
+        "seq_tup_read": 18,
+        "idx_scan": 2,
+        "n_tup_ins": 0,
+        "n_tup_upd": 2,
+        "n_tup_del": 0,
+        "n_tup_hot_upd": 0,
+        "last_autovacuum": null,
+        "last_autoanalyze": null,
+        "autovacuum_count": 0
+      },
+      "memory_cards": {
+        "rows": 0,
+        "total_bytes": 16384,
+        "heap_bytes": 0,
+        "index_bytes": 8192,
+        "toast_bytes": 8192,
+        "n_live_tup": 0,
+        "n_dead_tup": 0,
+        "seq_scan": 74,
+        "seq_tup_read": 0,
+        "idx_scan": 0,
+        "n_tup_ins": 0,
+        "n_tup_upd": 0,
+        "n_tup_del": 0,
+        "n_tup_hot_upd": 0,
+        "last_autovacuum": null,
+        "last_autoanalyze": null,
+        "autovacuum_count": 0
+      },
+      "users": {
+        "rows": 0,
+        "total_bytes": 16384,
+        "heap_bytes": 0,
+        "index_bytes": 16384,
+        "toast_bytes": 0,
+        "n_live_tup": 0,
+        "n_dead_tup": 0,
+        "seq_scan": 134,
+        "seq_tup_read": 0,
+        "idx_scan": 0,
+        "n_tup_ins": 0,
+        "n_tup_upd": 0,
+        "n_tup_del": 0,
+        "n_tup_hot_upd": 0,
+        "last_autovacuum": null,
+        "last_autoanalyze": null,
+        "autovacuum_count": 0
+      },
+      "watchlist": {
+        "rows": 0,
+        "total_bytes": 8192,
+        "heap_bytes": 0,
+        "index_bytes": 8192,
+        "toast_bytes": 0,
+        "n_live_tup": 0,
+        "n_dead_tup": 0,
+        "seq_scan": 459,
+        "seq_tup_read": 0,
+        "idx_scan": 0,
+        "n_tup_ins": 0,
+        "n_tup_upd": 0,
+        "n_tup_del": 0,
+        "n_tup_hot_upd": 0,
+        "last_autovacuum": null,
+        "last_autoanalyze": null,
+        "autovacuum_count": 0
+      }
+    },
+    "indexes": [
+      {
+        "table": "agent_decisions",
+        "index": "agent_decisions_pkey",
+        "bytes": 16384,
+        "idx_scan": 87,
+        "idx_tup_read": 3750,
+        "indexdef": "CREATE UNIQUE INDEX agent_decisions_pkey ON public.agent_decisions USING btree (id)"
+      },
+      {
+        "table": "agent_decisions",
+        "index": "ix_agent_decisions_run_id",
+        "bytes": 16384,
+        "idx_scan": 135,
+        "idx_tup_read": 802,
+        "indexdef": "CREATE INDEX ix_agent_decisions_run_id ON public.agent_decisions USING btree (run_id)"
+      },
+      {
+        "table": "agent_decisions",
+        "index": "ix_agent_decisions_symbol",
+        "bytes": 16384,
+        "idx_scan": 4,
+        "idx_tup_read": 120,
+        "indexdef": "CREATE INDEX ix_agent_decisions_symbol ON public.agent_decisions USING btree (symbol)"
+      },
+      {
+        "table": "agent_runs",
+        "index": "agent_runs_pkey",
+        "bytes": 16384,
+        "idx_scan": 425,
+        "idx_tup_read": 851,
+        "indexdef": "CREATE UNIQUE INDEX agent_runs_pkey ON public.agent_runs USING btree (id)"
+      },
+      {
+        "table": "alembic_version",
+        "index": "alembic_version_pkc",
+        "bytes": 16384,
+        "idx_scan": 2,
+        "idx_tup_read": 2,
+        "indexdef": "CREATE UNIQUE INDEX alembic_version_pkc ON public.alembic_version USING btree (version_num)"
+      },
+      {
+        "table": "api_cache",
+        "index": "api_cache_pkey",
+        "bytes": 32768,
+        "idx_scan": 15,
+        "idx_tup_read": 3,
+        "indexdef": "CREATE UNIQUE INDEX api_cache_pkey ON public.api_cache USING btree (key)"
+      },
+      {
+        "table": "app_settings",
+        "index": "app_settings_pkey",
+        "bytes": 16384,
+        "idx_scan": 0,
+        "idx_tup_read": 0,
+        "indexdef": "CREATE UNIQUE INDEX app_settings_pkey ON public.app_settings USING btree (key)"
+      },
+      {
+        "table": "audit_events",
+        "index": "audit_events_pkey",
+        "bytes": 32768,
+        "idx_scan": 1,
+        "idx_tup_read": 42,
+        "indexdef": "CREATE UNIQUE INDEX audit_events_pkey ON public.audit_events USING btree (id)"
+      },
+      {
+        "table": "audit_events",
+        "index": "ix_audit_events_symbol",
+        "bytes": 16384,
+        "idx_scan": 0,
+        "idx_tup_read": 0,
+        "indexdef": "CREATE INDEX ix_audit_events_symbol ON public.audit_events USING btree (symbol)"
+      },
+      {
+        "table": "audit_events",
+        "index": "ix_audit_events_ts",
+        "bytes": 32768,
+        "idx_scan": 5,
+        "idx_tup_read": 37,
+        "indexdef": "CREATE INDEX ix_audit_events_ts ON public.audit_events USING btree (ts)"
+      },
+      {
+        "table": "audit_events",
+        "index": "ix_audit_events_type",
+        "bytes": 16384,
+        "idx_scan": 2,
+        "idx_tup_read": 11,
+        "indexdef": "CREATE INDEX ix_audit_events_type ON public.audit_events USING btree (type)"
+      },
+      {
+        "table": "chat_messages",
+        "index": "chat_messages_pkey",
+        "bytes": 65536,
+        "idx_scan": 215,
+        "idx_tup_read": 98326,
+        "indexdef": "CREATE UNIQUE INDEX chat_messages_pkey ON public.chat_messages USING btree (id)"
+      },
+      {
+        "table": "chat_messages",
+        "index": "ix_chat_messages_run_id",
+        "bytes": 32768,
+        "idx_scan": 0,
+        "idx_tup_read": 0,
+        "indexdef": "CREATE INDEX ix_chat_messages_run_id ON public.chat_messages USING btree (run_id)"
+      },
+      {
+        "table": "chat_messages",
+        "index": "ix_chat_messages_ts",
+        "bytes": 65536,
+        "idx_scan": 36,
+        "idx_tup_read": 3021,
+        "indexdef": "CREATE INDEX ix_chat_messages_ts ON public.chat_messages USING btree (ts)"
+      },
+      {
+        "table": "corp_codes",
+        "index": "corp_codes_pkey",
+        "bytes": 229376,
+        "idx_scan": 33,
+        "idx_tup_read": 33,
+        "indexdef": "CREATE UNIQUE INDEX corp_codes_pkey ON public.corp_codes USING btree (stock_code)"
+      },
+      {
+        "table": "daily_prices",
+        "index": "daily_prices_pkey",
+        "bytes": 122880,
+        "idx_scan": 410,
+        "idx_tup_read": 411,
+        "indexdef": "CREATE UNIQUE INDEX daily_prices_pkey ON public.daily_prices USING btree (id)"
+      },
+      {
+        "table": "daily_prices",
+        "index": "ix_daily_prices_day",
+        "bytes": 57344,
+        "idx_scan": 2523,
+        "idx_tup_read": 2561,
+        "indexdef": "CREATE INDEX ix_daily_prices_day ON public.daily_prices USING btree (day)"
+      },
+      {
+        "table": "daily_prices",
+        "index": "ix_daily_prices_symbol",
+        "bytes": 73728,
+        "idx_scan": 348,
+        "idx_tup_read": 56229,
+        "indexdef": "CREATE INDEX ix_daily_prices_symbol ON public.daily_prices USING btree (symbol)"
+      },
+      {
+        "table": "daily_prices",
+        "index": "uq_daily_price",
+        "bytes": 229376,
+        "idx_scan": 12739,
+        "idx_tup_read": 52441,
+        "indexdef": "CREATE UNIQUE INDEX uq_daily_price ON public.daily_prices USING btree (symbol, day)"
+      },
+      {
+        "table": "daily_reports",
+        "index": "daily_reports_pkey",
+        "bytes": 16384,
+        "idx_scan": 35,
+        "idx_tup_read": 112,
+        "indexdef": "CREATE UNIQUE INDEX daily_reports_pkey ON public.daily_reports USING btree (day)"
+      },
+      {
+        "table": "equity_snapshots",
+        "index": "equity_snapshots_pkey",
+        "bytes": 32768,
+        "idx_scan": 90,
+        "idx_tup_read": 43294,
+        "indexdef": "CREATE UNIQUE INDEX equity_snapshots_pkey ON public.equity_snapshots USING btree (id)"
+      },
+      {
+        "table": "equity_snapshots",
+        "index": "ix_equity_snapshots_ts",
+        "bytes": 32768,
+        "idx_scan": 99,
+        "idx_tup_read": 99,
+        "indexdef": "CREATE INDEX ix_equity_snapshots_ts ON public.equity_snapshots USING btree (ts)"
+      },
+      {
+        "table": "fills",
+        "index": "fills_pkey",
+        "bytes": 16384,
+        "idx_scan": 1,
+        "idx_tup_read": 2,
+        "indexdef": "CREATE UNIQUE INDEX fills_pkey ON public.fills USING btree (id)"
+      },
+      {
+        "table": "fills",
+        "index": "ix_fills_order_id",
+        "bytes": 16384,
+        "idx_scan": 0,
+        "idx_tup_read": 0,
+        "indexdef": "CREATE INDEX ix_fills_order_id ON public.fills USING btree (order_id)"
+      },
+      {
+        "table": "llm_usage",
+        "index": "ix_llm_usage_run_id",
+        "bytes": 16384,
+        "idx_scan": 0,
+        "idx_tup_read": 0,
+        "indexdef": "CREATE INDEX ix_llm_usage_run_id ON public.llm_usage USING btree (run_id)"
+      },
+      {
+        "table": "llm_usage",
+        "index": "ix_llm_usage_ts",
+        "bytes": 16384,
+        "idx_scan": 36,
+        "idx_tup_read": 36,
+        "indexdef": "CREATE INDEX ix_llm_usage_ts ON public.llm_usage USING btree (ts)"
+      },
+      {
+        "table": "llm_usage",
+        "index": "llm_usage_pkey",
+        "bytes": 16384,
+        "idx_scan": 0,
+        "idx_tup_read": 0,
+        "indexdef": "CREATE UNIQUE INDEX llm_usage_pkey ON public.llm_usage USING btree (id)"
+      },
+      {
+        "table": "memory_cards",
+        "index": "memory_cards_pkey",
+        "bytes": 8192,
+        "idx_scan": 0,
+        "idx_tup_read": 0,
+        "indexdef": "CREATE UNIQUE INDEX memory_cards_pkey ON public.memory_cards USING btree (id)"
+      },
+      {
+        "table": "orders",
+        "index": "ix_orders_client_order_id",
+        "bytes": 16384,
+        "idx_scan": 0,
+        "idx_tup_read": 0,
+        "indexdef": "CREATE UNIQUE INDEX ix_orders_client_order_id ON public.orders USING btree (client_order_id)"
+      },
+      {
+        "table": "orders",
+        "index": "ix_orders_status",
+        "bytes": 16384,
+        "idx_scan": 0,
+        "idx_tup_read": 0,
+        "indexdef": "CREATE INDEX ix_orders_status ON public.orders USING btree (status)"
+      },
+      {
+        "table": "orders",
+        "index": "ix_orders_symbol",
+        "bytes": 16384,
+        "idx_scan": 0,
+        "idx_tup_read": 0,
+        "indexdef": "CREATE INDEX ix_orders_symbol ON public.orders USING btree (symbol)"
+      },
+      {
+        "table": "orders",
+        "index": "orders_pkey",
+        "bytes": 16384,
+        "idx_scan": 0,
+        "idx_tup_read": 0,
+        "indexdef": "CREATE UNIQUE INDEX orders_pkey ON public.orders USING btree (id)"
+      },
+      {
+        "table": "paper_account",
+        "index": "paper_account_pkey",
+        "bytes": 16384,
+        "idx_scan": 26,
+        "idx_tup_read": 26,
+        "indexdef": "CREATE UNIQUE INDEX paper_account_pkey ON public.paper_account USING btree (id)"
+      },
+      {
+        "table": "strategies",
+        "index": "strategies_name_key",
+        "bytes": 16384,
+        "idx_scan": 0,
+        "idx_tup_read": 0,
+        "indexdef": "CREATE UNIQUE INDEX strategies_name_key ON public.strategies USING btree (name)"
+      },
+      {
+        "table": "strategies",
+        "index": "strategies_pkey",
+        "bytes": 16384,
+        "idx_scan": 0,
+        "idx_tup_read": 0,
+        "indexdef": "CREATE UNIQUE INDEX strategies_pkey ON public.strategies USING btree (id)"
+      },
+      {
+        "table": "users",
+        "index": "users_pkey",
+        "bytes": 8192,
+        "idx_scan": 0,
+        "idx_tup_read": 0,
+        "indexdef": "CREATE UNIQUE INDEX users_pkey ON public.users USING btree (id)"
+      },
+      {
+        "table": "users",
+        "index": "users_username_key",
+        "bytes": 8192,
+        "idx_scan": 0,
+        "idx_tup_read": 0,
+        "indexdef": "CREATE UNIQUE INDEX users_username_key ON public.users USING btree (username)"
+      },
+      {
+        "table": "watchlist",
+        "index": "watchlist_pkey",
+        "bytes": 8192,
+        "idx_scan": 0,
+        "idx_tup_read": 0,
+        "indexdef": "CREATE UNIQUE INDEX watchlist_pkey ON public.watchlist USING btree (symbol)"
+      }
+    ],
+    "redundant_indexes": [
+      {
+        "table": "daily_prices",
+        "index": "ix_daily_prices_symbol",
+        "covered_by": "uq_daily_price"
+      }
+    ],
+    "column_sizes": {
+      "api_cache.payload": {
+        "type": "json",
+        "n": 198,
+        "avg_len": 49023,
+        "max_len": 229895,
+        "sum_len": 9706639,
+        "avg_stored": 5182,
+        "p95_len": 189636
+      },
+      "chat_messages.payload": {
+        "type": "json",
+        "n": 2172,
+        "avg_len": 427,
+        "max_len": 32177,
+        "sum_len": 928057,
+        "avg_stored": 403,
+        "p95_len": 1511
+      },
+      "audit_events.payload": {
+        "type": "json",
+        "n": 536,
+        "avg_len": 964,
+        "max_len": 12215,
+        "sum_len": 516487,
+        "avg_stored": 399,
+        "p95_len": 10794
+      },
+      "agent_decisions.evidence": {
+        "type": "json",
+        "n": 336,
+        "avg_len": 414,
+        "max_len": 1285,
+        "sum_len": 138954,
+        "avg_stored": 415,
+        "p95_len": 785
+      },
+      "chat_messages.content": {
+        "type": "text",
+        "n": 2172,
+        "avg_len": 42,
+        "max_len": 627,
+        "sum_len": 91576,
+        "avg_stored": 94,
+        "p95_len": 151
+      },
+      "agent_decisions.rationale": {
+        "type": "text",
+        "n": 336,
+        "avg_len": 190,
+        "max_len": 451,
+        "sum_len": 63934,
+        "avg_stored": 398,
+        "p95_len": 288
+      },
+      "daily_reports.payload": {
+        "type": "json",
+        "n": 3,
+        "avg_len": 17008,
+        "max_len": 32165,
+        "sum_len": 51025,
+        "avg_stored": 5025,
+        "p95_len": 32165
+      },
+      "agent_runs.summary": {
+        "type": "text",
+        "n": 51,
+        "avg_len": 341,
+        "max_len": 612,
+        "sum_len": 17380,
+        "avg_stored": 698,
+        "p95_len": 569
+      },
+      "audit_events.message": {
+        "type": "text",
+        "n": 536,
+        "avg_len": 20,
+        "max_len": 133,
+        "sum_len": 10682,
+        "avg_stored": 33,
+        "p95_len": 70
+      },
+      "agent_runs.market_view": {
+        "type": "text",
+        "n": 51,
+        "avg_len": 185,
+        "max_len": 305,
+        "sum_len": 9428,
+        "avg_stored": 388,
+        "p95_len": 295
+      },
+      "paper_account.state": {
+        "type": "json",
+        "n": 1,
+        "avg_len": 8126,
+        "max_len": 8126,
+        "sum_len": 8126,
+        "avg_stored": 2489,
+        "p95_len": 8126
+      },
+      "agent_runs.usage": {
+        "type": "json",
+        "n": 51,
+        "avg_len": 68,
+        "max_len": 123,
+        "sum_len": 3468,
+        "avg_stored": 69,
+        "p95_len": 77
+      },
+      "app_settings.value": {
+        "type": "json",
+        "n": 10,
+        "avg_len": 133,
+        "max_len": 573,
+        "sum_len": 1327,
+        "avg_stored": 135,
+        "p95_len": 573
+      },
+      "agent_runs.error": {
+        "type": "text",
+        "n": 51,
+        "avg_len": 102,
+        "max_len": 215,
+        "sum_len": 406,
+        "avg_stored": 103,
+        "p95_len": 215
+      },
+      "strategies.params": {
+        "type": "json",
+        "n": 2,
+        "avg_len": 32,
+        "max_len": 40,
+        "sum_len": 64,
+        "avg_stored": 33,
+        "p95_len": 40
+      },
+      "strategies.symbols": {
+        "type": "json",
+        "n": 2,
+        "avg_len": 2,
+        "max_len": 2,
+        "sum_len": 4,
+        "avg_stored": 3,
+        "p95_len": 2
+      },
+      "memory_cards.text": {
+        "type": "text",
+        "n": 0,
+        "avg_len": null,
+        "max_len": null,
+        "sum_len": null,
+        "avg_stored": null,
+        "p95_len": null
+      }
+    },
+    "breakdowns": {
+      "audit_events_by_type": [
+        {
+          "type": "SIGNAL",
+          "n": 336,
+          "avg_payload": 34,
+          "max_payload": 34,
+          "avg_message": 17
+        },
+        {
+          "type": "AGENT_RUN",
+          "n": 49,
+          "avg_payload": 117,
+          "max_payload": 169,
+          "avg_message": 11
+        },
+        {
+          "type": "AGENT_PAYLOAD",
+          "n": 44,
+          "avg_payload": 10495,
+          "max_payload": 12215,
+          "avg_message": 8
+        },
+        {
+          "type": "SYSTEM",
+          "n": 26,
+          "avg_payload": 2,
+          "max_payload": 2,
+          "avg_message": 93
+        },
+        {
+          "type": "ORDER",
+          "n": 19,
+          "avg_payload": 635,
+          "max_payload": 884,
+          "avg_message": 13
+        },
+        {
+          "type": "FILL",
+          "n": 19,
+          "avg_payload": 51,
+          "max_payload": 52,
+          "avg_message": 20
+        },
+        {
+          "type": "FILLED",
+          "n": 19,
+          "avg_payload": 1077,
+          "max_payload": 1324,
+          "avg_message": 16
+        },
+        {
+          "type": "CONFIG",
+          "n": 9,
+          "avg_payload": 79,
+          "max_payload": 239,
+          "avg_message": 41
+        },
+        {
+          "type": "RISK_BLOCK",
+          "n": 5,
+          "avg_payload": 87,
+          "max_payload": 89,
+          "avg_message": 34
+        },
+        {
+          "type": "REPORT",
+          "n": 3,
+          "avg_payload": 2,
+          "max_payload": 2,
+          "avg_message": 20
+        },
+        {
+          "type": "SUBMITTED",
+          "n": 3,
+          "avg_payload": 954,
+          "max_payload": 1219,
+          "avg_message": 19
+        },
+        {
+          "type": "ERROR",
+          "n": 1,
+          "avg_payload": 2,
+          "max_payload": 2,
+          "avg_message": 70
+        },
+        {
+          "type": "ENGINE",
+          "n": 1,
+          "avg_payload": 2,
+          "max_payload": 2,
+          "avg_message": 24
+        },
+        {
+          "type": "KILL_SWITCH",
+          "n": 1,
+          "avg_payload": 15,
+          "max_payload": 15,
+          "avg_message": 18
+        },
+        {
+          "type": "ACCOUNT_RESET",
+          "n": 1,
+          "avg_payload": 2,
+          "max_payload": 2,
+          "avg_message": 31
+        }
+      ],
+      "chat_messages_by_role_kind": [
+        {
+          "role": "analyst",
+          "kind": "tool",
+          "n": 1199,
+          "avg_payload": 337,
+          "max_payload": 970,
+          "avg_content": 19
+        },
+        {
+          "role": "analyst",
+          "kind": "text",
+          "n": 457,
+          "avg_payload": 3,
+          "max_payload": 41,
+          "avg_content": 89
+        },
+        {
+          "role": "analyst",
+          "kind": "decision",
+          "n": 336,
+          "avg_payload": 1320,
+          "max_payload": 3052,
+          "avg_content": 10
+        },
+        {
+          "role": "system",
+          "kind": "text",
+          "n": 84,
+          "avg_payload": 14,
+          "max_payload": 22,
+          "avg_content": 53
+        },
+        {
+          "role": "analyst",
+          "kind": "summary",
+          "n": 44,
+          "avg_payload": 44,
+          "max_payload": 45,
+          "avg_content": 395
+        },
+        {
+          "role": "broker",
+          "kind": "fill",
+          "n": 19,
+          "avg_payload": 1170,
+          "max_payload": 1419,
+          "avg_content": 51
+        },
+        {
+          "role": "user",
+          "kind": "text",
+          "n": 14,
+          "avg_payload": 2,
+          "max_payload": 2,
+          "avg_content": 20
+        },
+        {
+          "role": "risk",
+          "kind": "text",
+          "n": 8,
+          "avg_payload": 20,
+          "max_payload": 20,
+          "avg_content": 48
+        },
+        {
+          "role": "risk",
+          "kind": "block",
+          "n": 5,
+          "avg_payload": 44,
+          "max_payload": 44,
+          "avg_content": 66
+        },
+        {
+          "role": "system",
+          "kind": "summary",
+          "n": 3,
+          "avg_payload": 17020,
+          "max_payload": 32177,
+          "avg_content": 76
+        },
+        {
+          "role": "broker",
+          "kind": "text",
+          "n": 3,
+          "avg_payload": 974,
+          "max_payload": 1239,
+          "avg_content": 54
+        }
+      ],
+      "api_cache_by_prefix": [
+        {
+          "prefix": "dart",
+          "n": 198,
+          "avg_payload": 49023,
+          "max_payload": 229895,
+          "oldest": "2026-11-02T04:28:30.322729+00:00",
+          "newest": "2026-11-04T12:45:54.455585+00:00"
+        }
+      ],
+      "app_settings_value_sizes": [
+        {
+          "key": "push",
+          "bytes": 573,
+          "updated_at": "2026-11-04T12:31:10.430333+00:00"
+        },
+        {
+          "key": "toss_health",
+          "bytes": 262,
+          "updated_at": "2026-11-02T04:02:53.552409+00:00"
+        },
+        {
+          "key": "risk",
+          "bytes": 229,
+          "updated_at": "2026-11-02T04:28:16.649287+00:00"
+        },
+        {
+          "key": "engine",
+          "bytes": 77,
+          "updated_at": "2026-11-04T12:41:09.903863+00:00"
+        },
+        {
+          "key": "account_source",
+          "bytes": 76,
+          "updated_at": "2026-11-02T04:21:22.426177+00:00"
+        },
+        {
+          "key": "sod",
+          "bytes": 43,
+          "updated_at": "2026-11-03T21:19:53.308167+00:00"
+        },
+        {
+          "key": "llm_paid_model",
+          "bytes": 26,
+          "updated_at": "2026-11-04T12:43:06.360985+00:00"
+        },
+        {
+          "key": "boot_notice",
+          "bytes": 21,
+          "updated_at": "2026-11-03T23:41:47.631235+00:00"
+        },
+        {
+          "key": "llm_profile",
+          "bytes": 18,
+          "updated_at": "2026-11-04T14:02:27.163786+00:00"
+        },
+        {
+          "key": "sim_clock",
+          "bytes": 2,
+          "updated_at": "2026-11-02T04:02:53.330234+00:00"
+        }
+      ],
+      "paper_account_state": [
+        {
+          "id": 1,
+          "bytes": 8126,
+          "orders": 19,
+          "client_ids": 19,
+          "positions": 5
+        }
+      ],
+      "agent_runs_usage": [
+        {
+          "n": 51,
+          "avg_usage": 68,
+          "max_usage": 123
+        }
+      ],
+      "time_ranges": [
+        {
+          "tbl": "chat_messages",
+          "oldest": "2026-11-02T04:02:53.331908+00:00",
+          "newest": "2026-11-04T14:02:27.167098+00:00"
+        },
+        {
+          "tbl": "audit_events",
+          "oldest": "2026-11-02T04:02:53.330508+00:00",
+          "newest": "2026-11-04T14:02:27.165401+00:00"
+        },
+        {
+          "tbl": "equity_snapshots",
+          "oldest": "2026-11-02T04:02:53.558926+00:00",
+          "newest": "2026-11-04T14:02:26.439966+00:00"
+        },
+        {
+          "tbl": "agent_runs",
+          "oldest": "2026-11-02T04:06:32.677017+00:00",
+          "newest": "2026-11-04T14:02:04.921265+00:00"
+        },
+        {
+          "tbl": "daily_prices",
+          "oldest": "2026-02-09T00:00:00+00:00",
+          "newest": "2026-11-04T00:00:00+00:00"
+        },
+        {
+          "tbl": "llm_usage",
+          "oldest": "2026-11-02T04:06:32.677017+00:00",
+          "newest": "2026-11-04T12:46:22.362147+00:00"
+        }
+      ],
+      "daily_prices_symbols": [
+        {
+          "symbols": 40,
+          "rows": 4523,
+          "rows_per_symbol": 113
+        }
+      ],
+      "equity_snapshots_per_kst_day": [
+        {
+          "day": "2026-11-02",
+          "n": 110,
+          "outside_kr_session": 65
+        },
+        {
+          "day": "2026-11-03",
+          "n": 212,
+          "outside_kr_session": 103
+        },
+        {
+          "day": "2026-11-04",
+          "n": 195,
+          "outside_kr_session": 110
+        }
+      ],
+      "chat_messages_per_kst_day": [
+        {
+          "day": "2026-11-02",
+          "n": 812
+        },
+        {
+          "day": "2026-11-03",
+          "n": 1093
+        },
+        {
+          "day": "2026-11-04",
+          "n": 267
+        }
+      ],
+      "account_since": [
+        {
+          "since": "2026-11-02T04:02:53.330508+00:00",
+          "source": "toss"
+        }
+      ]
+    },
+    "filter_columns": [
+      {
+        "table": "orders",
+        "column": "created_at",
+        "used_in": "routes.py:253 orders since-filter; reports/daily.py:26 day range",
+        "indexed": false,
+        "rows": 19
+      },
+      {
+        "table": "orders",
+        "column": "status",
+        "used_in": "routes.py:249, engine.py:166, orders.py:115/123/370",
+        "indexed": true,
+        "rows": 19
+      },
+      {
+        "table": "orders",
+        "column": "symbol",
+        "used_in": "orders.py:123 last_order_times",
+        "indexed": true,
+        "rows": 19
+      },
+      {
+        "table": "orders",
+        "column": "run_id",
+        "used_in": "container.py:198 purge_legacy; trades.py join",
+        "indexed": false,
+        "rows": 19
+      },
+      {
+        "table": "orders",
+        "column": "broker_order_id",
+        "used_in": "orders.py:330/341 live order sync",
+        "indexed": false,
+        "rows": 19
+      },
+      {
+        "table": "fills",
+        "column": "filled_at",
+        "used_in": "routes.py:270 since-filter; trades.py:40 ledger; reports/daily.py:24",
+        "indexed": false,
+        "rows": 19
+      },
+      {
+        "table": "fills",
+        "column": "symbol",
+        "used_in": "routes.py:1300 candles markers",
+        "indexed": false,
+        "rows": 19
+      },
+      {
+        "table": "fills",
+        "column": "order_id",
+        "used_in": "orders.py:230; trades.py:38 join",
+        "indexed": true,
+        "rows": 19
+      },
+      {
+        "table": "agent_runs",
+        "column": "started_at",
+        "used_in": "routes.py:434/1529 since-filter; runner.py:290; reports/daily.py:36",
+        "indexed": false,
+        "rows": 51
+      },
+      {
+        "table": "agent_runs",
+        "column": "status",
+        "used_in": "runner.py:288 memory_snapshot status='DONE'",
+        "indexed": false,
+        "rows": 51
+      },
+      {
+        "table": "agent_decisions",
+        "column": "run_id",
+        "used_in": "routes.py:445; runner.py:297; reports/daily.py:39",
+        "indexed": true,
+        "rows": 336
+      },
+      {
+        "table": "agent_decisions",
+        "column": "symbol",
+        "used_in": "routes.py:462/1303",
+        "indexed": true,
+        "rows": 336
+      },
+      {
+        "table": "agent_decisions",
+        "column": "created_at",
+        "used_in": "routes.py:464 since-filter",
+        "indexed": false,
+        "rows": 336
+      },
+      {
+        "table": "agent_decisions",
+        "column": "order_id",
+        "used_in": "container.py:203 purge_legacy",
+        "indexed": false,
+        "rows": 336
+      },
+      {
+        "table": "chat_messages",
+        "column": "run_id",
+        "used_in": "routes.py:447 run detail",
+        "indexed": true,
+        "rows": 2172
+      },
+      {
+        "table": "chat_messages",
+        "column": "role",
+        "used_in": "runner.py:309/697 role filters (USER/ANALYST)",
+        "indexed": false,
+        "rows": 2172
+      },
+      {
+        "table": "chat_messages",
+        "column": "ts",
+        "used_in": "runner.py:696/716 today's chat",
+        "indexed": true,
+        "rows": 2172
+      },
+      {
+        "table": "audit_events",
+        "column": "type",
+        "used_in": "routes.py:927; reports/daily.py:31",
+        "indexed": true,
+        "rows": 536
+      },
+      {
+        "table": "audit_events",
+        "column": "ts",
+        "used_in": "reports/daily.py:31; purge_legacy",
+        "indexed": true,
+        "rows": 536
+      },
+      {
+        "table": "equity_snapshots",
+        "column": "ts",
+        "used_in": "routes.py:235 since-filter",
+        "indexed": true,
+        "rows": 517
+      },
+      {
+        "table": "llm_usage",
+        "column": "ts",
+        "used_in": "costs.py:209 months window",
+        "indexed": true,
+        "rows": 68
+      },
+      {
+        "table": "daily_prices",
+        "column": "symbol",
+        "used_in": "store.py:109 history/last_bar/name_of",
+        "indexed": true,
+        "rows": 4523
+      },
+      {
+        "table": "daily_prices",
+        "column": "day",
+        "used_in": "store.py:77/129 sync_day/snapshot",
+        "indexed": true,
+        "rows": 4523
+      },
+      {
+        "table": "memory_cards",
+        "column": "kind",
+        "used_in": "routes.py:1120 duplicate check",
+        "indexed": false,
+        "rows": 0
+      },
+      {
+        "table": "memory_cards",
+        "column": "symbol",
+        "used_in": "routes.py:1120 duplicate check",
+        "indexed": false,
+        "rows": 0
+      },
+      {
+        "table": "api_cache",
+        "column": "fetched_at",
+        "used_in": "(no filter in code; TTL checked in Python)",
+        "indexed": false,
+        "rows": 198
+      }
+    ],
+    "missing_indexes": [
+      {
+        "table": "orders",
+        "column": "created_at",
+        "used_in": "routes.py:253 orders since-filter; reports/daily.py:26 day range",
+        "indexed": false,
+        "rows": 19
+      },
+      {
+        "table": "orders",
+        "column": "run_id",
+        "used_in": "container.py:198 purge_legacy; trades.py join",
+        "indexed": false,
+        "rows": 19
+      },
+      {
+        "table": "orders",
+        "column": "broker_order_id",
+        "used_in": "orders.py:330/341 live order sync",
+        "indexed": false,
+        "rows": 19
+      },
+      {
+        "table": "fills",
+        "column": "filled_at",
+        "used_in": "routes.py:270 since-filter; trades.py:40 ledger; reports/daily.py:24",
+        "indexed": false,
+        "rows": 19
+      },
+      {
+        "table": "fills",
+        "column": "symbol",
+        "used_in": "routes.py:1300 candles markers",
+        "indexed": false,
+        "rows": 19
+      },
+      {
+        "table": "agent_runs",
+        "column": "started_at",
+        "used_in": "routes.py:434/1529 since-filter; runner.py:290; reports/daily.py:36",
+        "indexed": false,
+        "rows": 51
+      },
+      {
+        "table": "agent_runs",
+        "column": "status",
+        "used_in": "runner.py:288 memory_snapshot status='DONE'",
+        "indexed": false,
+        "rows": 51
+      },
+      {
+        "table": "agent_decisions",
+        "column": "created_at",
+        "used_in": "routes.py:464 since-filter",
+        "indexed": false,
+        "rows": 336
+      },
+      {
+        "table": "agent_decisions",
+        "column": "order_id",
+        "used_in": "container.py:203 purge_legacy",
+        "indexed": false,
+        "rows": 336
+      },
+      {
+        "table": "chat_messages",
+        "column": "role",
+        "used_in": "runner.py:309/697 role filters (USER/ANALYST)",
+        "indexed": false,
+        "rows": 2172
+      },
+      {
+        "table": "memory_cards",
+        "column": "kind",
+        "used_in": "routes.py:1120 duplicate check",
+        "indexed": false,
+        "rows": 0
+      },
+      {
+        "table": "memory_cards",
+        "column": "symbol",
+        "used_in": "routes.py:1120 duplicate check",
+        "indexed": false,
+        "rows": 0
+      },
+      {
+        "table": "api_cache",
+        "column": "fetched_at",
+        "used_in": "(no filter in code; TTL checked in Python)",
+        "indexed": false,
+        "rows": 198
+      }
+    ],
+    "explain": {
+      "chat_latest_200": {
+        "execution_ms": 0.168,
+        "planning_ms": 0.475,
+        "rows": 200,
+        "shared_hit": 139,
+        "shared_read": 0,
+        "nodes": [
+          "Limit",
+          "Index Scan on chat_messages using chat_messages_pkey"
+        ]
+      },
+      "events_latest_200": {
+        "execution_ms": 0.241,
+        "planning_ms": 0.403,
+        "rows": 200,
+        "shared_hit": 19,
+        "shared_read": 0,
+        "nodes": [
+          "Limit",
+          "Sort",
+          "Seq Scan on audit_events"
+        ]
+      },
+      "orders_since_300": {
+        "execution_ms": 0.077,
+        "planning_ms": 0.506,
+        "rows": 19,
+        "shared_hit": 5,
+        "shared_read": 0,
+        "nodes": [
+          "Limit",
+          "Sort",
+          "Seq Scan on orders"
+        ]
+      },
+      "fills_since_200": {
+        "execution_ms": 0.061,
+        "planning_ms": 0.295,
+        "rows": 19,
+        "shared_hit": 4,
+        "shared_read": 0,
+        "nodes": [
+          "Limit",
+          "Sort",
+          "Seq Scan on fills"
+        ]
+      },
+      "equity_since_1000": {
+        "execution_ms": 0.184,
+        "planning_ms": 0.393,
+        "rows": 517,
+        "shared_hit": 51,
+        "shared_read": 0,
+        "nodes": [
+          "Limit",
+          "Index Scan on equity_snapshots using equity_snapshots_pkey"
+        ]
+      },
+      "runs_since_20": {
+        "execution_ms": 0.14,
+        "planning_ms": 0.476,
+        "rows": 20,
+        "shared_hit": 16,
+        "shared_read": 0,
+        "nodes": [
+          "Limit",
+          "Sort",
+          "Seq Scan on agent_runs"
+        ]
+      },
+      "memory_runs_done_3": {
+        "execution_ms": 0.033,
+        "planning_ms": 0.458,
+        "rows": 3,
+        "shared_hit": 3,
+        "shared_read": 0,
+        "nodes": [
+          "Limit",
+          "Index Scan on agent_runs using agent_runs_pkey"
+        ]
+      },
+      "memory_user_msgs_5": {
+        "execution_ms": 0.419,
+        "planning_ms": 0.488,
+        "rows": 5,
+        "shared_hit": 1255,
+        "shared_read": 0,
+        "nodes": [
+          "Limit",
+          "Index Scan on chat_messages using chat_messages_pkey"
+        ]
+      },
+      "last_order_times": {
+        "execution_ms": 0.031,
+        "planning_ms": 0.322,
+        "rows": 19,
+        "shared_hit": 2,
+        "shared_read": 0,
+        "nodes": [
+          "Seq Scan on orders"
+        ]
+      },
+      "trade_ledger_all": {
+        "execution_ms": 0.126,
+        "planning_ms": 0.669,
+        "rows": 19,
+        "shared_hit": 9,
+        "shared_read": 0,
+        "nodes": [
+          "Sort",
+          "Hash Join",
+          "Seq Scan on fills",
+          "Hash",
+          "Seq Scan on orders"
+        ]
+      },
+      "name_of_last_bar": {
+        "execution_ms": 0.06,
+        "planning_ms": 0.571,
+        "rows": 1,
+        "shared_hit": 4,
+        "shared_read": 0,
+        "nodes": [
+          "Limit",
+          "Limit",
+          "Seq Scan on daily_prices",
+          "Index Scan on daily_prices using uq_daily_price"
+        ]
+      },
+      "fills_by_symbol": {
+        "execution_ms": 0.041,
+        "planning_ms": 0.325,
+        "rows": 1,
+        "shared_hit": 2,
+        "shared_read": 0,
+        "nodes": [
+          "Seq Scan on fills",
+          "Limit",
+          "Seq Scan on fills"
+        ]
+      },
+      "llm_usage_12mo": {
+        "execution_ms": 0.032,
+        "planning_ms": 0.305,
+        "rows": 68,
+        "shared_hit": 2,
+        "shared_read": 0,
+        "nodes": [
+          "Seq Scan on llm_usage"
+        ]
+      }
+    },
+    "activity": {
+      "seconds": 60.3,
+      "server_state": {
+        "KR": {
+          "open_now": false,
+          "agent_running": false
+        },
+        "US": {
+          "open_now": false,
+          "agent_running": false
+        }
+      },
+      "per_minute": {
+        "xact_commit": 110.5,
+        "xact_rollback": 0.0,
+        "tup_returned": 3445.5,
+        "tup_fetched": 917.1,
+        "tup_inserted": 0.0,
+        "tup_updated": 0.0,
+        "tup_deleted": 0.0
+      },
+      "tables_per_minute": {
+        "daily_prices": {
+          "seq_scan": 0.0,
+          "idx_scan": 11.9,
+          "n_tup_ins": 0.0,
+          "n_tup_upd": 0.0
+        },
+        "app_settings": {
+          "seq_scan": 72.7,
+          "idx_scan": 0.0,
+          "n_tup_ins": 0.0,
+          "n_tup_upd": 0.0
+        }
+      }
+    }
+  },
+  "us_sqlite": {
+    "engine": "sqlite",
+    "file_bytes": {
+      "us_market.db-wal": 399672,
+      "us_market.db": 401408,
+      "us_market.db-shm": 32768
+    },
+    "page_size": 4096,
+    "page_count": 98,
+    "freelist_count": 0,
+    "journal_mode": "wal",
+    "dbstat_available": true,
+    "tables": {
+      "agent_decisions": {
+        "rows": 0,
+        "table_bytes": 4096,
+        "index_bytes": 8192
+      },
+      "agent_runs": {
+        "rows": 3,
+        "table_bytes": 4096,
+        "index_bytes": 0
+      },
+      "alembic_version": {
+        "rows": 1,
+        "table_bytes": 4096,
+        "index_bytes": 4096
+      },
+      "api_cache": {
+        "rows": 0,
+        "table_bytes": 4096,
+        "index_bytes": 4096
+      },
+      "app_settings": {
+        "rows": 6,
+        "table_bytes": 4096,
+        "index_bytes": 4096
+      },
+      "audit_events": {
+        "rows": 5,
+        "table_bytes": 4096,
+        "index_bytes": 12288
+      },
+      "chat_messages": {
+        "rows": 7,
+        "table_bytes": 4096,
+        "index_bytes": 8192
+      },
+      "corp_codes": {
+        "rows": 0,
+        "table_bytes": 4096,
+        "index_bytes": 4096
+      },
+      "daily_prices": {
+        "rows": 1251,
+        "table_bytes": 139264,
+        "index_bytes": 86016
+      },
+      "daily_reports": {
+        "rows": 0,
+        "table_bytes": 4096,
+        "index_bytes": 4096
+      },
+      "equity_snapshots": {
+        "rows": 10,
+        "table_bytes": 4096,
+        "index_bytes": 4096
+      },
+      "fills": {
+        "rows": 0,
+        "table_bytes": 4096,
+        "index_bytes": 4096
+      },
+      "llm_usage": {
+        "rows": 0,
+        "table_bytes": 4096,
+        "index_bytes": 8192
+      },
+      "memory_cards": {
+        "rows": 0,
+        "table_bytes": 4096,
+        "index_bytes": 0
+      },
+      "orders": {
+        "rows": 0,
+        "table_bytes": 4096,
+        "index_bytes": 12288
+      },
+      "paper_account": {
+        "rows": 1,
+        "table_bytes": 4096,
+        "index_bytes": 0
+      },
+      "strategies": {
+        "rows": 2,
+        "table_bytes": 4096,
+        "index_bytes": 4096
+      },
+      "users": {
+        "rows": 0,
+        "table_bytes": 4096,
+        "index_bytes": 4096
+      },
+      "watchlist": {
+        "rows": 9,
+        "table_bytes": 4096,
+        "index_bytes": 4096
+      }
+    },
+    "indexes": [
+      {
+        "table": "agent_decisions",
+        "index": "ix_agent_decisions_run_id",
+        "columns": [
+          "run_id"
+        ],
+        "bytes": 4096,
+        "auto": false
+      },
+      {
+        "table": "agent_decisions",
+        "index": "ix_agent_decisions_symbol",
+        "columns": [
+          "symbol"
+        ],
+        "bytes": 4096,
+        "auto": false
+      },
+      {
+        "table": "alembic_version",
+        "index": "sqlite_autoindex_alembic_version_1",
+        "columns": [
+          "version_num"
+        ],
+        "bytes": 4096,
+        "auto": true
+      },
+      {
+        "table": "api_cache",
+        "index": "sqlite_autoindex_api_cache_1",
+        "columns": [
+          "key"
+        ],
+        "bytes": 4096,
+        "auto": true
+      },
+      {
+        "table": "app_settings",
+        "index": "sqlite_autoindex_app_settings_1",
+        "columns": [
+          "key"
+        ],
+        "bytes": 4096,
+        "auto": true
+      },
+      {
+        "table": "audit_events",
+        "index": "ix_audit_events_symbol",
+        "columns": [
+          "symbol"
+        ],
+        "bytes": 4096,
+        "auto": false
+      },
+      {
+        "table": "audit_events",
+        "index": "ix_audit_events_ts",
+        "columns": [
+          "ts"
+        ],
+        "bytes": 4096,
+        "auto": false
+      },
+      {
+        "table": "audit_events",
+        "index": "ix_audit_events_type",
+        "columns": [
+          "type"
+        ],
+        "bytes": 4096,
+        "auto": false
+      },
+      {
+        "table": "chat_messages",
+        "index": "ix_chat_messages_run_id",
+        "columns": [
+          "run_id"
+        ],
+        "bytes": 4096,
+        "auto": false
+      },
+      {
+        "table": "chat_messages",
+        "index": "ix_chat_messages_ts",
+        "columns": [
+          "ts"
+        ],
+        "bytes": 4096,
+        "auto": false
+      },
+      {
+        "table": "corp_codes",
+        "index": "sqlite_autoindex_corp_codes_1",
+        "columns": [
+          "stock_code"
+        ],
+        "bytes": 4096,
+        "auto": true
+      },
+      {
+        "table": "daily_prices",
+        "index": "ix_daily_prices_day",
+        "columns": [
+          "day"
+        ],
+        "bytes": 28672,
+        "auto": false
+      },
+      {
+        "table": "daily_prices",
+        "index": "ix_daily_prices_symbol",
+        "columns": [
+          "symbol"
+        ],
+        "bytes": 20480,
+        "auto": false
+      },
+      {
+        "table": "daily_prices",
+        "index": "sqlite_autoindex_daily_prices_1",
+        "columns": [
+          "symbol",
+          "day"
+        ],
+        "bytes": 36864,
+        "auto": true
+      },
+      {
+        "table": "daily_reports",
+        "index": "sqlite_autoindex_daily_reports_1",
+        "columns": [
+          "day"
+        ],
+        "bytes": 4096,
+        "auto": true
+      },
+      {
+        "table": "equity_snapshots",
+        "index": "ix_equity_snapshots_ts",
+        "columns": [
+          "ts"
+        ],
+        "bytes": 4096,
+        "auto": false
+      },
+      {
+        "table": "fills",
+        "index": "ix_fills_order_id",
+        "columns": [
+          "order_id"
+        ],
+        "bytes": 4096,
+        "auto": false
+      },
+      {
+        "table": "llm_usage",
+        "index": "ix_llm_usage_run_id",
+        "columns": [
+          "run_id"
+        ],
+        "bytes": 4096,
+        "auto": false
+      },
+      {
+        "table": "llm_usage",
+        "index": "ix_llm_usage_ts",
+        "columns": [
+          "ts"
+        ],
+        "bytes": 4096,
+        "auto": false
+      },
+      {
+        "table": "orders",
+        "index": "ix_orders_client_order_id",
+        "columns": [
+          "client_order_id"
+        ],
+        "bytes": 4096,
+        "auto": false
+      },
+      {
+        "table": "orders",
+        "index": "ix_orders_status",
+        "columns": [
+          "status"
+        ],
+        "bytes": 4096,
+        "auto": false
+      },
+      {
+        "table": "orders",
+        "index": "ix_orders_symbol",
+        "columns": [
+          "symbol"
+        ],
+        "bytes": 4096,
+        "auto": false
+      },
+      {
+        "table": "strategies",
+        "index": "sqlite_autoindex_strategies_1",
+        "columns": [
+          "name"
+        ],
+        "bytes": 4096,
+        "auto": true
+      },
+      {
+        "table": "users",
+        "index": "sqlite_autoindex_users_1",
+        "columns": [
+          "username"
+        ],
+        "bytes": 4096,
+        "auto": true
+      },
+      {
+        "table": "watchlist",
+        "index": "sqlite_autoindex_watchlist_1",
+        "columns": [
+          "symbol"
+        ],
+        "bytes": 4096,
+        "auto": true
+      }
+    ],
+    "column_sizes": {
+      "chat_messages.content": {
+        "type": "TEXT",
+        "n": 7,
+        "avg_len": 91.0,
+        "max_len": 143,
+        "sum_len": 640
+      },
+      "app_settings.value": {
+        "type": "JSON",
+        "n": 6,
+        "avg_len": 71.0,
+        "max_len": 226,
+        "sum_len": 428
+      },
+      "audit_events.message": {
+        "type": "TEXT",
+        "n": 5,
+        "avg_len": 79.0,
+        "max_len": 179,
+        "sum_len": 394
+      },
+      "agent_runs.error": {
+        "type": "TEXT",
+        "n": 3,
+        "avg_len": 89.0,
+        "max_len": 89,
+        "sum_len": 267
+      },
+      "paper_account.state": {
+        "type": "JSON",
+        "n": 1,
+        "avg_len": 159.0,
+        "max_len": 159,
+        "sum_len": 159
+      },
+      "audit_events.payload": {
+        "type": "JSON",
+        "n": 5,
+        "avg_len": 29.0,
+        "max_len": 47,
+        "sum_len": 145
+      },
+      "chat_messages.payload": {
+        "type": "JSON",
+        "n": 7,
+        "avg_len": 10.0,
+        "max_len": 22,
+        "sum_len": 72
+      },
+      "strategies.params": {
+        "type": "JSON",
+        "n": 2,
+        "avg_len": 32.0,
+        "max_len": 40,
+        "sum_len": 64
+      },
+      "agent_runs.usage": {
+        "type": "JSON",
+        "n": 3,
+        "avg_len": 2.0,
+        "max_len": 2,
+        "sum_len": 6
+      },
+      "strategies.symbols": {
+        "type": "JSON",
+        "n": 2,
+        "avg_len": 2.0,
+        "max_len": 2,
+        "sum_len": 4
+      },
+      "agent_decisions.rationale": {
+        "type": "TEXT",
+        "n": 0,
+        "avg_len": null,
+        "max_len": null,
+        "sum_len": null
+      },
+      "agent_decisions.evidence": {
+        "type": "JSON",
+        "n": 0,
+        "avg_len": null,
+        "max_len": null,
+        "sum_len": null
+      },
+      "agent_runs.market_view": {
+        "type": "TEXT",
+        "n": 3,
+        "avg_len": 0.0,
+        "max_len": 0,
+        "sum_len": 0
+      },
+      "agent_runs.summary": {
+        "type": "TEXT",
+        "n": 3,
+        "avg_len": 0.0,
+        "max_len": 0,
+        "sum_len": 0
+      },
+      "api_cache.payload": {
+        "type": "JSON",
+        "n": 0,
+        "avg_len": null,
+        "max_len": null,
+        "sum_len": null
+      },
+      "daily_reports.payload": {
+        "type": "JSON",
+        "n": 0,
+        "avg_len": null,
+        "max_len": null,
+        "sum_len": null
+      },
+      "memory_cards.text": {
+        "type": "TEXT",
+        "n": 0,
+        "avg_len": null,
+        "max_len": null,
+        "sum_len": null
+      }
+    },
+    "filter_columns": [
+      {
+        "table": "orders",
+        "column": "created_at",
+        "used_in": "routes.py:253 orders since-filter; reports/daily.py:26 day range",
+        "indexed": false,
+        "rows": 0
+      },
+      {
+        "table": "orders",
+        "column": "status",
+        "used_in": "routes.py:249, engine.py:166, orders.py:115/123/370",
+        "indexed": true,
+        "rows": 0
+      },
+      {
+        "table": "orders",
+        "column": "symbol",
+        "used_in": "orders.py:123 last_order_times",
+        "indexed": true,
+        "rows": 0
+      },
+      {
+        "table": "orders",
+        "column": "run_id",
+        "used_in": "container.py:198 purge_legacy; trades.py join",
+        "indexed": false,
+        "rows": 0
+      },
+      {
+        "table": "orders",
+        "column": "broker_order_id",
+        "used_in": "orders.py:330/341 live order sync",
+        "indexed": false,
+        "rows": 0
+      },
+      {
+        "table": "fills",
+        "column": "filled_at",
+        "used_in": "routes.py:270 since-filter; trades.py:40 ledger; reports/daily.py:24",
+        "indexed": false,
+        "rows": 0
+      },
+      {
+        "table": "fills",
+        "column": "symbol",
+        "used_in": "routes.py:1300 candles markers",
+        "indexed": false,
+        "rows": 0
+      },
+      {
+        "table": "fills",
+        "column": "order_id",
+        "used_in": "orders.py:230; trades.py:38 join",
+        "indexed": true,
+        "rows": 0
+      },
+      {
+        "table": "agent_runs",
+        "column": "started_at",
+        "used_in": "routes.py:434/1529 since-filter; runner.py:290; reports/daily.py:36",
+        "indexed": false,
+        "rows": 3
+      },
+      {
+        "table": "agent_runs",
+        "column": "status",
+        "used_in": "runner.py:288 memory_snapshot status='DONE'",
+        "indexed": false,
+        "rows": 3
+      },
+      {
+        "table": "agent_decisions",
+        "column": "run_id",
+        "used_in": "routes.py:445; runner.py:297; reports/daily.py:39",
+        "indexed": true,
+        "rows": 0
+      },
+      {
+        "table": "agent_decisions",
+        "column": "symbol",
+        "used_in": "routes.py:462/1303",
+        "indexed": true,
+        "rows": 0
+      },
+      {
+        "table": "agent_decisions",
+        "column": "created_at",
+        "used_in": "routes.py:464 since-filter",
+        "indexed": false,
+        "rows": 0
+      },
+      {
+        "table": "agent_decisions",
+        "column": "order_id",
+        "used_in": "container.py:203 purge_legacy",
+        "indexed": false,
+        "rows": 0
+      },
+      {
+        "table": "chat_messages",
+        "column": "run_id",
+        "used_in": "routes.py:447 run detail",
+        "indexed": true,
+        "rows": 7
+      },
+      {
+        "table": "chat_messages",
+        "column": "role",
+        "used_in": "runner.py:309/697 role filters (USER/ANALYST)",
+        "indexed": false,
+        "rows": 7
+      },
+      {
+        "table": "chat_messages",
+        "column": "ts",
+        "used_in": "runner.py:696/716 today's chat",
+        "indexed": true,
+        "rows": 7
+      },
+      {
+        "table": "audit_events",
+        "column": "type",
+        "used_in": "routes.py:927; reports/daily.py:31",
+        "indexed": true,
+        "rows": 5
+      },
+      {
+        "table": "audit_events",
+        "column": "ts",
+        "used_in": "reports/daily.py:31; purge_legacy",
+        "indexed": true,
+        "rows": 5
+      },
+      {
+        "table": "equity_snapshots",
+        "column": "ts",
+        "used_in": "routes.py:235 since-filter",
+        "indexed": true,
+        "rows": 10
+      },
+      {
+        "table": "llm_usage",
+        "column": "ts",
+        "used_in": "costs.py:209 months window",
+        "indexed": true,
+        "rows": 0
+      },
+      {
+        "table": "daily_prices",
+        "column": "symbol",
+        "used_in": "store.py:109 history/last_bar/name_of",
+        "indexed": true,
+        "rows": 1251
+      },
+      {
+        "table": "daily_prices",
+        "column": "day",
+        "used_in": "store.py:77/129 sync_day/snapshot",
+        "indexed": true,
+        "rows": 1251
+      },
+      {
+        "table": "memory_cards",
+        "column": "kind",
+        "used_in": "routes.py:1120 duplicate check",
+        "indexed": false,
+        "rows": 0
+      },
+      {
+        "table": "memory_cards",
+        "column": "symbol",
+        "used_in": "routes.py:1120 duplicate check",
+        "indexed": false,
+        "rows": 0
+      },
+      {
+        "table": "api_cache",
+        "column": "fetched_at",
+        "used_in": "(no filter in code; TTL checked in Python)",
+        "indexed": false,
+        "rows": 0
+      }
+    ],
+    "missing_indexes": [
+      {
+        "table": "orders",
+        "column": "created_at",
+        "used_in": "routes.py:253 orders since-filter; reports/daily.py:26 day range",
+        "indexed": false,
+        "rows": 0
+      },
+      {
+        "table": "orders",
+        "column": "run_id",
+        "used_in": "container.py:198 purge_legacy; trades.py join",
+        "indexed": false,
+        "rows": 0
+      },
+      {
+        "table": "orders",
+        "column": "broker_order_id",
+        "used_in": "orders.py:330/341 live order sync",
+        "indexed": false,
+        "rows": 0
+      },
+      {
+        "table": "fills",
+        "column": "filled_at",
+        "used_in": "routes.py:270 since-filter; trades.py:40 ledger; reports/daily.py:24",
+        "indexed": false,
+        "rows": 0
+      },
+      {
+        "table": "fills",
+        "column": "symbol",
+        "used_in": "routes.py:1300 candles markers",
+        "indexed": false,
+        "rows": 0
+      },
+      {
+        "table": "agent_runs",
+        "column": "started_at",
+        "used_in": "routes.py:434/1529 since-filter; runner.py:290; reports/daily.py:36",
+        "indexed": false,
+        "rows": 3
+      },
+      {
+        "table": "agent_runs",
+        "column": "status",
+        "used_in": "runner.py:288 memory_snapshot status='DONE'",
+        "indexed": false,
+        "rows": 3
+      },
+      {
+        "table": "agent_decisions",
+        "column": "created_at",
+        "used_in": "routes.py:464 since-filter",
+        "indexed": false,
+        "rows": 0
+      },
+      {
+        "table": "agent_decisions",
+        "column": "order_id",
+        "used_in": "container.py:203 purge_legacy",
+        "indexed": false,
+        "rows": 0
+      },
+      {
+        "table": "chat_messages",
+        "column": "role",
+        "used_in": "runner.py:309/697 role filters (USER/ANALYST)",
+        "indexed": false,
+        "rows": 7
+      },
+      {
+        "table": "memory_cards",
+        "column": "kind",
+        "used_in": "routes.py:1120 duplicate check",
+        "indexed": false,
+        "rows": 0
+      },
+      {
+        "table": "memory_cards",
+        "column": "symbol",
+        "used_in": "routes.py:1120 duplicate check",
+        "indexed": false,
+        "rows": 0
+      },
+      {
+        "table": "api_cache",
+        "column": "fetched_at",
+        "used_in": "(no filter in code; TTL checked in Python)",
+        "indexed": false,
+        "rows": 0
+      }
+    ],
+    "paper_account_state": {
+      "bytes": 159,
+      "orders": 0,
+      "positions": 0
+    },
+    "app_settings_value_sizes": [
+      {
+        "key": "risk",
+        "bytes": 226
+      },
+      {
+        "key": "account_source",
+        "bytes": 76
+      },
+      {
+        "key": "sched_fired",
+        "bytes": 44
+      },
+      {
+        "key": "sod",
+        "bytes": 40
+      },
+      {
+        "key": "engine",
+        "bytes": 21
+      },
+      {
+        "key": "boot_notice",
+        "bytes": 21
+      }
+    ]
+  }
+}

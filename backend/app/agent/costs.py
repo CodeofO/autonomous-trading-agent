@@ -11,13 +11,16 @@
 
 from __future__ import annotations
 
+import copy
 import logging
+import threading
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any
+from weakref import WeakKeyDictionary
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.core.clock import KST
 from app.core.market_calendar import MarketCalendar
@@ -189,6 +192,20 @@ def _kst_day(ts: datetime) -> date:
     return (ts if ts.tzinfo else ts.replace(tzinfo=KST)).astimezone(KST).date()
 
 
+_SUMMARY_CACHE: WeakKeyDictionary[Database, dict[tuple[Any, ...], dict[str, Any]]] = WeakKeyDictionary()
+_SUMMARY_LOCK = threading.Lock()
+
+
+def _month_window(today: date, months: int) -> tuple[date, date, date]:
+    """(조회 시작 = months 개월 전 1일, 이번 달 1일, 이번 달 말일)."""
+    first = date(today.year, today.month, 1)
+    start = first
+    for _ in range(months - 1):
+        start = (start - timedelta(days=1)).replace(day=1)
+    month_end = (first + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+    return start, first, month_end
+
+
 def summary(
     db: Database,
     now: datetime,
@@ -197,24 +214,49 @@ def summary(
     sessions_per_day: int | None = None,
 ) -> dict[str, Any]:
     """`sessions_per_day`: 지금 일정의 하루 판단 세션 수. 주면 '세션당 평균 × 하루 세션 수'로 예상한다
-    (판단 간격을 바꾼 뒤에도 예전 간격의 사용량으로 부풀리지 않도록)."""
-    today = now.astimezone(KST).date()
-    first = date(today.year, today.month, 1)
-    start = first
-    for _ in range(months - 1):
-        start = (start - timedelta(days=1)).replace(day=1)
-    with db.session() as s:
-        rows = list(
-            s.scalars(
-                select(LlmUsage).where(LlmUsage.ts >= datetime.combine(start, datetime.min.time(), KST))
-            )
-        )
+    (판단 간격을 바꾼 뒤에도 예전 간격의 사용량으로 부풀리지 않도록).
 
-    month_keys = []
+    결과는 (오늘 날짜, 기간, 일정, 남은 거래일, 사용 기록의 건수·마지막 id)가 같으면 캐시를 돌려준다(B5) —
+    사용 기록이 하나라도 늘면 다시 계산한다. 확인 조회는 1번(건수·최대 id).
+    """
+    today = now.astimezone(KST).date()
+    start, first, month_end = _month_window(today, months)
+    remaining = len(cal.trading_days(today + timedelta(days=1), month_end)) if today < month_end else 0
+    with db.session() as s:
+        count, last_id = s.execute(select(func.count(LlmUsage.id), func.max(LlmUsage.id))).one()
+    key = (today, months, sessions_per_day, remaining, int(count or 0), int(last_id or 0))
+    with _SUMMARY_LOCK:
+        hit = _SUMMARY_CACHE.get(db, {}).get(key)
+    if hit is not None:
+        return copy.deepcopy(hit)
+    out = _summary(db, today, start, first, remaining, sessions_per_day)
+    with _SUMMARY_LOCK:
+        per_db = _SUMMARY_CACHE.setdefault(db, {})
+        if len(per_db) >= 8:
+            per_db.clear()
+        per_db[key] = copy.deepcopy(out)
+    return out
+
+
+def _month_keys(start: date, first: date) -> list[str]:
+    out = []
     d = start
     while d <= first:
-        month_keys.append(d.strftime("%Y-%m"))
+        out.append(d.strftime("%Y-%m"))
         d = (d + timedelta(days=32)).replace(day=1)
+    return out
+
+
+@dataclass
+class _Tally:
+    """사용 기록을 달별로 모은 것: 토큰 합계, 모델별 환산 요금, 최근 30일 기록(하루 단위)."""
+
+    tok: dict[str, dict[str, int]]
+    cost: dict[str, dict[str, list[float]]]
+    daily: dict[date, list[dict[str, Any]]]
+
+
+def _tally(rows: list[LlmUsage], month_keys: list[str], today: date) -> _Tally:
     tok: dict[str, dict[str, int]] = {
         k: {"calls": 0, "input": 0, "cached": 0, "output": 0, "sessions": 0, "chats": 0, "backfill": 0}
         for k in month_keys
@@ -238,80 +280,114 @@ def summary(
             sessions[k].add(r.run_id)
         if r.source == "backfill":
             t["backfill"] += 1
+        vals = {f: getattr(r, f) for f in USAGE_FIELDS}  # 행마다 한 번만 (모델마다 다시 만들지 않는다)
         for m in MODELS:
-            a, b = row_cost(m, r, day)
+            a, b = row_cost(m, vals, day)
             cost[m.id][k][0] += a
             cost[m.id][k][1] += b
         if day > today - timedelta(days=PROJECTION_DAYS):
-            daily[day].append({**{k: getattr(r, k) for k in USAGE_FIELDS}, "run_id": r.run_id})
+            daily[day].append({**vals, "run_id": r.run_id})
     for k in month_keys:
         tok[k]["sessions"] = len(sessions[k])
+    return _Tally(tok, cost, daily)
+
+
+def _model_row(
+    m: ModelPrice,
+    tally: _Tally,
+    window: list[tuple[date, dict[str, Any]]],
+    *,
+    today: date,
+    cur: str,
+    remaining: int,
+    n_sessions: int,
+    sessions_per_day: int | None,
+) -> dict[str, Any]:
+    """모델 하나의 달별 환산 요금·이번 달 예상·하루 평균·세션당 평균."""
+    active = len(tally.daily)
+    sess, chat = [0.0, 0.0], [0.0, 0.0]
+    for day, it in window:
+        a, b = row_cost(m, it, day)
+        bucket = sess if it["kind"] == "session" else chat
+        bucket[0] += a
+        bucket[1] += b
+    if sessions_per_day is not None and n_sessions > 0:
+        avg = [
+            sessions_per_day * sess[i] / n_sessions + (chat[i] / active if active else 0.0) for i in (0, 1)
+        ]
+    else:
+        avg = [(sess[i] + chat[i]) / active if active else 0.0 for i in (0, 1)]
+    per_session = [sess[i] / n_sessions if n_sessions else 0.0 for i in (0, 1)]
+    p = m.at(today)
+    spent = tally.cost[m.id][cur]
+    return {
+        "id": m.id,
+        "provider": m.provider,
+        "name": m.name,
+        "tier": m.tier,
+        "note": m.note,
+        "price": {
+            "input": p.input,
+            "cached": p.cached,
+            "output": p.output,
+            "cache_write": p.cache_write,
+            "long_from": m.long_from,
+        },
+        "months": {
+            k: {"nocache": round(v[0], 4), "cache": round(v[1], 4)} for k, v in tally.cost[m.id].items()
+        },
+        "projection": {
+            "nocache": round(spent[0] + avg[0] * remaining, 4),
+            "cache": round(spent[1] + avg[1] * remaining, 4),
+        },
+        "daily_avg": {"nocache": round(avg[0], 4), "cache": round(avg[1], 4)},
+        "per_session": {"nocache": round(per_session[0], 4), "cache": round(per_session[1], 4)},
+    }
+
+
+def _summary(
+    db: Database, today: date, start: date, first: date, remaining: int, sessions_per_day: int | None
+) -> dict[str, Any]:
+    with db.session() as s:
+        rows = list(
+            s.scalars(
+                select(LlmUsage).where(LlmUsage.ts >= datetime.combine(start, datetime.min.time(), KST))
+            )
+        )
+    month_keys = _month_keys(start, first)
+    tally = _tally(rows, month_keys, today)
 
     # 이번 달 예상 = 지금까지 쓴 것 + 하루 예상 × 남은 거래일
     #   하루 예상 = 세션당 평균 × 지금 일정의 하루 세션 수 + 답장의 하루 평균 (최근 30일 기준)
     #   (일정을 모르면 최근 사용한 날의 하루 평균)
-    month_end = (first + timedelta(days=32)).replace(day=1) - timedelta(days=1)
-    remaining = len(cal.trading_days(today + timedelta(days=1), month_end)) if today < month_end else 0
-    active = len(daily)
-    window = [(day, it) for day, items in daily.items() for it in items]
+    window = [(day, it) for day, items in tally.daily.items() for it in items]
     n_sessions = len(
         {it["run_id"] for _, it in window if it["kind"] == "session" and it["run_id"] is not None}
     )
     by_schedule = sessions_per_day is not None and n_sessions > 0
     cur = first.strftime("%Y-%m")
-    out_models = []
-    for m in MODELS:
-        sess, chat = [0.0, 0.0], [0.0, 0.0]
-        for day, it in window:
-            a, b = row_cost(m, it, day)
-            bucket = sess if it["kind"] == "session" else chat
-            bucket[0] += a
-            bucket[1] += b
-        if by_schedule:
-            assert sessions_per_day is not None
-            avg = [
-                sessions_per_day * sess[i] / n_sessions + (chat[i] / active if active else 0.0)
-                for i in (0, 1)
-            ]
-        else:
-            avg = [(sess[i] + chat[i]) / active if active else 0.0 for i in (0, 1)]
-        per_session = [sess[i] / n_sessions if n_sessions else 0.0 for i in (0, 1)]
-        p = m.at(today)
-        spent = cost[m.id][cur]
-        out_models.append(
-            {
-                "id": m.id,
-                "provider": m.provider,
-                "name": m.name,
-                "tier": m.tier,
-                "note": m.note,
-                "price": {
-                    "input": p.input,
-                    "cached": p.cached,
-                    "output": p.output,
-                    "cache_write": p.cache_write,
-                    "long_from": m.long_from,
-                },
-                "months": {
-                    k: {"nocache": round(v[0], 4), "cache": round(v[1], 4)} for k, v in cost[m.id].items()
-                },
-                "projection": {
-                    "nocache": round(spent[0] + avg[0] * remaining, 4),
-                    "cache": round(spent[1] + avg[1] * remaining, 4),
-                },
-                "daily_avg": {"nocache": round(avg[0], 4), "cache": round(avg[1], 4)},
-                "per_session": {"nocache": round(per_session[0], 4), "cache": round(per_session[1], 4)},
-            }
+    out_models = [
+        _model_row(
+            m,
+            tally,
+            window,
+            today=today,
+            cur=cur,
+            remaining=remaining,
+            n_sessions=n_sessions,
+            sessions_per_day=sessions_per_day,
         )
+        for m in MODELS
+    ]
     return {
         "checked": PRICES_CHECKED,
         "sources": SOURCES,
-        "months": [{"month": k, **tok[k]} for k in month_keys],
+        "months": [{"month": k, **tally.tok[k]} for k in month_keys],
         "models": out_models,
         "projection": {
             "month": cur,
             "remaining_trading_days": remaining,
-            "basis_days": active,
+            "basis_days": len(tally.daily),
             "basis_sessions": n_sessions,
             "basis_window_days": PROJECTION_DAYS,
             "method": "schedule" if by_schedule else "history",

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select
@@ -12,7 +12,8 @@ from sqlalchemy import select
 from app.agent.runner import AgentRunner
 from app.brokers.base import BrokerInterface
 from app.core.clock import KST, Clock
-from app.core.market_calendar import MarketCalendar
+from app.core.market import MarketSpec
+from app.core.market_calendar import MarketCalendar, Session
 from app.db.models import EquitySnapshot, Order, StrategyConfig, WatchlistItem
 from app.db.session import Database
 from app.engine.events import RISK, SYSTEM, EventHub
@@ -26,6 +27,10 @@ from app.strategies.rules import Strategy, build
 log = logging.getLogger(__name__)
 
 RUNNING, PAUSED, KILLED = "RUNNING", "PAUSED", "KILLED"
+# 장중 감시 구간: 장 시작 1분 전 ~ 마감 5분 뒤 (1분 감시·10분 자산 스냅샷·토스 연결 확인)
+INTRADAY_BEFORE = timedelta(minutes=1)
+INTRADAY_AFTER = timedelta(minutes=5)
+SNAPSHOT_EVERY = timedelta(minutes=10)  # 장중 자산 스냅샷 간격
 
 
 class TradingEngine:
@@ -39,7 +44,11 @@ class TradingEngine:
         hub: EventHub,
         settings: SettingsStore,
         toss: TossMarketProvider | None = None,
+        market: MarketSpec | None = None,
     ) -> None:
+        # 시장 프로필 (국장 기본). 미장은 통화·시간대·캘린더 API·가격 반올림이 다르다 (D-48)
+        self.market = market
+        self.currency = market.currency if market else "KRW"
         self.db = db
         self.toss = toss  # 토스 실시세: 실시간 체결·장중 감시 (테스트에서만 None 가능)
         self._health: tuple[bool, float] = (True, -1e9)
@@ -49,8 +58,10 @@ class TradingEngine:
         self.broker = broker
         self.hub = hub
         self.settings = settings
-        self.risk = RiskManager(self.risk_config(), cal)
-        self.orders = OrderManager(db, broker, self.risk, hub, self.risk_context, name_of=store.name_of)
+        self.risk = RiskManager(self.risk_config(), cal, self.currency)
+        self.orders = OrderManager(
+            db, broker, self.risk, hub, self.risk_context, name_of=store.name_of, currency=self.currency
+        )
         self.runner: AgentRunner | None = None  # 컨테이너에서 연결
 
     # ------------------------------------------------------------ 설정/상태
@@ -82,8 +93,16 @@ class TradingEngine:
         return out
 
     # ------------------------------------------------------------ 포트폴리오 뷰
+    def today(self) -> date:
+        """오늘(거래일 기준 현지 날짜). 국장 = 한국 날짜, 미장 = 뉴욕 날짜 (한국 시각 자정을 넘겨도 같은 거래일)."""
+        return self.cal.local_date(self.clock.now())
+
+    def money(self, v: float) -> float:
+        """금액 반올림: 원은 정수, 달러는 센트."""
+        return self.market.money(v) if self.market else round(v)
+
     def start_of_day_equity(self, equity_now: float) -> float:
-        today = self.clock.now().astimezone(KST).date().isoformat()
+        today = self.today().isoformat()
         sod = self.settings.get("sod")
         if sod.get("day") != today:
             sod = {"day": today, "equity": equity_now}
@@ -91,11 +110,11 @@ class TradingEngine:
         return float(sod["equity"])
 
     async def risk_context(self) -> RiskContext:
-        bal = await self.broker.get_balance()
+        bal, positions = await self.broker.account()  # 보유 종목 평가는 한 번만 (B1)
         return RiskContext(
             now=self.clock.now(),
             balance=bal,
-            positions=await self.broker.get_positions(),
+            positions=positions,
             open_order_symbols=self.orders.open_symbols(),
             last_order_at=self.orders.last_order_times(),
             start_of_day_equity=self.start_of_day_equity(bal.equity),
@@ -107,6 +126,8 @@ class TradingEngine:
         basis = self.cal.fill_basis(now)
         if basis and self.broker.is_live:
             return "지금 주문하면 토스증권 실계좌로 실제 주문이 나가요 (시장가는 바로 체결, 미체결은 당일 장 마감까지 유효)"
+        if self.market is not None and self.market.code == "US":
+            return self._us_order_window(now, basis)
         if basis == "OPEN":
             return "지금 주문하면 09:00 장 시작 직후 현재가로 체결 (토스 실시세)"
         if basis == "CLOSE":
@@ -114,11 +135,33 @@ class TradingEngine:
         s = self.cal.next_session(now)
         return f"지금은 주문 불가. 다음 접수: {s.day} 08:30 (장 시작 전 주문 → 09:00 현재가 체결)"
 
+    def _us_order_window(self, now: datetime, basis: str | None) -> str:
+        """미장 주문 안내 — 한국 시각(KST)으로 보여 준다 (정규장이 한국 시각 자정을 넘긴다)."""
+
+        def hm(t: datetime) -> str:
+            return f"{t.astimezone(KST):%H:%M}"
+
+        s = self.cal.session(self.today())
+        if basis == "OPEN" and s is not None:
+            return f"지금 주문하면 미국 정규장 시작({hm(s.open)} KST) 직후 현재가로 체결 (토스 실시세, 달러)"
+        if basis == "CLOSE" and s is not None:
+            return (
+                f"지금 주문하면 토스 실시간 현재가로 즉시 체결 (지정가는 도달 시, {hm(s.order_cutoff)} KST "
+                "미체결분 취소)"
+            )
+        n = self.cal.next_session(now)
+        pre = n.open - self.cal.pre_open_window
+        return (
+            f"지금은 주문 불가. 다음 접수: 미국 {n.day} 장 — {pre.astimezone(KST):%m/%d %H:%M} KST 부터 "
+            f"(장 시작 {hm(n.open)} KST 현재가 체결)"
+        )
+
     async def portfolio(self) -> dict[str, Any]:
-        bal = await self.broker.get_balance()
-        positions = await self.broker.get_positions()
+        bal, positions = await self.broker.account()  # 보유 종목 평가는 한 번만 (B1)
         sod = self.start_of_day_equity(bal.equity)
-        today = self.clock.now().astimezone(KST).date()
+        today = self.today()
+        m = self.money
+        usd = self.currency == "USD"
         with self.db.session() as s:
             open_orders = [
                 order_dict(o)
@@ -131,32 +174,32 @@ class TradingEngine:
                 for w in s.scalars(select(WatchlistItem).where(WatchlistItem.active.is_(True)))
             ]
         eq = bal.equity or 1
-        return {
+        out: dict[str, Any] = {
             "as_of": self.clock.now().isoformat(),
             "latest_price_day": (d.isoformat() if (d := self.store.latest_day()) else None),
             "order_window": self.order_window(),
             "engine_status": self.status,
-            "cash": round(bal.cash),
-            "available_cash": round(bal.available_cash),
-            "equity": round(bal.equity),
-            "initial_cash": round(bal.initial_cash),
+            "cash": m(bal.cash),
+            "available_cash": m(bal.available_cash),
+            "equity": m(bal.equity),
+            "initial_cash": m(bal.initial_cash),
             "total_return_pct": round((bal.equity / bal.initial_cash - 1) * 100, 2)
             if bal.initial_cash
             else 0,
             "daily_pnl_pct": round((bal.equity / sod - 1) * 100, 2) if sod else 0,
-            "realized_pnl": round(bal.realized_pnl),
-            "fees_paid": round(bal.fees_paid),
-            "taxes_paid": round(bal.taxes_paid),
+            "realized_pnl": m(bal.realized_pnl),
+            "fees_paid": m(bal.fees_paid),
+            "taxes_paid": m(bal.taxes_paid),
             "positions": [
                 {
                     "symbol": p.symbol,
                     "name": p.name,
                     "quantity": p.quantity,
-                    "avg_price": round(p.avg_price, 1),
+                    "avg_price": round(p.avg_price, 4 if usd else 1),
                     "last_price": p.last_price,
                     "price_day": p.price_day.isoformat() if p.price_day else None,
-                    "market_value": round(p.market_value),
-                    "unrealized_pnl": round(p.unrealized_pnl),
+                    "market_value": m(p.market_value),
+                    "unrealized_pnl": m(p.unrealized_pnl),
                     "pnl_pct": round(p.pnl_pct * 100, 2),
                     "weight_pct": round(p.market_value / eq * 100, 1),
                     "holding_days": (today - p.opened_day).days if p.opened_day else None,
@@ -170,6 +213,10 @@ class TradingEngine:
             "watchlist": watch,
             "risk_limits": self.risk.config.model_dump(),
         }
+        if self.market is not None:  # 미장/국장 구분 (프런트 금액 표기용). 국장 응답에도 붙인다
+            out["market"] = self.market.code
+            out["currency"] = self.market.currency
+        return out
 
     # ------------------------------------------------------------ 작업 단위
     async def refresh_calendar(self) -> None:
@@ -177,13 +224,14 @@ class TradingEngine:
         if self.toss is None or not await self.toss_health():
             return
         try:
-            self.cal.apply_toss_calendar(await self.toss.client.market_calendar_kr())
+            api = self.market.calendar_api if self.market else "market_calendar_kr"
+            self.cal.apply_toss_calendar(await getattr(self.toss.client, api)())
         except Exception as e:
             log.warning("장 운영 캘린더 조회 실패: %s", e)
 
     async def _sync_toss(self) -> dict[str, Any]:
         assert self.toss is not None
-        today = self.clock.now().astimezone(KST).date()
+        today = self.today()
         symbols = {p.symbol for p in await self.broker.get_positions()}
         symbols |= self.orders.open_symbols()
         with self.db.session() as s:
@@ -196,30 +244,76 @@ class TradingEngine:
             except Exception as e:
                 log.warning("토스 일봉 갱신 실패 %s: %s", sym, e)
         settled = await self.orders.settle()
-        await self.snapshot_equity()
+        await self.snapshot_if_due()
         return {"latest_day": today.isoformat(), "synced": n, "settled": settled}
 
+    def _session_window(self, now: datetime) -> Session | None:
+        """지금이 장중 감시 구간(장 시작 1분 전 ~ 마감 5분 뒤)이면 그날 세션, 아니면 None. 현지 거래일 기준."""
+        s = self.cal.session(self.cal.local_date(now))
+        if s is None or not (s.open - INTRADAY_BEFORE <= now <= s.close + INTRADAY_AFTER):
+            return None
+        return s
+
     async def intraday(self) -> None:
-        """장중 1분 주기: 지정가·장전 주문 체결, 당일 만료, 손절/익절 감시."""
-        if self.toss is None or not await self.toss_health():
+        """장중 1분 주기: 지정가·장전 주문 체결, 당일 만료, 손절/익절 감시.
+
+        장중 감시 구간 밖에서는 아무것도 하지 않는다 — 토스 연결 확인(시세 1건)도 구간 안에서만 (B6).
+        """
+        if self.toss is None:
             return
         now = self.clock.now()
-        s = self.cal.session(now.astimezone(KST).date())
-        if s is None or not (s.open - timedelta(minutes=1) <= now <= s.close + timedelta(minutes=5)):
+        s = self._session_window(now)
+        if s is None or not await self.toss_health():
             return
         if await self.orders.settle():
             await self.snapshot_equity()
         await self.check_exits()
-        if now.minute % 10 == 0:
+        # 장중 10분마다 + 마감 뒤 첫 감시 때 한 번(그날 마감 자산)
+        if now.minute % 10 == 0 or (now >= s.close and not self._has_close_snapshot(s)):
             await self.snapshot_equity()
 
     async def sync_data(self) -> dict[str, Any]:
-        """보유·관심·미체결 종목 일봉 갱신 → 미체결 처리 → 자산 스냅샷."""
+        """보유·관심·미체결 종목 일봉 갱신 → 미체결 처리 → 자산 스냅샷(장중, 마감 뒤 하루 한 번)."""
         if self.toss is not None:
             return await self._sync_toss()
         settled = await self.orders.settle()
-        await self.snapshot_equity()
+        await self.snapshot_if_due()
         return {"synced": 0, "settled": settled}
+
+    def _has_snapshot(self, start: datetime, end: datetime) -> bool:
+        """start <= ts < end 인 자산 스냅샷이 있는지."""
+        with self.db.session() as db:
+            got = db.scalar(
+                select(EquitySnapshot.id).where(EquitySnapshot.ts >= start, EquitySnapshot.ts < end).limit(1)
+            )
+        return got is not None
+
+    def _has_close_snapshot(self, s: Session) -> bool:
+        """그 거래일 마감 뒤 자산 스냅샷이 이미 있는지 (다음 거래일 장 시작 전까지 범위)."""
+        return self._has_snapshot(s.close, s.close + timedelta(days=1))
+
+    async def snapshot_if_due(self) -> bool:
+        """일봉 갱신·판단 세션 뒤 자산 스냅샷 기록 규칙 (B6). 기록했으면 True.
+
+        - 장중 감시 구간: 최근 10분 안에 기록이 없을 때만 (1분 감시가 10분마다·체결 직후 기록한다)
+        - 그 밖: 그 거래일 마감 뒤 첫 한 번만. 휴장일·장 시작 전에는 기록하지 않는다(자산이 바뀌지 않음)
+        자산 곡선(`/api/equity`)은 장중 점들과 마감 점으로 이어진다.
+        """
+        now = self.clock.now()
+        if self._session_window(now) is not None:
+            if self._has_snapshot(now - SNAPSHOT_EVERY + timedelta(seconds=1), now + timedelta(seconds=1)):
+                return False
+        else:
+            s = self.cal.session(self.cal.local_date(now))
+            if s is None or now < s.close or self._has_close_snapshot(s):
+                return False
+        await self.snapshot_equity()
+        return True
+
+    @property
+    def toss_ok(self) -> bool:
+        """마지막 토스 연결 확인 결과 (확인하지 않는다 — 화면 표시용)."""
+        return self._health[0]
 
     async def toss_health(self) -> bool:
         """토스 시세 접근 가능 여부. 실패 원인(허용 IP·키)을 채팅으로 1시간에 한 번 안내한다."""
@@ -229,7 +323,7 @@ class TradingEngine:
         if now - self._health[1] < 60:
             return self._health[0]
         try:
-            await self.toss.client.prices(["005930"])
+            await self.toss.client.prices([self.market.health_symbol if self.market else "005930"])
             ok, why = True, ""
         except TossApiError as e:
             ok = False

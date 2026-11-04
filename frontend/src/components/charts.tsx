@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { memo, useEffect, useRef } from "react";
 import {
   AreaSeries,
   CandlestickSeries,
@@ -7,11 +7,13 @@ import {
   createSeriesMarkers,
   HistogramSeries,
   type IChartApi,
+  type ISeriesApi,
+  type ISeriesMarkersPluginApi,
   type SeriesMarker,
   type Time,
   type UTCTimestamp,
 } from "lightweight-charts";
-import type { Bar, Marker } from "../api/types";
+import type { Bar, Currency, Marker } from "../api/types";
 
 // 한국 시장 관례: 상승 빨강 / 하락 파랑
 const UP = "#f04452";
@@ -25,11 +27,18 @@ function cssVar(name: string, fallback: string): string {
 // 차트 라이브러리는 UTC 로 시각을 표시하므로 KST(+9h) 만큼 밀어서 넣는다
 const KST_OFFSET_SEC = 9 * 3600;
 const won = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 0 });
+const cents = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-function baseOptions() {
+// 가격 눈금: 국장은 원 단위 정수, 미장은 센트(소수 둘째 자리)까지
+const priceFormatter = (currency: Currency) => (p: number) =>
+  currency === "USD" ? cents.format(p) : won.format(p);
+const pricePrecision = (currency: Currency) =>
+  currency === "USD" ? { precision: 2, minMove: 0.01 } : { precision: 0, minMove: 1 };
+
+function baseOptions(currency: Currency = "KRW") {
   return {
     autoSize: true,
-    localization: { locale: "ko-KR", priceFormatter: (p: number) => won.format(p) },
+    localization: { locale: "ko-KR", priceFormatter: priceFormatter(currency) },
     layout: {
       background: { type: ColorType.Solid, color: "transparent" },
       textColor: cssVar("--text-dim", "#8b95a1"),
@@ -44,11 +53,60 @@ function baseOptions() {
   };
 }
 
-export function CandleChart({ bars, markers }: { bars: Bar[]; markers: Marker[] }) {
+// ---------- 같은 데이터인지 (새 배열이어도 내용이 같으면 차트에 다시 넣지 않는다) ----------
+export interface EquityPoint {
+  t: string;
+  v: number;
+}
+
+const sameList = <T,>(a: readonly T[] | null, b: readonly T[], eq: (x: T, y: T) => boolean) =>
+  a !== null && (a === b || (a.length === b.length && a.every((x, i) => eq(x, b[i]))));
+
+const samePoints = (a: readonly EquityPoint[] | null, b: readonly EquityPoint[]) =>
+  sameList(a, b, (x, y) => x.t === y.t && x.v === y.v);
+
+const sameBars = (a: readonly Bar[] | null, b: readonly Bar[]) =>
+  sameList(
+    a,
+    b,
+    (x, y) =>
+      x.time === y.time &&
+      x.open === y.open &&
+      x.high === y.high &&
+      x.low === y.low &&
+      x.close === y.close &&
+      x.volume === y.volume,
+  );
+
+const sameMarkers = (a: readonly Marker[] | null, b: readonly Marker[]) =>
+  sameList(a, b, (x, y) => x.time === y.time && x.side === y.side && x.kind === y.kind && x.text === y.text);
+
+/**
+ * 종목 일봉 + 거래량 + 체결·AI 결정 표시.
+ * 차트는 한 번만 만들고(통화가 바뀔 때만 다시 — 눈금 형식이 달라진다), 데이터가 바뀌면 그 부분만 다시 넣는다.
+ */
+export const CandleChart = memo(function CandleChart({
+  bars,
+  markers,
+  currency = "KRW",
+}: {
+  bars: Bar[];
+  markers: Marker[];
+  currency?: Currency;
+}) {
   const ref = useRef<HTMLDivElement>(null);
+  const api = useRef<{
+    chart: IChartApi;
+    candles: ISeriesApi<"Candlestick">;
+    vol: ISeriesApi<"Histogram">;
+    markers: ISeriesMarkersPluginApi<Time> | undefined;
+    bars: Bar[] | null;
+    marks: Marker[] | null;
+  } | null>(null);
+
   useEffect(() => {
     if (!ref.current) return;
-    const chart: IChartApi = createChart(ref.current, baseOptions());
+    const chart = createChart(ref.current, baseOptions(currency));
     const candles = chart.addSeries(CandlestickSeries, {
       upColor: UP,
       downColor: DOWN,
@@ -56,72 +114,114 @@ export function CandleChart({ bars, markers }: { bars: Bar[]; markers: Marker[] 
       borderDownColor: DOWN,
       wickUpColor: UP,
       wickDownColor: DOWN,
-      priceFormat: { type: "price", precision: 0, minMove: 1 },
+      priceFormat: { type: "price", ...pricePrecision(currency) },
     });
-    candles.setData(bars.map((b) => ({ ...b, time: b.time as Time })));
     const vol = chart.addSeries(HistogramSeries, { priceScaleId: "vol", priceFormat: { type: "volume" } });
     chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
-    vol.setData(
-      bars.map((b) => ({
-        time: b.time as Time,
-        value: b.volume,
-        color: b.close >= b.open ? "rgba(240,68,82,0.35)" : "rgba(49,130,246,0.35)",
-      })),
-    );
-    const days = new Set(bars.map((b) => b.time));
-    const ms: SeriesMarker<Time>[] = markers
-      .filter((m) => days.has(m.time))
-      .sort((a, b) => a.time.localeCompare(b.time))
-      .map((m) => {
-        const buy = m.side === "BUY";
-        return {
-          time: m.time as Time,
-          position: buy ? "belowBar" : "aboveBar",
-          color: m.kind === "fill" ? (buy ? UP : DOWN) : "#a78bfa",
-          shape: m.kind === "fill" ? (buy ? "arrowUp" : "arrowDown") : "circle",
-          text: m.text,
-        };
-      });
-    createSeriesMarkers(candles, ms);
-    chart.timeScale().fitContent();
-    return () => chart.remove();
-  }, [bars, markers]);
+    api.current = { chart, candles, vol, markers: undefined, bars: null, marks: null };
+    return () => {
+      chart.remove();
+      api.current = null;
+    };
+  }, [currency]);
+
+  useEffect(() => {
+    const a = api.current;
+    if (!a) return;
+    const barsChanged = !sameBars(a.bars, bars);
+    if (barsChanged) {
+      a.candles.setData(bars.map((b) => ({ ...b, time: b.time as Time })));
+      a.vol.setData(
+        bars.map((b) => ({
+          time: b.time as Time,
+          value: b.volume,
+          color: b.close >= b.open ? "rgba(240,68,82,0.35)" : "rgba(49,130,246,0.35)",
+        })),
+      );
+      a.bars = bars;
+    }
+    if (barsChanged || !sameMarkers(a.marks, markers)) {
+      const days = new Set(bars.map((b) => b.time));
+      const ms: SeriesMarker<Time>[] = markers
+        .filter((m) => days.has(m.time))
+        .sort((x, y) => x.time.localeCompare(y.time))
+        .map((m) => {
+          const buy = m.side === "BUY";
+          return {
+            time: m.time as Time,
+            position: buy ? "belowBar" : "aboveBar",
+            color: m.kind === "fill" ? (buy ? UP : DOWN) : "#a78bfa",
+            shape: m.kind === "fill" ? (buy ? "arrowUp" : "arrowDown") : "circle",
+            text: m.text,
+          };
+        });
+      if (a.markers) a.markers.setMarkers(ms);
+      else a.markers = createSeriesMarkers(a.candles, ms);
+      a.marks = markers;
+    }
+    if (barsChanged) a.chart.timeScale().fitContent();
+  }, [bars, markers, currency]);
+
   return <div className="chart" ref={ref} data-testid="candle-chart" />;
+});
+
+/** 같은 초에 찍힌 스냅샷은 마지막 값만 사용 (시간은 엄격 증가해야 함) */
+function equityData(points: readonly EquityPoint[]) {
+  const byTime = new Map<number, number>();
+  for (const p of points) {
+    const t = p.t.length <= 10 ? Date.parse(p.t + "T00:00:00+09:00") : Date.parse(p.t);
+    byTime.set(Math.floor(t / 1000) + KST_OFFSET_SEC, p.v);
+  }
+  return [...byTime.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([t, v]) => ({ time: t as UTCTimestamp, value: v }));
 }
 
-export function EquityChart({
+/**
+ * 자산 추이 (영역 그래프). 점이 하나라도 생기면 차트를 한 번 만들고, 이후에는 내용이 바뀐 때만 setData.
+ * 점이 없으면 그리지 않는다(빈 자리만).
+ */
+export const EquityChart = memo(function EquityChart({
   points,
   height = 220,
+  currency = "KRW",
 }: {
-  points: { t: string; v: number }[];
+  points: EquityPoint[];
   height?: number;
+  currency?: Currency;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const api = useRef<{ chart: IChartApi; series: ISeriesApi<"Area">; shown: EquityPoint[] | null } | null>(
+    null,
+  );
+  const hasData = points.length > 0;
+
   useEffect(() => {
-    if (!ref.current || points.length === 0) return;
+    if (!ref.current || !hasData) return;
     const chart = createChart(ref.current, {
-      ...baseOptions(),
+      ...baseOptions(currency),
       timeScale: { timeVisible: true, borderVisible: false },
     });
-    const s = chart.addSeries(AreaSeries, {
+    const series = chart.addSeries(AreaSeries, {
       lineColor: cssVar("--accent", "#3182f6"),
       topColor: "rgba(49,130,246,0.35)",
       bottomColor: "rgba(49,130,246,0.02)",
       lineWidth: 2,
     });
-    // 같은 초에 찍힌 스냅샷은 마지막 값만 사용 (시간은 엄격 증가해야 함)
-    const byTime = new Map<number, number>();
-    for (const p of points) {
-      const t = p.t.length <= 10 ? Date.parse(p.t + "T00:00:00+09:00") : Date.parse(p.t);
-      byTime.set(Math.floor(t / 1000) + KST_OFFSET_SEC, p.v);
-    }
-    s.setData(
-      [...byTime.entries()]
-        .sort((a, b) => a[0] - b[0])
-        .map(([t, v]) => ({ time: t as UTCTimestamp, value: v })),
-    );
-    chart.timeScale().fitContent();
-    return () => chart.remove();
-  }, [points]);
+    api.current = { chart, series, shown: null };
+    return () => {
+      chart.remove();
+      api.current = null;
+    };
+  }, [currency, hasData]);
+
+  useEffect(() => {
+    const a = api.current;
+    if (!a || samePoints(a.shown, points)) return;
+    a.series.setData(equityData(points));
+    a.chart.timeScale().fitContent();
+    a.shown = points;
+  }, [points, currency, hasData]);
+
   return <div className="chart" style={{ height }} ref={ref} data-testid="equity-chart" />;
-}
+});

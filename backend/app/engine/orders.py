@@ -94,8 +94,10 @@ class OrderManager:
         hub: EventHub,
         context: ContextProvider,
         name_of: Callable[[str], str] | None = None,
+        currency: str = "KRW",
     ) -> None:
         self.db = db
+        self.currency = currency  # 체결 안내 금액 표기 (미장 USD, D-48)
         self.name_of = name_of or (lambda sym: sym)
         self.broker = broker
         self.risk = risk
@@ -281,11 +283,17 @@ class OrderManager:
             )
         for f in r.fills:
             emoji = "💸" if o["side"] == "SELL" else "🛒"
+            if self.currency == "USD":
+                money = f"@ ${f.price:,.2f} (수수료 ${f.fee:,.2f})"
+            else:
+                money = (
+                    f"@ {f.price:,.0f}원 "
+                    f"(수수료 {f.fee:,.0f}원{', 세금 ' + format(f.tax, ',.0f') + '원' if f.tax else ''})"
+                )
             self.hub.chat(
                 BROKER,
                 "fill",
-                f"{emoji} 체결! {sym} {side} {f.quantity}주 @ {f.price:,.0f}원 "
-                f"(수수료 {f.fee:,.0f}원{', 세금 ' + format(f.tax, ',.0f') + '원' if f.tax else ''})",
+                f"{emoji} 체결! {sym} {side} {f.quantity}주 {money}",
                 symbol=o["symbol"],
                 order=o,
                 fill={"quantity": f.quantity, "price": f.price, "fee": f.fee, "tax": f.tax},
@@ -297,6 +305,7 @@ class OrderManager:
                 order_id=o["id"],
                 price=f.price,
                 quantity=f.quantity,
+                **({"currency": self.currency} if self.currency != "KRW" else {}),
             )
         if new == OrderStatus.CANCELED and prev != OrderStatus.CANCELED:
             self.hub.chat(

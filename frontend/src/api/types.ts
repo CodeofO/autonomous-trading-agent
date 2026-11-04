@@ -62,6 +62,8 @@ export interface Portfolio {
   positions: Position[];
   open_orders: { id: number; symbol: string; side: string; quantity: number; status: string }[];
   risk_limits: RiskConfig;
+  market?: MarketCode;
+  currency?: Currency;
 }
 
 // LLM 무료/유료 전환 (GET·PUT /api/llm/profile) — 무료 = .env 의 LLM_TEST_*, 유료 = LLM_*
@@ -79,16 +81,25 @@ export interface LlmProfileInfo {
 
 // 유료 모델 고르기 (GET /api/llm/profile 의 profiles.paid.models, PUT /api/llm/model) — LlmProvider 는 비용 예상 쪽 정의를 같이 쓴다
 
+/** 유료 모델 목록의 제공사 — "openrouter" = OpenRouter 목록, "env" = 카탈로그에 없는 .env 의 LLM_MODEL */
+export type LlmModelProvider = LlmProvider | "openrouter" | "env";
+
 export interface LlmModelOption {
   id: string;
   name: string;
-  /** "env" = 카탈로그에 없는 .env 의 LLM_MODEL */
-  provider: LlmProvider | "env";
+  provider: LlmModelProvider;
+  /** OpenRouter 목록만: 모델을 만든 곳 ("anthropic" | "openai" | "deepseek" | …) — 없으면 provider 로 묶는다 */
+  group?: string;
+  /** OpenRouter 목록만: 묶음 이름 ("Anthropic" | …) */
+  group_label?: string;
   /** "최상위" | "주력" | "중간" | "경량" | "" */
   tier: string;
-  /** USD / 100만 토큰 */
+  /** USD / 100만 토큰 — 모르면 null */
   input: number | null;
   output: number | null;
+  /** OpenRouter 목록만: 문맥 길이(토큰) */
+  context_length?: number | null;
+  /** "" | "무료" | ".env" | ".env · 무료" … */
   note: string;
   available: boolean;
   /** 못 쓰는 이유 (예: "OpenAI 키가 .env 에 없어요") */
@@ -99,19 +110,61 @@ export interface LlmModelOption {
 /** 유료 설정 — 모델 고르기 필드는 예전 서버에는 없을 수 있다 */
 export interface LlmPaidProfileInfo extends LlmProfileInfo {
   /** .env 키·주소로 알아낸 제공사. null = 알 수 없는 엔드포인트 */
-  provider?: LlmProvider | null;
+  provider?: LlmProvider | "openrouter" | null;
   provider_label?: string | null;
   /** .env 의 LLM_MODEL (기본값) */
   env_model?: string | null;
   models?: LlmModelOption[];
+  /** "openrouter" = OpenRouter 에서 받아 온 목록(POST /api/llm/openrouter/models/refresh), "catalog" = 고정 목록 */
+  models_source?: "openrouter" | "catalog";
+  /** 목록을 한 번이라도 받아 왔는지 (catalog 는 늘 true) */
+  models_loaded?: boolean;
+  /** 비었거나 6시간 넘게 지난 목록 (catalog 는 늘 false) */
+  models_stale?: boolean;
+  models_fetched_at?: string | null;
+  /** 마지막으로 목록을 받다 난 오류 */
+  models_error?: string | null;
 }
 
 export interface LlmProfiles {
   active: LlmProfileName;
   profiles: { free: LlmProfileInfo; paid: LlmPaidProfileInfo };
+  /** 미장 매니저 설정(GET·PUT /api/us/llm/profile)이면 "US" */
+  market?: MarketCode;
+}
+
+// 테스트용(무료) LLM 지정 (GET·PUT·DELETE /api/llm/test-endpoint) — 키는 .env 에만 있고 화면에서 받지 않는다
+export type LlmTestApi = "auto" | "chat" | "responses";
+export type LlmTestField = "base_url" | "model" | "api" | "reasoning_effort";
+/** "화면" = 앱에서 지정해 저장된 값, ".env" = .env 의 LLM_TEST_* */
+export type LlmTestSource = "화면" | ".env";
+
+export interface LlmTestValues {
+  base_url: string;
+  model: string;
+  api: LlmTestApi;
+  reasoning_effort: string;
+}
+
+export interface LlmTestEndpoint extends LlmTestValues {
+  source: Record<LlmTestField, LlmTestSource>;
+  env: LlmTestValues;
+  has_key: boolean;
+  configured: boolean;
+}
+
+/** POST /api/llm/test-endpoint/check — 무료 엔드포인트에만 짧은 요청 4개 */
+export interface LlmTestCheck {
+  ok: boolean;
+  model: string;
+  api: string;
+  steps: { label: string; ok: boolean; detail: string }[];
 }
 
 export interface SystemInfo {
+  /** 미장 스택에만 (국장은 예전 서버에 없을 수 있다) */
+  market?: MarketCode;
+  currency?: Currency;
   trading_mode: string;
   data_source: string;
   toss_ok: boolean;
@@ -270,8 +323,15 @@ export interface AgentStructure {
   tools: { name: string; description: string; group: ToolGroup; source: string; ready: boolean }[];
   schedule: {
     interval_minutes: number;
+    /** 그날 첫 판단 (예전 화면은 이것을 '장전'으로 보여 줬다) */
     morning: string;
+    /** morning 을 뺀 나머지 판단 시각 */
     sessions: string[];
+    /** 그날 판단 시각 전부 (한국 시각, 시간 순) — 예전 서버에는 없다 */
+    times?: string[];
+    custom?: boolean;
+    day?: string;
+    timezone?: string;
     report: string;
     monitor_minutes: number;
     refresh_minutes: number;
@@ -282,6 +342,20 @@ export interface AgentStructure {
   live_daily_buy_limit: number | null;
   engine_status: "RUNNING" | "PAUSED" | "KILLED";
   agent_running: boolean;
+  /** 매니저가 판단·답장 때 다시 읽어 넣는 '기억' — 예전 서버에는 없다 */
+  memory?: AgentMemory;
+}
+
+export interface AgentMemory {
+  /** 무엇을 어디에 넣는지 (최근 판단 세션 / 투자자 메모 / 오늘 대화 / 계좌·매매 내역) */
+  rules: { name: string; where: string; detail: string }[];
+  /** at: 서버가 한국 시각 "MM/DD HH:MM" 으로 준다 */
+  sessions: { run_id: number; at: string; summary: string; actions: string }[];
+  memos: { id: number; at: string; text: string }[];
+  /** 최근 대화 메모를 기억에 넣는지 (메모 화면 '기억 설정') — 예전 서버에는 없다 */
+  use_recent_messages?: boolean;
+  /** 지금 켜져 있는(만료 안 된) 메모 카드 — 예전 서버에는 없다 */
+  cards?: { kind: MemoKind; symbol: string | null; name: string | null; text: string }[];
 }
 
 export interface PushPrefs {
@@ -412,4 +486,157 @@ export interface LlmCosts {
     sessions_per_day?: number | null;
     basis_sessions?: number;
   };
+}
+
+// ---------- 메모 카드 (GET·POST /api/memory/cards, PATCH·DELETE /api/memory/cards/{id}) ----------
+/** watch 관심 종목 · focus 주목할 종목 · avoid 피할 종목 · note 운용 지시(종목 없음) */
+export type MemoKind = "watch" | "focus" | "avoid" | "note";
+
+export interface MemoCard {
+  id: number;
+  kind: MemoKind;
+  symbol: string | null;
+  name: string | null;
+  text: string;
+  active: boolean;
+  /** "YYYY-MM-DD" (한국 날짜, 그날까지 유효) · null = 만료 없음 */
+  expires_on: string | null;
+  expired: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MemoSettings {
+  /** 트레이딩 룸 최근 대화도 기억에 넣을지 (예전 방식) */
+  use_recent_messages: boolean;
+  recent_messages: number;
+}
+
+export interface MemoCards {
+  /** 만료를 판단하는 오늘 날짜 "YYYY-MM-DD" (시장 날짜 — 미장은 뉴욕 날짜). 예전 서버에는 없다 */
+  today?: string;
+  cards: MemoCard[];
+  settings: MemoSettings;
+}
+
+export interface MemoCardCreate {
+  kind: MemoKind;
+  symbol?: string;
+  text?: string;
+  active?: boolean;
+  expires_on?: string | null;
+}
+
+export type MemoCardPatch = Partial<Pick<MemoCard, "kind" | "text" | "active" | "expires_on">>;
+
+/** GET /api/market/search?q=…&limit=20 */
+export interface StockSearchItem {
+  symbol: string;
+  name: string;
+  market: string;
+}
+
+// ---------- 시장 (국장 KR · 미장 US) ----------
+export type MarketCode = "KR" | "US";
+/** 화면 위 전환: 전체(한눈에) · 국장 · 미장 */
+export type MarketView = "ALL" | MarketCode;
+export type Currency = "KRW" | "USD";
+export type EngineStatus = "RUNNING" | "PAUSED" | "KILLED";
+
+/** 오늘(또는 다음) 정규장 — 모두 KST ISO 시각 */
+export interface MarketSession {
+  day: string;
+  open: string;
+  close: string;
+  order_cutoff: string;
+}
+
+/** GET /api/markets */
+export interface MarketInfo {
+  code: MarketCode;
+  name: string;
+  currency: Currency;
+  timezone: string;
+  enabled: boolean;
+  paper_only: boolean;
+  trading_mode: string;
+  llm_profile: LlmProfileName;
+  llm_model: string | null;
+  agent_running: boolean;
+  engine_status: EngineStatus;
+  open_now: boolean;
+  session: MarketSession | null;
+  next_session_open: string | null;
+}
+
+export interface OverviewPosition {
+  symbol: string;
+  name: string;
+  /** 비중(%) */
+  weight: number;
+  pnl_pct: number;
+}
+
+export interface OverviewMarket {
+  code: MarketCode;
+  name: string;
+  currency: Currency;
+  equity: number;
+  cash: number;
+  invested: number;
+  pnl_today: number;
+  pnl_today_pct: number;
+  total_return_pct: number;
+  positions: number;
+  top_positions: OverviewPosition[];
+  engine_status: EngineStatus;
+  agent_running: boolean;
+  next_run: { name: string; at: string } | null;
+  last_session: { run_id: number; at: string; status: string; summary: string } | null;
+}
+
+/** GET /api/overview — 두 시장을 원화로 합친 한눈에 보기 */
+export interface Overview {
+  fx: { usdkrw: number | null; at: string | null };
+  markets: OverviewMarket[];
+  total_krw: { equity: number | null; pnl_today: number | null };
+}
+
+// ---------- 판단 주기 (GET·PUT·DELETE /api/schedule, 미장 /api/us/schedule) ----------
+
+export interface ScheduleInfo {
+  market: MarketCode;
+  timezone: string;
+  /** "한국 시각" · "미국 동부 시각" */
+  tz_label: string;
+  /** true = 화면에서 정한 값, false = .env 기본값 */
+  custom: boolean;
+  /** "HH:MM" (시장 시각) */
+  start: string;
+  end: string;
+  interval_minutes: number;
+  /** 고를 수 있는 주기(분) */
+  intervals: number[];
+  /** 하루 판단 시각 "HH:MM" (시장 시각) */
+  times: string[];
+  /** 같은 세션들의 한국 시각 "HH:MM" */
+  times_kst: string[];
+  /** 시장 시각 */
+  market_hours: { open: string; close: string; order_cutoff: string };
+  /** times 중 주문을 낼 수 없는 시각 */
+  outside_market: string[];
+  report_at: string;
+  next_runs: { name: string; at: string }[];
+  /** '기본값으로'가 되돌릴 값 (.env 기본 일정) — 예전 서버에는 없다 */
+  default?: ScheduleUpdate;
+  /** 하루 판단 세션 상한 */
+  max_sessions?: number;
+  /** 시각을 계산한 거래일 "YYYY-MM-DD" (시장 날짜) */
+  day?: string;
+}
+
+export interface ScheduleUpdate {
+  start: string;
+  end: string;
+  interval_minutes: number;
 }

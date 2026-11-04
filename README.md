@@ -48,11 +48,14 @@ cp .env.example .env
 |---|---|---|---|
 | `TRADING_MODE` | 고정 | 반드시 `paper` (다른 값이면 기동 거부) | — |
 | `TOSS_CLIENT_ID` · `TOSS_CLIENT_SECRET` | **필수** | 실시간 현재가·일봉·종목·랭킹·수급·장 운영 캘린더 (**조회만**) | 토스증권 WTS → 설정 > Open API (토스증권 계좌 필요) |
-| `LLM_BASE_URL` · `LLM_MODEL` · `LLM_API_KEY` | 권장 | 매니저의 두뇌 = **유료** 모델 (OpenAI 호환 Chat Completions, `api.openai.com` 이면 Responses API). OpenAI·Google 이면 설정 화면에서 그 회사 모델을 드롭다운으로 바꿀 수 있음 | 사용하는 LLM 제공자 |
-| `LLM_TEST_BASE_URL` · `LLM_TEST_MODEL` · `LLM_TEST_API_KEY` | 선택 | **무료** 모델(테스트용, 예: 자체 서버). 설정 화면에서 무료/유료를 바꿔 쓰고, `./run.sh llm-check` 점검도 이 값으로 함 | 실서비스와 다른 키 권장 |
+| `LLM_BASE_URL` · `LLM_MODEL` · `LLM_API_KEY` | 권장 | 매니저의 두뇌 = **유료** 모델 (OpenAI 호환 Chat Completions, `api.openai.com` 이면 Responses API). OpenAI·Google·OpenRouter 면 설정 → LLM 에서 그 회사(OpenRouter 는 도구 호출 지원 모델 전체) 모델을 드롭다운으로 바꿀 수 있음 | 사용하는 LLM 제공자 (OpenRouter: `https://openrouter.ai/api/v1`) |
+| `LLM_TEST_BASE_URL` · `LLM_TEST_MODEL` · `LLM_TEST_API_KEY` | 선택 | **무료** 모델(테스트용, 예: 자체 서버). 설정 화면에서 무료/유료를 바꿔 쓰고, `./run.sh llm-check` 점검도 이 값으로 함. 주소·모델은 설정 → LLM → 테스트용 LLM 에서도 바꿀 수 있음(키는 .env 에만) | 실서비스와 다른 키 권장 |
 | `DART_API_KEY` | 선택 | 재무제표·공시 | [OpenDART](https://opendart.fss.or.kr) |
 | `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` · `NAVER_API` | 선택 | 뉴스 검색. `NAVER_API=hub`(기본)는 네이버 클라우드 NAVER API HUB 키, `developers` 는 개발자센터 키. 넣은 뒤 `./run.sh news-check` 로 점검 | [NAVER API HUB](https://api.ncloud-docs.com/docs/naver-api-hub-overview) (검색 API) 또는 [네이버 개발자센터](https://developers.naver.com) |
-| `AGENT_INTERVAL_MINUTES` | 선택 | 장중 판단 간격(분). 기본 60 | — |
+| `GEMINI_API_KEY` | 선택·**유료** | 구글 검색 도구(Gemini Google 검색 그라운딩, 결제 등록 필요). 비우면 꺼짐 | Google AI Studio |
+| `AGENT_INTERVAL_MINUTES` | 선택 | 장중 판단 간격(분) 기본값. 설정 → 판단 일정에서 시작·끝·주기를 정하면 그것을 씀 | — |
+| `US_MARKET_ENABLED` | 선택 | 미장(미국 주식) 모의투자 켜기. 기본 `true`. 미장은 항상 모의투자 | — |
+| `PAPER_US_INITIAL_CASH` | 선택 | 미장 가상 계좌 초기 자금(달러). 기본 $10,000 | — |
 | `PAPER_INITIAL_CASH` | 선택 | 가상 계좌 초기 자금. 기본 1,000만원 | — |
 
 **토스증권 허용 IP 등록 (필수)**: 토스증권 WTS 의 Open API 화면 하단 **'허용 IP 관리'** 에 실행하는 컴퓨터의 공인 IP 를 등록하세요. 등록하지 않으면 시세 요청이 `403 ip-not-allowed` 로 거부되고, 화면 상단에 경고가 뜨며 매니저는 판단을 쉽니다.

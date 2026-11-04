@@ -1,0 +1,192 @@
+/* 아래에서 올라오는 시트 (components/Sheet.tsx) — 휴대폰 확인 창·종목 빠른 보기에서만 받는 조각 */
+html.sheet-open .page-scroll {
+  overflow: hidden;
+}
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.42);
+  animation: fade-in 0.2s ease-out;
+}
+.sheet-backdrop.closing {
+  animation: fade-out 0.18s ease-in forwards;
+}
+.sheet {
+  width: 100%;
+  max-width: 560px;
+  max-height: calc(var(--vvh, 100dvh) - 24px - env(safe-area-inset-top));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 max(16px, env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom))
+    max(16px, env(safe-area-inset-left));
+  border-radius: 20px 20px 0 0;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--sheet-shadow);
+  animation: sheet-up 0.26s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.sheet.dragging {
+  transition: none;
+}
+.sheet.closing {
+  animation: sheet-down 0.18s ease-in forwards;
+}
+.sheet-grab {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 8px 0 4px;
+  background: var(--panel);
+  touch-action: none;
+  cursor: grab;
+}
+.sheet-handle {
+  display: block;
+  width: 40px;
+  height: 5px;
+  margin: 0 auto 8px;
+  border-radius: 3px;
+  background: var(--border);
+}
+.sheet.danger .sheet-handle {
+  background: var(--danger);
+  opacity: 0.6;
+}
+.sheet-title {
+  margin: 2px 0 0;
+  font-size: 17px;
+}
+.sheet-body {
+  padding-top: 6px;
+  font-size: 15px;
+}
+.sheet-body p {
+  margin: 0 0 10px;
+}
+.sheet-actions {
+  display: flex;
+  flex-direction: column-reverse; /* 확인 버튼이 위, 취소가 아래 (엄지가 닿는 곳) */
+  gap: 8px;
+  margin-top: 14px;
+}
+.sheet-actions .btn {
+  width: 100%;
+  min-height: 50px;
+  font-size: 16px;
+  border-radius: 14px;
+}
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes sheet-down {
+  to {
+    transform: translateY(100%);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* 종목 빠른 보기 */
+.qs-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 4px 0 12px;
+}
+.qs-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.qs-name b {
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+.qs-price {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  gap: 1px;
+}
+.qs-price b {
+  font-size: 24px;
+  line-height: 1.2;
+}
+.qs-chart {
+  margin: 0 0 14px;
+  color: var(--text-dim);
+}
+.qs-chart.up {
+  color: var(--up);
+}
+.qs-chart.down {
+  color: var(--down);
+}
+.qs-chart svg {
+  display: block;
+  width: 100%;
+  height: 84px;
+}
+.qs-area {
+  fill: currentColor;
+  opacity: 0.12;
+}
+.qs-chart figcaption {
+  margin-top: 4px;
+  font-size: 12px;
+}
+.qs-none {
+  margin: 0 0 14px;
+}
+.qs-pos {
+  padding: 12px;
+  margin-bottom: 14px;
+  border-radius: 12px;
+  background: var(--panel-2);
+}
+.qs-actions {
+  display: flex;
+  gap: 8px;
+}
+.qs-actions .btn {
+  flex: 1;
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  font-size: 15px;
+  border-radius: 14px;
+}
+.qs-actions .btn.primary {
+  flex: 2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet,
+  .sheet.closing,
+  .sheet-backdrop,
+  .sheet-backdrop.closing {
+    animation: none;
+  }
+  .sheet {
+    transition: none;
+  }
+}

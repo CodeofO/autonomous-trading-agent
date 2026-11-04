@@ -8,6 +8,51 @@ export const fmtPct = (v: number | null | undefined, digits = 2) =>
 export const signClass = (v: number | null | undefined) =>
   v == null || v === 0 ? "" : v > 0 ? "up" : "down";
 
+// ---------- 시장 통화 (국장 원 · 미장 달러) ----------
+type Cur = "KRW" | "USD";
+const usdFixed = (digits: number) =>
+  new Intl.NumberFormat("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+const usdCents = usdFixed(2);
+const usdSub = usdFixed(4);
+
+function usdText(v: number, f: Intl.NumberFormat): string {
+  const body = f.format(Math.abs(v));
+  // 반올림해서 0 이 되면 부호를 붙이지 않는다 (-$0.00 대신 $0.00)
+  return `${v < 0 && /[1-9]/.test(body) ? "-" : ""}$${body}`;
+}
+
+/**
+ * 금액: 국장 1,234,567원 · 미장 $1,234.56 (값이 없으면 —).
+ * sign: 손익처럼 + 부호도 붙인다 (+12,300원 · +$12.30)
+ */
+export function money(
+  v: number | null | undefined,
+  currency: Cur = "KRW",
+  opts: { sign?: boolean } = {},
+): string {
+  if (v == null || !Number.isFinite(v)) return "—";
+  const text = currency === "USD" ? usdText(v, usdCents) : fmtWon(v);
+  return opts.sign && v > 0 && /[1-9]/.test(text) ? `+${text}` : text;
+}
+
+/** 주가: 국장 154,700 (표 안에서는 '원' 없이, krwDigits 자리까지) · 미장 $337.50 ($1 미만은 $0.1234) */
+export function price(v: number | null | undefined, currency: Cur = "KRW", krwDigits = 0): string {
+  if (v == null || !Number.isFinite(v)) return "—";
+  if (currency === "KRW") return fmtNum(v, krwDigits);
+  const a = Math.abs(v);
+  return usdText(v, a > 0 && a < 1 ? usdSub : usdCents);
+}
+
+type Fmt = (v: number | null | undefined) => string;
+/**
+ * 통화별 금액·주가 글자 함수 — 같은 통화면 늘 같은 함수.
+ * 살아 있는 숫자(AnimatedNumber)에 넘겨도 부모가 다시 그려질 때 숫자 칸이 다시 그려지지 않는다
+ */
+export const MONEY_FMT: Record<Cur, Fmt> = { KRW: (v) => money(v, "KRW"), USD: (v) => money(v, "USD") };
+export const PRICE_FMT: Record<Cur, Fmt> = { KRW: (v) => price(v, "KRW"), USD: (v) => price(v, "USD") };
+/** 등락률 글자 (+1.23%) */
+export const pctFmt: Fmt = (v) => fmtPct(v);
+
 // ---------- 주요 지표 (대시보드) ----------
 const dec = (min: number, max = min) =>
   new Intl.NumberFormat("ko-KR", { minimumFractionDigits: min, maximumFractionDigits: max });
@@ -61,6 +106,30 @@ export function fmtIndicatorChange(it: IndicatorMove): string {
 export function fmtTime(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Seoul" });
+}
+
+const hm24 = new Intl.DateTimeFormat("en-GB", {
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+  timeZone: "Asia/Seoul",
+});
+
+/** 한국 시각 24시간 "HH:MM" (장 시간표·판단 시각처럼 시각끼리 견줄 때) */
+export const fmtHm = (iso: string) => hm24.format(new Date(iso));
+
+const kstDay = (ms: number) => Math.floor((ms + 9 * 3600_000) / 86_400_000);
+
+/** 짧은 한국 시각: 오늘 23:30 · 내일 09:00 · 11/07 09:00 (지난 날짜는 날짜와 함께) */
+export function fmtWhen(iso: string, now: number = Date.now()): string {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return "—";
+  const diff = kstDay(t) - kstDay(now);
+  if (diff === 0) return `오늘 ${fmtHm(iso)}`;
+  if (diff === 1) return `내일 ${fmtHm(iso)}`;
+  const d = new Date(t + 9 * 3600_000);
+  const md = `${String(d.getUTCMonth() + 1).padStart(2, "0")}/${String(d.getUTCDate()).padStart(2, "0")}`;
+  return `${md} ${fmtHm(iso)}`;
 }
 
 export function fmtDateTime(iso: string): string {
@@ -117,6 +186,13 @@ export function fmtTokens(v: number | null | undefined): string {
 }
 
 export const ACTION_KO: Record<string, string> = { BUY: "매수", SELL: "매도", HOLD: "유지" };
+
+/** 예약된 판단 일정 이름 (대시보드·한눈에 보기) */
+export const JOB_KO: Record<string, string> = {
+  morning: "☀️ 장전 판단",
+  hourly: "⏰ 정시 판단",
+  report: "📊 마감 리포트",
+};
 export const BASIS_KO: Record<string, string> = { OPEN: "시가", CLOSE: "종가", NOW: "현재가" };
 
 export const STATUS_KO: Record<string, string> = {
@@ -127,3 +203,36 @@ export const STATUS_KO: Record<string, string> = {
   CANCELED: "취소",
   REJECTED: "거부",
 };
+
+// ---------- 상대 시각 ("3분 전") ----------
+const fullKst = new Intl.DateTimeFormat("ko-KR", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  weekday: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+  timeZone: "Asia/Seoul",
+});
+
+/** 정확한 한국 시각 (상대 시각에 마우스를 올리면 보이는 글자) */
+export const fmtFull = (iso: string) => {
+  const t = Date.parse(iso);
+  return Number.isFinite(t) ? `${fullKst.format(t)} KST` : "";
+};
+
+/** 방금 · 3분 전 · 2시간 전 · 어제 21:30 · 3일 전 · (일주일 넘으면) 11. 02. 09:00 */
+export function fmtAgo(iso: string, now: number = Date.now()): string {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return "—";
+  const s = Math.max(0, (now - t) / 1000);
+  if (s < 45) return "방금";
+  if (s < 3600) return `${Math.max(1, Math.round(s / 60))}분 전`;
+  if (s < 86_400 && kstDay(t) === kstDay(now)) return `${Math.floor(s / 3600)}시간 전`;
+  const days = kstDay(now) - kstDay(t);
+  if (days === 1) return `어제 ${fmtHm(iso)}`;
+  if (days < 7) return `${days}일 전`;
+  return fmtDateTime(iso);
+}

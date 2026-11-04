@@ -1,8 +1,10 @@
-import { useId, useState } from "react";
+import { memo, useId, useState } from "react";
 import { Link } from "react-router-dom";
 import type { ChatMsg, Role } from "../../api/types";
-import { ACTION_KO, fmtNum, fmtTime, fmtWon } from "../../utils/format";
+import { useCurrency } from "../../market";
+import { ACTION_KO, fmtNum, fmtTime, money } from "../../utils/format";
 import "./chat-activity.css";
+import { SOURCE_CLS } from "./sessions";
 
 export interface Persona {
   name: string;
@@ -30,7 +32,20 @@ interface Props {
   compact?: boolean; // 같은 화자의 연속 메시지면 아바타 생략
 }
 
-export function ChatMessage({ msg, persona, compact = false }: Props) {
+/**
+ * 채팅 한 줄. 메시지는 한 번 오면 바뀌지 않으므로 같은 메시지·같은 매니저 이름이면 다시 그리지 않는다
+ * (새 메시지·진행 표시·폴링으로 목록이 다시 그려져도 이미 있던 줄은 그대로)
+ */
+export const ChatMessage = memo(ChatMessageView, (a, b) => {
+  return (
+    a.msg === b.msg &&
+    a.compact === b.compact &&
+    a.persona.name === b.persona.name &&
+    a.persona.emoji === b.persona.emoji
+  );
+});
+
+function ChatMessageView({ msg, persona, compact = false }: Props) {
   const meta = roleMeta(msg.role, persona);
 
   if (msg.role === "system" && msg.kind !== "summary") {
@@ -73,7 +88,7 @@ export function ChatMessage({ msg, persona, compact = false }: Props) {
   );
 }
 
-function SummaryCounts({ payload }: { payload: Record<string, unknown> }) {
+const SummaryCounts = memo(function SummaryCounts({ payload }: { payload: Record<string, unknown> }) {
   const counts = payload.counts as Record<string, number> | undefined;
   if (!counts) return null;
   return (
@@ -83,7 +98,7 @@ function SummaryCounts({ payload }: { payload: Record<string, unknown> }) {
       <span className="pill hold">유지 {counts.HOLD ?? 0}</span>
     </div>
   );
-}
+});
 
 // 도구 인자·결과 키의 한글 이름 (모르는 키는 그대로 보여준다)
 const ARG_KO: Record<string, string> = {
@@ -128,13 +143,6 @@ const RESULT_KO: Record<string, string> = {
   stocks: "종목",
   score: "점수",
   evidence: "근거",
-};
-const SOURCE_CLS: Record<string, string> = {
-  토스증권: "toss",
-  DART: "dart",
-  NAVER: "naver",
-  모의계좌: "account",
-  "토스 실계좌": "account",
 };
 
 const fmtMs = (ms: number) => (ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(1)}s`);
@@ -199,7 +207,8 @@ function KeyValues({
   );
 }
 
-function ToolChip({ msg }: { msg: ChatMsg }) {
+/** 도구 호출 한 줄 (펼침 상태는 줄마다). 같은 메시지면 다시 그리지 않는다 */
+export const ToolChip = memo(function ToolChip({ msg }: { msg: ChatMsg }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
   const p = msg.payload as {
@@ -254,9 +263,10 @@ function ToolChip({ msg }: { msg: ChatMsg }) {
       )}
     </div>
   );
-}
+});
 
-export function DecisionCard({ msg }: { msg: ChatMsg }) {
+/** 매니저 결정 카드. 같은 메시지면 다시 그리지 않는다 */
+export const DecisionCard = memo(function DecisionCard({ msg }: { msg: ChatMsg }) {
   const p = msg.payload as {
     symbol?: string;
     name?: string;
@@ -268,6 +278,7 @@ export function DecisionCard({ msg }: { msg: ChatMsg }) {
     evidence?: string[];
     price?: number;
   };
+  const cur = useCurrency();
   const action = p.action ?? "HOLD";
   const conf = Math.round((p.confidence ?? 0) * 100);
   return (
@@ -277,7 +288,7 @@ export function DecisionCard({ msg }: { msg: ChatMsg }) {
         <Link to={`/stock/${p.symbol}`} className="decision-name">
           {p.name || p.symbol} <small>{p.symbol}</small>
         </Link>
-        {p.price ? <span className="muted">{fmtWon(p.price)}</span> : null}
+        {p.price ? <span className="muted">{money(p.price, cur)}</span> : null}
       </div>
       {action !== "HOLD" && (
         <div className="decision-size">
@@ -301,4 +312,4 @@ export function DecisionCard({ msg }: { msg: ChatMsg }) {
       )}
     </div>
   );
-}
+});

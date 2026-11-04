@@ -7,16 +7,16 @@ from typing import Any
 
 from sqlalchemy import func, select
 
-from app.core.clock import KST
 from app.db.models import AgentDecision, AgentRun, AuditEvent, DailyReport, Fill, Order
 from app.engine.engine import TradingEngine
 from app.engine.events import SYSTEM
 
 
 async def build_daily_report(engine: TradingEngine) -> dict[str, Any]:
-    now = engine.clock.now()
-    day = now.astimezone(KST).date()
-    start = datetime.combine(day, time(0), KST)
+    # 거래일 = 그 시장의 현지 날짜 (미장은 뉴욕 날짜 — 한국 시각 새벽 마감 리포트도 전날 거래일로 묶인다)
+    tz = engine.cal.tz
+    day = engine.today()
+    start = datetime.combine(day, time(0), tz)
     end = start + timedelta(days=1)
     pf = await engine.portfolio()
     with engine.db.session() as s:
@@ -39,15 +39,15 @@ async def build_daily_report(engine: TradingEngine) -> dict[str, Any]:
             s.scalars(select(AgentDecision).where(AgentDecision.run_id.in_([r.id for r in runs])))
         )
     settled_today = [
-        f for f in fills if _aware(f.filled_at).astimezone(KST).date() >= engine.cal.previous_trading_day(day)
+        f for f in fills if _aware(f.filled_at).astimezone(tz).date() >= engine.cal.previous_trading_day(day)
     ]
     sod = engine.start_of_day_equity(pf["equity"])
     report = {
         "day": day.isoformat(),
         "equity": pf["equity"],
         "cash": pf["cash"],
-        "start_of_day_equity": round(sod),
-        "daily_pnl": round(pf["equity"] - sod),
+        "start_of_day_equity": engine.money(sod),
+        "daily_pnl": engine.money(pf["equity"] - sod),
         "daily_pnl_pct": pf["daily_pnl_pct"],
         "total_return_pct": pf["total_return_pct"],
         "realized_pnl": pf["realized_pnl"],
@@ -71,12 +71,23 @@ async def build_daily_report(engine: TradingEngine) -> dict[str, Any]:
     }
     with engine.db.session() as s:
         s.merge(DailyReport(day=day, payload=report, created_at=datetime.now(UTC)))
+    if engine.market is not None:
+        report["market"], report["currency"] = engine.market.code, engine.market.currency
     sign = "📈" if report["daily_pnl"] >= 0 else "📉"
+    if engine.currency == "USD":
+        eq, pnl = (
+            f"${report['equity']:,.2f}",
+            ("+" if report["daily_pnl"] >= 0 else "-") + (f"${abs(report['daily_pnl']):,.2f}"),
+        )
+        title = f"📊 미장 {day:%m/%d}(미국) 마감 리포트"
+    else:
+        eq, pnl = f"{report['equity']:,.0f}원", f"{report['daily_pnl']:+,.0f}원"
+        title = f"📊 {day:%m/%d} 마감 리포트"
     engine.hub.chat(
         SYSTEM,
         "summary",
-        f"📊 {day:%m/%d} 마감 리포트 {sign} 총자산 {report['equity']:,.0f}원 "
-        f"(오늘 {report['daily_pnl']:+,.0f}원, 누적 {report['total_return_pct']:+.2f}%) · "
+        f"{title} {sign} 총자산 {eq} "
+        f"(오늘 {pnl}, 누적 {report['total_return_pct']:+.2f}%) · "
         f"주문 {report['orders_placed']}건 · 리스크 차단 {blocks}건",
         report=report,
     )

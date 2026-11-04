@@ -63,9 +63,13 @@ BUY_BUFFER = 1.05
 
 
 class RiskManager:
-    def __init__(self, config: RiskConfig, calendar: MarketCalendar) -> None:
+    def __init__(self, config: RiskConfig, calendar: MarketCalendar, currency: str = "KRW") -> None:
         self.config = config
         self.cal = calendar
+        self.currency = currency  # 미장(USD)이면 금액 한도가 달러 (D-48)
+
+    def _amount(self, v: float) -> str:
+        return f"${v:,.0f}" if self.currency == "USD" else f"{v:,.0f}원"
 
     def daily_pnl_pct(self, ctx: RiskContext) -> float:
         if ctx.start_of_day_equity <= 0:
@@ -81,7 +85,12 @@ class RiskManager:
         if ctx.killed:
             return block("kill_switch", "킬 스위치가 켜져 있어 모든 주문이 중단됐습니다")
         if self.cal.fill_basis(ctx.now) is None:
-            return block("market_hours", "장 운영시간 외 주문 금지 (08:30~15:20 거래일만 접수)")
+            hours = (
+                "미국 정규장 시작 30분 전~마감 10분 전, 미국 거래일만 접수"
+                if self.currency == "USD"
+                else "08:30~15:20 거래일만 접수"
+            )
+            return block("market_hours", f"장 운영시간 외 주문 금지 ({hours})")
         if it.quantity <= 0 or it.ref_price <= 0:
             return block("invalid", "수량/가격이 올바르지 않습니다")
         if it.symbol in ctx.open_order_symbols:
@@ -119,7 +128,9 @@ class RiskManager:
         px = it.ref_price * BUY_BUFFER
         equity = ctx.balance.equity
         caps: list[tuple[int, str]] = []
-        caps.append((math.floor(c.max_order_amount / px), f"1회 최대 주문금액 {c.max_order_amount:,.0f}원"))
+        caps.append(
+            (math.floor(c.max_order_amount / px), f"1회 최대 주문금액 {self._amount(c.max_order_amount)}")
+        )
         cur_val = held[it.symbol].market_value if it.symbol in held else 0.0
         room = equity * c.max_position_weight - cur_val
         caps.append((math.floor(max(room, 0) / px), f"종목당 최대 비중 {c.max_position_weight:.0%}"))

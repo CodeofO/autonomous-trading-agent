@@ -1,10 +1,14 @@
 import type { ReactNode } from "react";
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { get } from "../api/client";
-import type { AgentStructure, ToolGroup } from "../api/types";
+import type { AgentMemory, AgentStructure, ToolGroup } from "../api/types";
 import { Loading } from "../components/Loading";
-import { fmtWon } from "../utils/format";
+import { useLiveInterval } from "../live/hooks";
+import { useApi, useCurrency, useMarketInfo } from "../market";
+import { fmtHm, money } from "../utils/format";
+import { isPreOpen } from "../utils/schedule";
 import { profileModel } from "../utils/llm";
+import { memoKind } from "../utils/memo";
 
 const GROUPS: { key: ToolGroup; label: string; icon: string }[] = [
   { key: "portfolio", label: "내 계좌", icon: "📒" },
@@ -23,16 +27,26 @@ const pct = (v: number, digits = 0) => `${(v * 100).toFixed(digits)}%`;
 
 /** 에이전트 구성과 판단 흐름을 실제 설정값으로 보여준다 (/api/agent/structure). */
 export function AgentPage() {
+  const api = useApi();
+  const cur = useCurrency();
+  const info = useMarketInfo(api.market);
+  // 웹소켓이 연결돼 있으면 30초마다 (세션 시작·끝·설정 변경은 이벤트가 바로 알려 준다), 끊기면 5초마다
+  const every = useLiveInterval(api.market, 5000);
   const { data: st, isError } = useQuery({
-    queryKey: ["agent-structure"],
-    queryFn: () => get<AgentStructure>("/api/agent/structure"),
-    refetchInterval: 5000,
+    queryKey: api.key("agent-structure"),
+    queryFn: () => api.get<AgentStructure>("/api/agent/structure"),
+    refetchInterval: every,
   });
   if (isError) return <p className="error">에이전트 구성을 불러오지 못했어요.</p>;
   if (!st) return <Loading />;
 
   const { schedule: sc, risk, paper, llm } = st;
-  const sessions = sc.sessions;
+  // 판단 시각 (한국 시각). 장 시작 전인 슬롯만 '장전' — 직접 정한 일정은 첫 슬롯이 장중일 수도 있다
+  const times = sc.times ?? [sc.morning, ...sc.sessions].filter(Boolean);
+  const openKst = info?.session ? fmtHm(info.session.open) : api.market === "KR" ? "09:00" : null;
+  const pre = openKst ? times.filter((t) => isPreOpen(t, openKst)) : sc.times ? [] : [sc.morning];
+  const sessions = times.filter((t) => !pre.includes(t));
+  const recentOn = st.memory?.use_recent_messages !== false;
   const llmMode = llm.mode === "rules";
   const terminal = st.tools.find((t) => t.group === "decision");
   const live = st.trading_mode === "live";
@@ -76,11 +90,15 @@ export function AgentPage() {
           <ol className="wf" aria-label="판단 워크플로">
             <Step n={1} icon="⏰" title="세션 시작">
               <p>
-                장전 {sc.morning} · 장중{" "}
-                {sc.interval_minutes > 0
-                  ? `${sc.interval_minutes}분마다 (${sessions[0]}~${sessions[sessions.length - 1]}, ${sessions.length}회)`
-                  : sessions.join(", ")}{" "}
-                · 수동 실행
+                {pre.length > 0 && `장전 ${pre.join(", ")} · `}
+                {sessions.length > 0 &&
+                  `장중 ${
+                    sc.interval_minutes > 0
+                      ? `${sc.interval_minutes}분마다 (${sessions[0]}~${sessions[sessions.length - 1]}, ${sessions.length}회)`
+                      : sessions.join(", ")
+                  } · `}
+                수동 실행
+                {sc.custom && <small className="muted"> (설정에서 정한 일정)</small>}
               </p>
               <p className="muted">거래일에만, 한 번에 하나만 실행해요. 토스 시세가 끊기면 쉬어요.</p>
             </Step>
@@ -88,7 +106,9 @@ export function AgentPage() {
             <Step n={2} icon="🧠" title="상황 파악">
               <ul className="wf-list">
                 <li>운용 정책·페르소나 (설정에서 수정)</li>
-                <li>최근 판단 3건과 투자자 메모 5건</li>
+                <li>
+                  {recentOn ? "최근 판단 3건과 투자자 메모 5건" : "최근 판단 3건 (투자자 메모는 꺼 둠)"}
+                </li>
                 <li>현재 시각과 세션 종류</li>
               </ul>
             </Step>
@@ -145,7 +165,7 @@ export function AgentPage() {
 
             <Step n={5} icon="🛡️" title="리스크 검사">
               <div className="rule-grid">
-                <Rule label="1회 주문 한도" value={fmtWon(risk.max_order_amount)} />
+                <Rule label="1회 주문 한도" value={money(risk.max_order_amount, cur)} />
                 <Rule label="종목당 최대 비중" value={pct(risk.max_position_weight)} />
                 <Rule label="최소 현금 비중" value={pct(risk.min_cash_ratio)} />
                 <Rule label="최대 보유 종목" value={`${risk.max_positions}개`} />
@@ -163,7 +183,7 @@ export function AgentPage() {
                   <li>토스증권 실계좌로 실제 주문 (시장가 · 지정가는 호가단위에 맞춤)</li>
                   <li>1분마다 토스 주문 조회로 체결·취소 확인 · 미체결은 당일 장 마감까지 유효</li>
                   <li>
-                    하루 매수 총액 상한 {fmtWon(st.live_daily_buy_limit)} · 1억원 이상 주문은 보내지 않음
+                    하루 매수 총액 상한 {money(st.live_daily_buy_limit, cur)} · 1억원 이상 주문은 보내지 않음
                   </li>
                   <li>주문 요청은 자동 재시도하지 않음 (중복 주문 방지)</li>
                 </ul>
@@ -221,15 +241,22 @@ export function AgentPage() {
           <section className="card">
             <div className="card-head">
               <h2>🗓️ 오늘의 판단 시각</h2>
-              <span className="muted">{sessions.length + 1}회</span>
+              <span className="muted">
+                {times.length}회{api.market === "KR" ? "" : " · 한국 시각"}
+              </span>
             </div>
             <div className="time-chips">
-              <span className="chip ok">{sc.morning} 장전</span>
-              {sessions.map((t) => (
-                <span key={t} className="chip">
-                  {t}
-                </span>
-              ))}
+              {times.map((t) =>
+                pre.includes(t) ? (
+                  <span key={t} className="chip ok">
+                    {t} 장전
+                  </span>
+                ) : (
+                  <span key={t} className="chip">
+                    {t}
+                  </span>
+                ),
+              )}
             </div>
           </section>
 
@@ -258,14 +285,129 @@ export function AgentPage() {
               ) : (
                 <li>
                   <b>모의계좌</b>
-                  <span>초기 자금 {fmtWon(paper.initial_cash)}</span>
+                  <span>초기 자금 {money(paper.initial_cash, cur)}</span>
                 </li>
               )}
             </ul>
           </section>
         </aside>
       </div>
+
+      {st.memory && <MemoryCard memory={st.memory} />}
     </div>
+  );
+}
+
+/** 매니저가 판단·답장 때 DB 에서 다시 읽어 넣는 '기억' — 규칙과 지금 들어가는 내용 */
+function MemoryCard({ memory }: { memory: AgentMemory }) {
+  const { rules = [], sessions = [], memos = [], cards } = memory;
+  return (
+    <section className="card memory-card" aria-labelledby="memory-title">
+      <div className="card-head">
+        <h2 id="memory-title">🧠 매니저의 기억</h2>
+        <Link to="/memo" className="btn tiny mem-memo-link">
+          메모 카드 관리 →
+        </Link>
+      </div>
+      <p className="muted">
+        별도 장기 기억 저장소는 없고, 판단·답장 때마다 아래 내용을 DB에서 다시 읽어 넣어요.
+      </p>
+
+      {rules.length > 0 && (
+        <ul className="mem-rules" aria-label="기억 규칙">
+          {rules.map((r) => (
+            <li key={r.name}>
+              <div className="mem-rule-head">
+                <b>{r.name}</b>
+                <span className="pill">{r.where}</span>
+              </div>
+              <small className="muted">{r.detail}</small>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <h3 className="mem-now">지금 기억하고 있는 것</h3>
+      {cards && (
+        <div className="mem-cards">
+          <h4>켜진 메모 카드</h4>
+          {cards.length === 0 ? (
+            <p className="muted mem-empty">
+              켜진 메모 카드가 없어요. <Link to="/memo">메모 카드 만들기 →</Link>
+            </p>
+          ) : (
+            <ul className="mem-card-list" aria-label="켜진 메모 카드">
+              {cards.map((c, i) => {
+                const k = memoKind(c.kind);
+                return (
+                  <li key={`${c.kind}:${c.symbol ?? ""}:${i}`}>
+                    <span className={`memo-kind k-${c.kind}`}>
+                      <span aria-hidden>{k.icon}</span> {k.label}
+                    </span>
+                    {c.symbol && (
+                      <b>
+                        {c.name || c.symbol} <small className="muted">{c.symbol}</small>
+                      </b>
+                    )}
+                    {c.text && <span className="mem-card-text">{c.text}</span>}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
+      <div className="mem-grid">
+        <div className="mem-col">
+          <h4>최근 판단 세션</h4>
+          {sessions.length === 0 ? (
+            <p className="muted mem-empty">아직 완료된 판단 세션이 없어요.</p>
+          ) : (
+            <ul className="mem-list" aria-label="최근 판단 세션">
+              {sessions.map((x) => (
+                <li key={x.run_id}>
+                  <div className="mem-meta">
+                    <b>세션 #{x.run_id}</b>
+                    <small className="muted">{x.at}</small>
+                  </div>
+                  <p>{x.summary || "(요약 없음)"}</p>
+                  <small className="muted">매매: {x.actions}</small>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className="mem-col">
+          <h4>투자자 메모</h4>
+          {/* 메모 화면 '기억 설정'에서 끄면 매니저는 최근 대화 메모를 받지 않는다 — 그때는 경고 대신 꺼져 있다고만 */}
+          {memory.use_recent_messages === false ? (
+            <p className="muted mem-note" data-testid="memos-off">
+              최근 대화 메모는 꺼 두었어요 — 매니저가 판단·답장 때 받지 않아요.{" "}
+              <Link to="/memo">기억 설정 →</Link>
+            </p>
+          ) : (
+            <p className="push-note warn mem-note">
+              트레이딩 룸에 보낸 내 메시지 중 <b>날짜와 관계없이 최근 5개</b>예요. 새 메시지가 쌓여야
+              밀려나서, 예전에 한 말(예: '카카오')이 며칠 뒤 판단에도 계속 들어갈 수 있어요.
+            </p>
+          )}
+          {memos.length === 0 ? (
+            <p className="muted mem-empty">아직 보낸 메시지가 없어요.</p>
+          ) : (
+            <ul className="mem-list" aria-label="투자자 메모">
+              {memos.map((m) => (
+                <li key={m.id}>
+                  <div className="mem-meta">
+                    <small className="muted">{m.at}</small>
+                  </div>
+                  <p>{m.text}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }
 

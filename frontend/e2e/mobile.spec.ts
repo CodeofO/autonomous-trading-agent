@@ -7,7 +7,8 @@ const noHorizontalScroll = async (page: Page) =>
   expect(Number(await page.evaluate("document.documentElement.scrollWidth"))).toBeLessThanOrEqual(390);
 
 test("모바일: 하단 탭바로 모든 화면을 오가고 가로 스크롤이 없다", async ({ page }) => {
-  await page.goto("/");
+  // 국장 대시보드부터 (처음 화면 '전체'는 두 시장 한눈에 보기)
+  await page.goto("/?m=kr");
   await expect(page.getByText("총자산")).toBeVisible();
   await noHorizontalScroll(page);
 

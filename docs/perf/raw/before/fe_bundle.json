@@ -1,0 +1,239 @@
+{
+  "label": "before",
+  "generated_at": "2026-11-04T14:14:16.085Z",
+  "git": {
+    "head": "80b1f74",
+    "branch": "main",
+    "frontend_uncommitted_paths": 48
+  },
+  "build": {
+    "command": "npx vite build --outDir perf/tmp/fe_build --emptyOutDir --sourcemap --manifest",
+    "wall_s": 1.31,
+    "warnings": []
+  },
+  "totals": {
+    "js_chunks": 1,
+    "css_files": 1,
+    "js_raw": 610947,
+    "js_gzip": 193131,
+    "js_brotli": 165275,
+    "css_raw": 64396,
+    "css_gzip": 12953,
+    "css_brotli": 11570,
+    "initial_js_raw": 610947,
+    "initial_js_gzip": 193131,
+    "initial_css_raw": 64396,
+    "initial_css_gzip": 12953,
+    "largest_js_raw": 610947,
+    "largest_js_gzip": 193131,
+    "public_assets_raw": 21324
+  },
+  "chunks": [
+    {
+      "file": "assets/index-[hash].css",
+      "type": "css",
+      "raw": 64396,
+      "gzip": 12953,
+      "brotli": 11570,
+      "is_entry": false,
+      "is_dynamic_entry": false,
+      "initial": true,
+      "source": "index.html (css)"
+    },
+    {
+      "file": "assets/index-[hash].js",
+      "type": "js",
+      "raw": 610947,
+      "gzip": 193131,
+      "brotli": 165275,
+      "is_entry": true,
+      "is_dynamic_entry": false,
+      "initial": true,
+      "source": "index.html"
+    }
+  ],
+  "code_split": {
+    "routes_lazy": false,
+    "react_lazy_calls": 0,
+    "dynamic_imports_in_src": 0,
+    "dynamic_entry_chunks": 0,
+    "pages_imported_statically_in_app_tsx": 12
+  },
+  "by_package": [
+    {
+      "name": "app (src/)",
+      "bytes": 182193,
+      "pct": 29.8
+    },
+    {
+      "name": "react-dom",
+      "bytes": 173784,
+      "pct": 28.4
+    },
+    {
+      "name": "lightweight-charts",
+      "bytes": 160181,
+      "pct": 26.2
+    },
+    {
+      "name": "@tanstack/query-core",
+      "bytes": 36150,
+      "pct": 5.9
+    },
+    {
+      "name": "react-router",
+      "bytes": 32390,
+      "pct": 5.3
+    },
+    {
+      "name": "fancy-canvas",
+      "bytes": 8810,
+      "pct": 1.4
+    },
+    {
+      "name": "react",
+      "bytes": 8333,
+      "pct": 1.4
+    },
+    {
+      "name": "scheduler",
+      "bytes": 3664,
+      "pct": 0.6
+    },
+    {
+      "name": "[unmapped]",
+      "bytes": 2805,
+      "pct": 0.5
+    },
+    {
+      "name": "@tanstack/react-query",
+      "bytes": 2638,
+      "pct": 0.4
+    }
+  ],
+  "app_src_top_files": [
+    {
+      "name": "src/pages/Settings.tsx",
+      "bytes": 32428,
+      "pct": 5.3
+    },
+    {
+      "name": "src/pages/Memo.tsx",
+      "bytes": 14731,
+      "pct": 2.4
+    },
+    {
+      "name": "src/pages/Costs.tsx",
+      "bytes": 13779,
+      "pct": 2.3
+    },
+    {
+      "name": "src/pages/Agent.tsx",
+      "bytes": 12674,
+      "pct": 2.1
+    },
+    {
+      "name": "src/pages/Overview.tsx",
+      "bytes": 10345,
+      "pct": 1.7
+    },
+    {
+      "name": "src/components/chat/SessionBlock.tsx",
+      "bytes": 8351,
+      "pct": 1.4
+    },
+    {
+      "name": "src/pages/Stock.tsx",
+      "bytes": 7688,
+      "pct": 1.3
+    },
+    {
+      "name": "src/components/Layout.tsx",
+      "bytes": 7308,
+      "pct": 1.2
+    },
+    {
+      "name": "src/pages/ScheduleSettings.tsx",
+      "bytes": 6692,
+      "pct": 1.1
+    },
+    {
+      "name": "src/pages/Portfolio.tsx",
+      "bytes": 5773,
+      "pct": 0.9
+    },
+    {
+      "name": "src/components/chat/ChatMessage.tsx",
+      "bytes": 5673,
+      "pct": 0.9
+    },
+    {
+      "name": "src/components/chat/ChatFeed.tsx",
+      "bytes": 5343,
+      "pct": 0.9
+    },
+    {
+      "name": "src/pages/Backtest.tsx",
+      "bytes": 4234,
+      "pct": 0.7
+    },
+    {
+      "name": "src/components/chat/sessions.ts",
+      "bytes": 3865,
+      "pct": 0.6
+    },
+    {
+      "name": "src/pages/Dashboard.tsx",
+      "bytes": 3661,
+      "pct": 0.6
+    },
+    {
+      "name": "src/utils/format.ts",
+      "bytes": 3495,
+      "pct": 0.6
+    },
+    {
+      "name": "src/push.ts",
+      "bytes": 3478,
+      "pct": 0.6
+    },
+    {
+      "name": "src/utils/memo.ts",
+      "bytes": 2550,
+      "pct": 0.4
+    },
+    {
+      "name": "src/components/charts.tsx",
+      "bytes": 2527,
+      "pct": 0.4
+    },
+    {
+      "name": "src/utils/schedule.ts",
+      "bytes": 2415,
+      "pct": 0.4
+    }
+  ],
+  "mapped_bytes_total": 610948,
+  "served": {
+    "base_url": "http://localhost:15173",
+    "assets": [
+      {
+        "url": "/assets/index-[hash].js",
+        "content_encoding": null,
+        "cache_control": null,
+        "etag": true,
+        "bytes_on_wire": 610904,
+        "bytes_decoded": 610904
+      },
+      {
+        "url": "/assets/index-[hash].css",
+        "content_encoding": null,
+        "cache_control": null,
+        "etag": true,
+        "bytes_on_wire": 64396,
+        "bytes_decoded": 64396
+      }
+    ],
+    "html_bytes": 1663
+  }
+}

@@ -1,0 +1,212 @@
+{
+  "label": "after",
+  "generated_at": "2026-11-04T16:18:28.507Z",
+  "git": {
+    "head": "80b1f74",
+    "branch": "main",
+    "frontend_uncommitted_paths": 82
+  },
+  "base_url": "http://localhost:15173",
+  "node": "v25.8.0",
+  "chromium": "156.0.8078.4",
+  "profile": "desktop",
+  "seconds": 60,
+  "pages": {
+    "overview": {
+      "path": "/?m=all",
+      "ok": true,
+      "seconds": 60,
+      "document_visibility": "visible",
+      "server_state_before": {
+        "KR": {
+          "enabled": true,
+          "open_now": false,
+          "agent_running": false,
+          "engine_status": "RUNNING"
+        },
+        "US": {
+          "enabled": true,
+          "open_now": true,
+          "agent_running": false,
+          "engine_status": "RUNNING"
+        }
+      },
+      "server_state_after": {
+        "KR": {
+          "enabled": true,
+          "open_now": false,
+          "agent_running": false,
+          "engine_status": "RUNNING"
+        },
+        "US": {
+          "enabled": true,
+          "open_now": true,
+          "agent_running": false,
+          "engine_status": "RUNNING"
+        }
+      },
+      "api_requests_per_min": 7,
+      "api_bytes_per_min": 6939,
+      "api_by_endpoint_per_min": {
+        "/api/system": 2,
+        "/api/us/system": 2,
+        "/api/overview": 2,
+        "/api/markets": 1
+      },
+      "ws_frames_per_min": 4,
+      "ws_bytes_per_min": 112,
+      "ws_by_channel_per_min": {
+        "pong": 4
+      },
+      "long_tasks_per_min": 0,
+      "long_task_ms_per_min": 0,
+      "long_task_max_ms_per_min": 0,
+      "blocking_ms_per_min": 0,
+      "react_commits_per_min": 69,
+      "canvas_added_per_min": 0,
+      "script_ms_per_min": 97.3,
+      "task_ms_per_min": 474.4,
+      "layout_count_per_min": 114,
+      "recalc_style_count_per_min": 297,
+      "layout_ms_per_min": 54.5,
+      "recalc_style_ms_per_min": 31.1,
+      "js_heap_used_mb_start": 3.3,
+      "js_heap_used_mb_end": 4.06,
+      "dom_nodes_start": 552,
+      "dom_nodes_end": 574,
+      "blocked_writes": [],
+      "guard_violations": []
+    },
+    "dashboard_kr": {
+      "path": "/?m=kr",
+      "ok": true,
+      "seconds": 60,
+      "document_visibility": "visible",
+      "server_state_before": {
+        "KR": {
+          "enabled": true,
+          "open_now": false,
+          "agent_running": false,
+          "engine_status": "RUNNING"
+        },
+        "US": {
+          "enabled": true,
+          "open_now": true,
+          "agent_running": false,
+          "engine_status": "RUNNING"
+        }
+      },
+      "server_state_after": {
+        "KR": {
+          "enabled": true,
+          "open_now": false,
+          "agent_running": false,
+          "engine_status": "RUNNING"
+        },
+        "US": {
+          "enabled": true,
+          "open_now": true,
+          "agent_running": false,
+          "engine_status": "RUNNING"
+        }
+      },
+      "api_requests_per_min": 6,
+      "api_bytes_per_min": 6601,
+      "api_by_endpoint_per_min": {
+        "/api/system": 2,
+        "/api/markets": 1,
+        "/api/us/system": 1,
+        "/api/portfolio": 1,
+        "/api/market/indicators": 1
+      },
+      "ws_frames_per_min": 4,
+      "ws_bytes_per_min": 112,
+      "ws_by_channel_per_min": {
+        "pong": 4
+      },
+      "long_tasks_per_min": 0,
+      "long_task_ms_per_min": 0,
+      "long_task_max_ms_per_min": 0,
+      "blocking_ms_per_min": 0,
+      "react_commits_per_min": 66,
+      "canvas_added_per_min": 0,
+      "script_ms_per_min": 95.9,
+      "task_ms_per_min": 695.8,
+      "layout_count_per_min": 84,
+      "recalc_style_count_per_min": 274,
+      "layout_ms_per_min": 135.2,
+      "recalc_style_ms_per_min": 29.3,
+      "js_heap_used_mb_start": 5.13,
+      "js_heap_used_mb_end": 5.44,
+      "dom_nodes_start": 3206,
+      "dom_nodes_end": 3223,
+      "blocked_writes": [],
+      "guard_violations": []
+    },
+    "room_kr": {
+      "path": "/room",
+      "ok": true,
+      "seconds": 60,
+      "document_visibility": "visible",
+      "server_state_before": {
+        "KR": {
+          "enabled": true,
+          "open_now": false,
+          "agent_running": false,
+          "engine_status": "RUNNING"
+        },
+        "US": {
+          "enabled": true,
+          "open_now": true,
+          "agent_running": false,
+          "engine_status": "RUNNING"
+        }
+      },
+      "server_state_after": {
+        "KR": {
+          "enabled": true,
+          "open_now": false,
+          "agent_running": false,
+          "engine_status": "RUNNING"
+        },
+        "US": {
+          "enabled": true,
+          "open_now": true,
+          "agent_running": false,
+          "engine_status": "RUNNING"
+        }
+      },
+      "api_requests_per_min": 4,
+      "api_bytes_per_min": 4334,
+      "api_by_endpoint_per_min": {
+        "/api/system": 2,
+        "/api/markets": 1,
+        "/api/us/system": 1
+      },
+      "ws_frames_per_min": 5,
+      "ws_bytes_per_min": 172,
+      "ws_by_channel_per_min": {
+        "state": 1,
+        "pong": 4
+      },
+      "long_tasks_per_min": 0,
+      "long_task_ms_per_min": 0,
+      "long_task_max_ms_per_min": 0,
+      "blocking_ms_per_min": 0,
+      "react_commits_per_min": 66,
+      "canvas_added_per_min": 0,
+      "script_ms_per_min": 76.7,
+      "task_ms_per_min": 384.9,
+      "layout_count_per_min": 60,
+      "recalc_style_count_per_min": 243,
+      "layout_ms_per_min": 36.9,
+      "recalc_style_ms_per_min": 23.1,
+      "js_heap_used_mb_start": 3.5,
+      "js_heap_used_mb_end": 4.07,
+      "dom_nodes_start": 979,
+      "dom_nodes_end": 1000,
+      "blocked_writes": [],
+      "guard_violations": []
+    }
+  }
+}

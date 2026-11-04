@@ -219,10 +219,10 @@ class TossLiveBroker(BrokerInterface):
 
     # ----------------------------------------------------------- 조회
     async def get_quote(self, symbol: str) -> Quote | None:
-        b = self.store.last_bar(symbol)
         px = (await self.quotes.last_prices([symbol])).get(symbol)
-        if px:
-            return Quote(symbol, px, self.clock.now().astimezone(KST).date(), b.name if b else "")
+        if px:  # 이름 = 마지막 일봉의 이름 (캐시)
+            return Quote(symbol, px, self.clock.now().astimezone(KST).date(), self.store.name_of(symbol))
+        b = self.store.last_bar(symbol)
         return Quote(symbol, b.close, b.day, b.name) if b else None
 
     async def get_candles(self, symbol: str, n: int = 120) -> list[object]:
@@ -253,7 +253,13 @@ class TossLiveBroker(BrokerInterface):
         return out
 
     async def get_balance(self) -> Balance:
-        positions = await self.get_positions()
+        return await self._balance(await self.get_positions())
+
+    async def account(self) -> tuple[Balance, list[Position]]:
+        positions = await self.get_positions()  # 토스 잔고 조회 1번으로 잔고·보유 종목을 같이
+        return await self._balance(positions), positions
+
+    async def _balance(self, positions: list[Position]) -> Balance:
         cash = await self.client.buying_power()
         pv = sum(p.market_value for p in positions)
         start = self.kv.get("live_account")

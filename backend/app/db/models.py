@@ -12,6 +12,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -93,9 +94,10 @@ class DailyPrice(Base):
     """일봉 + 시가총액 (토스증권 캔들 + 종목 발행주식수)."""
 
     __tablename__ = "daily_prices"
+    # symbol 단독 인덱스는 두지 않는다 — uq_daily_price(symbol, day) 가 symbol 조회를 같이 맡는다 (0004)
     __table_args__ = (UniqueConstraint("symbol", "day", name="uq_daily_price"),)
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    symbol: Mapped[str] = mapped_column(String(16), index=True)
+    symbol: Mapped[str] = mapped_column(String(16))
     day: Mapped[date] = mapped_column(Date, index=True)
     name: Mapped[str] = mapped_column(String(64), default="")
     market: Mapped[str] = mapped_column(String(8), default="")
@@ -124,14 +126,14 @@ class ApiCache(Base):
     __tablename__ = "api_cache"
     key: Mapped[str] = mapped_column(String(256), primary_key=True)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON)
-    fetched_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+    fetched_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, index=True)
 
 
 class Order(Base):
     __tablename__ = "orders"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     client_order_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
-    broker_order_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    broker_order_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     symbol: Mapped[str] = mapped_column(String(16), index=True)
     side: Mapped[str] = mapped_column(String(4))
     order_type: Mapped[str] = mapped_column(String(8))
@@ -141,12 +143,12 @@ class Order(Base):
     filled_qty: Mapped[int] = mapped_column(Integer, default=0)
     avg_fill_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     strategy_id: Mapped[int | None] = mapped_column(ForeignKey("strategies.id"), nullable=True)
-    run_id: Mapped[int | None] = mapped_column(ForeignKey("agent_runs.id"), nullable=True)
+    run_id: Mapped[int | None] = mapped_column(ForeignKey("agent_runs.id"), nullable=True, index=True)
     fill_basis: Mapped[str] = mapped_column(String(8), default="")  # OPEN | CLOSE
     trade_day: Mapped[date | None] = mapped_column(Date, nullable=True)
     reason: Mapped[str] = mapped_column(String(256), default="")
     reject_reason: Mapped[str | None] = mapped_column(String(256), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, index=True)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, onupdate=utcnow)
 
 
@@ -154,13 +156,13 @@ class Fill(Base):
     __tablename__ = "fills"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), index=True)
-    symbol: Mapped[str] = mapped_column(String(16))
+    symbol: Mapped[str] = mapped_column(String(16), index=True)
     side: Mapped[str] = mapped_column(String(4))
     quantity: Mapped[int] = mapped_column(Integer)
     price: Mapped[float] = mapped_column(Float)
     fee: Mapped[float] = mapped_column(Float, default=0.0)
     tax: Mapped[float] = mapped_column(Float, default=0.0)
-    filled_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    filled_at: Mapped[datetime] = mapped_column(UTCDateTime(), index=True)
 
 
 class AuditEvent(Base):
@@ -194,12 +196,13 @@ class AgentRun(Base):
     """에이전트 판단 세션 1회."""
 
     __tablename__ = "agent_runs"
+    __table_args__ = (Index("ix_agent_runs_status_id", "status", "id"),)  # 완료 세션 최근 N개 (기억)
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     trigger: Mapped[str] = mapped_column(String(32))
     mode: Mapped[str] = mapped_column(String(16))  # llm-tools | llm-json | rule
     model: Mapped[str] = mapped_column(String(128), default="")
     status: Mapped[str] = mapped_column(String(16), default="RUNNING")
-    started_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    started_at: Mapped[datetime] = mapped_column(UTCDateTime(), index=True)
     finished_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     market_view: Mapped[str] = mapped_column(Text, default="")
     summary: Mapped[str] = mapped_column(Text, default="")
@@ -221,15 +224,16 @@ class AgentDecision(Base):
     confidence: Mapped[float] = mapped_column(Float, default=0.0)
     rationale: Mapped[str] = mapped_column(Text, default="")
     evidence: Mapped[list[Any]] = mapped_column(JSON, default=list)
-    order_id: Mapped[int | None] = mapped_column(ForeignKey("orders.id"), nullable=True)
+    order_id: Mapped[int | None] = mapped_column(ForeignKey("orders.id"), nullable=True, index=True)
     outcome: Mapped[str] = mapped_column(String(256), default="")
-    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, index=True)
 
 
 class ChatMessage(Base):
     """트레이딩 룸 채팅 피드. 에이전트 사고 과정·리스크 차단·체결 소식·사용자 메시지."""
 
     __tablename__ = "chat_messages"
+    __table_args__ = (Index("ix_chat_messages_role_id", "role", "id"),)  # 내 메시지 최근 N개 (기억)
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     ts: Mapped[datetime] = mapped_column(UTCDateTime(), index=True)
     run_id: Mapped[int | None] = mapped_column(ForeignKey("agent_runs.id"), nullable=True, index=True)
@@ -237,6 +241,22 @@ class ChatMessage(Base):
     kind: Mapped[str] = mapped_column(String(16))  # text | tool | decision | fill | block | summary
     content: Mapped[str] = mapped_column(Text)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+
+
+class MemoryCard(Base):
+    """메모 카드 (D-52): 사용자가 직접 관리하는 매니저의 기억 — 관심·주목·피할 종목, 운용 지시."""
+
+    __tablename__ = "memory_cards"
+    __table_args__ = (Index("ix_memory_cards_symbol_kind", "symbol", "kind"),)  # 같은 카드 중복 확인
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kind: Mapped[str] = mapped_column(String(8))  # watch | focus | avoid | note
+    symbol: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    text: Mapped[str] = mapped_column(Text, default="")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    expires_on: Mapped[date | None] = mapped_column(Date, nullable=True)  # 그 시장 현지 날짜, 그날까지 유효
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
 
 class LlmUsage(Base):

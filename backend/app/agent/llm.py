@@ -239,7 +239,7 @@ class LLMClient:
                 "POST",
                 f"{self.base_url}/chat/completions",
                 json=body,
-                headers={"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"},
+                headers=self._headers(),
             )
             if r.status_code != 400 or not self._adapt(r):
                 break
@@ -301,7 +301,7 @@ class LLMClient:
                 "POST",
                 f"{self.base_url}/responses",
                 json=body,
-                headers={"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"},
+                headers=self._headers(),
             )
             if r.status_code != 400 or not self._adapt(r):
                 break
@@ -318,19 +318,40 @@ class LLMClient:
             raise LLMError(f"LLM 응답 실패: {str(data.get('error'))[:300]}")
         return parse_responses(data)
 
+    def _headers(self) -> dict[str, str]:
+        """키가 없으면(키를 받지 않는 자체 서버) Authorization 을 보내지 않는다."""
+        h = {"Content-Type": "application/json"}
+        if self._api_key:
+            h["Authorization"] = f"Bearer {self._api_key}"
+        return h
+
     def _adapt(self, r: httpx.Response) -> bool:
-        """400 'unsupported parameter/value' 응답이면 매개변수를 바꾸고 True (다시 보낸다)."""
+        """400 'unsupported parameter/value' 응답이면 매개변수를 바꾸고 True (다시 보낸다).
+
+        Chat Completions 는 `code: unsupported_parameter|unsupported_value` 를 주지만, Responses API 는
+        `code: null` 에 메시지만 "Unsupported parameter: 'temperature' ..." 로 준다(2026-11-04 실제 응답). 둘 다 본다.
+        """
         try:
             err = (r.json() or {}).get("error") or {}
         except ValueError:
             return False
+        if not isinstance(err, dict):
+            return False
         param, code = str(err.get("param") or ""), str(err.get("code") or "")
-        if code not in ("unsupported_parameter", "unsupported_value"):
+        message = str(err.get("message") or "")
+        unsupported = code in ("unsupported_parameter", "unsupported_value") or bool(
+            re.match(r"\s*unsupported (parameter|value)", message, re.I)
+        )
+        if not unsupported:
             return False
         if param == "max_tokens" and self._token_param == "max_tokens":
             self._token_param = "max_completion_tokens"
         elif param == "temperature" and self._send_temperature:
             self._send_temperature = False
+        elif param.startswith("reasoning") and self.reasoning_effort:
+            # 고른 모델이 .env 의 추론 강도를 받지 않으면 모델 기본값으로
+            log.warning("LLM 이 추론 강도 %r 를 받지 않아 모델 기본값으로 보냄", self.reasoning_effort)
+            self.reasoning_effort = ""
         else:
             return False
         log.info("LLM 매개변수 조정: %s 거절 → 다시 보냄", param)

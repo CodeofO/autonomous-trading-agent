@@ -1,0 +1,5035 @@
+{
+  "schema": "perf-backend/v1",
+  "label": "after",
+  "generated_at": "2026-11-04T14:44:42+00:00",
+  "git": {
+    "head": "80b1f74",
+    "branch": "main",
+    "dirty_files": 109
+  },
+  "live_api": {
+    "schema": "live_api/v1",
+    "started_at": "2026-11-04T14:41:19.004991+00:00",
+    "finished_at": "2026-11-04T14:43:36.606764+00:00",
+    "base": "http://127.0.0.1:18000",
+    "auth": {
+      "auth_enabled": false,
+      "setup_required": false
+    },
+    "params": {
+      "n": 15,
+      "warmup": 2,
+      "min_interval_s": 0.2
+    },
+    "client": {
+      "python": "3.13.11",
+      "platform": "macOS-27.2-arm64-arm-64bit-Mach-O"
+    },
+    "server_state_before": {
+      "KR": {
+        "enabled": true,
+        "open_now": false,
+        "agent_running": false,
+        "engine_status": "RUNNING"
+      },
+      "US": {
+        "enabled": true,
+        "open_now": true,
+        "agent_running": false,
+        "engine_status": "RUNNING"
+      }
+    },
+    "server_state_after": {
+      "KR": {
+        "enabled": true,
+        "open_now": false,
+        "agent_running": false,
+        "engine_status": "RUNNING"
+      },
+      "US": {
+        "enabled": true,
+        "open_now": true,
+        "agent_running": false,
+        "engine_status": "RUNNING"
+      }
+    },
+    "total_requests": 649,
+    "endpoints": {
+      "overview": {
+        "path": "/api/overview",
+        "source": "toss_cached",
+        "note": "FX 60s module cache + portfolio() per market (quotes 5s cache)",
+        "n": 15,
+        "p50_ms": 12.57,
+        "p95_ms": 14.59,
+        "max_ms": 14.69,
+        "min_ms": 7.15,
+        "mean_ms": 12.44,
+        "bytes": 1289,
+        "bytes_gzip": 626,
+        "items": 2,
+        "status": {
+          "200": 15
+        }
+      },
+      "markets": {
+        "path": "/api/markets",
+        "source": "db",
+        "note": "kv reads + calendar math for each market",
+        "n": 15,
+        "p50_ms": 4.95,
+        "p95_ms": 6.18,
+        "max_ms": 6.87,
+        "min_ms": 3.52,
+        "mean_ms": 4.82,
+        "bytes": 932,
+        "bytes_gzip": 365,
+        "items": 2,
+        "status": {
+          "200": 15
+        }
+      },
+      "system": {
+        "path": "/api/system",
+        "source": "db",
+        "note": "polled every 5s per market by Layout",
+        "n": 15,
+        "p50_ms": 6.68,
+        "p95_ms": 8.31,
+        "max_ms": 8.79,
+        "min_ms": 5.56,
+        "mean_ms": 6.99,
+        "bytes": 993,
+        "bytes_gzip": 660,
+        "items": 4,
+        "status": {
+          "200": 15
+        }
+      },
+      "portfolio": {
+        "path": "/api/portfolio",
+        "source": "toss_cached",
+        "note": "PaperBroker quotes via Toss prices (5s cache)",
+        "n": 15,
+        "p50_ms": 9.19,
+        "p95_ms": 12.32,
+        "max_ms": 15.35,
+        "min_ms": 7.15,
+        "mean_ms": 9.64,
+        "bytes": 1818,
+        "bytes_gzip": 857,
+        "items": 5,
+        "status": {
+          "200": 15
+        }
+      },
+      "agent_structure": {
+        "path": "/api/agent/structure",
+        "source": "db",
+        "note": "polled every 5s on Agent page",
+        "n": 15,
+        "p50_ms": 12.17,
+        "p95_ms": 13.07,
+        "max_ms": 13.73,
+        "min_ms": 5.12,
+        "mean_ms": 11.17,
+        "bytes": 7320,
+        "bytes_gzip": 3413,
+        "items": 13,
+        "status": {
+          "200": 15
+        }
+      },
+      "chat": {
+        "path": "/api/chat?limit=200",
+        "source": "db",
+        "note": "events.tsx initial load",
+        "n": 15,
+        "p50_ms": 16.44,
+        "p95_ms": 18.46,
+        "max_ms": 20.02,
+        "min_ms": 8.64,
+        "mean_ms": 15.86,
+        "bytes": 104448,
+        "bytes_gzip": 22865,
+        "items": 200,
+        "status": {
+          "200": 15
+        }
+      },
+      "events": {
+        "path": "/api/events?limit=200",
+        "source": "db",
+        "note": "events.tsx initial load",
+        "n": 15,
+        "p50_ms": 15.84,
+        "p95_ms": 18.08,
+        "max_ms": 20.19,
+        "min_ms": 11.91,
+        "mean_ms": 15.51,
+        "bytes": 141648,
+        "bytes_gzip": 32892,
+        "items": 200,
+        "status": {
+          "200": 15
+        }
+      },
+      "orders": {
+        "path": "/api/orders?limit=300",
+        "source": "db",
+        "note": "Portfolio page",
+        "n": 15,
+        "p50_ms": 9.05,
+        "p95_ms": 10.71,
+        "max_ms": 11.57,
+        "min_ms": 4.18,
+        "mean_ms": 8.8,
+        "bytes": 15107,
+        "bytes_gzip": 4759,
+        "items": 19,
+        "status": {
+          "200": 15
+        }
+      },
+      "fills": {
+        "path": "/api/fills?limit=200",
+        "source": "db",
+        "note": "Portfolio page",
+        "n": 15,
+        "p50_ms": 7.29,
+        "p95_ms": 10.02,
+        "max_ms": 10.53,
+        "min_ms": 3.36,
+        "mean_ms": 7.4,
+        "bytes": 3414,
+        "bytes_gzip": 935,
+        "items": 19,
+        "status": {
+          "200": 15
+        }
+      },
+      "equity": {
+        "path": "/api/equity?limit=1000",
+        "source": "db",
+        "note": "Dashboard chart",
+        "n": 15,
+        "p50_ms": 16.14,
+        "p95_ms": 33.86,
+        "max_ms": 68.19,
+        "min_ms": 12.69,
+        "mean_ms": 19.33,
+        "bytes": 44083,
+        "bytes_gzip": 5653,
+        "items": 520,
+        "status": {
+          "200": 15
+        }
+      },
+      "agent_runs": {
+        "path": "/api/agent/runs?limit=20",
+        "source": "db",
+        "note": "TradingRoom",
+        "n": 15,
+        "p50_ms": 7.96,
+        "p95_ms": 11.38,
+        "max_ms": 11.65,
+        "min_ms": 6.43,
+        "mean_ms": 8.36,
+        "bytes": 24898,
+        "bytes_gzip": 7660,
+        "items": 20,
+        "status": {
+          "200": 15
+        }
+      },
+      "agent_decisions": {
+        "path": "/api/agent/decisions?limit=100",
+        "source": "db",
+        "note": "Portfolio page (extra)",
+        "n": 15,
+        "p50_ms": 13.11,
+        "p95_ms": 16.87,
+        "max_ms": 20.55,
+        "min_ms": 6.52,
+        "mean_ms": 12.46,
+        "bytes": 86697,
+        "bytes_gzip": 21613,
+        "items": 100,
+        "status": {
+          "200": 15
+        }
+      },
+      "agent_progress": {
+        "path": "/api/agent/progress",
+        "source": "db",
+        "note": "in-memory only (extra)",
+        "n": 15,
+        "p50_ms": 4.15,
+        "p95_ms": 5.09,
+        "max_ms": 5.81,
+        "min_ms": 2.71,
+        "mean_ms": 3.97,
+        "bytes": 47,
+        "bytes_gzip": 60,
+        "items": null,
+        "status": {
+          "200": 15
+        }
+      },
+      "llm_profile": {
+        "path": "/api/llm/profile",
+        "source": "db",
+        "note": "kv reads; OpenRouter model list from in-process cache",
+        "n": 15,
+        "p50_ms": 4.8,
+        "p95_ms": 8.02,
+        "max_ms": 8.4,
+        "min_ms": 4.15,
+        "mean_ms": 5.35,
+        "bytes": 3103,
+        "bytes_gzip": 899,
+        "items": null,
+        "status": {
+          "200": 15
+        }
+      },
+      "llm_costs": {
+        "path": "/api/llm/costs?months=12",
+        "source": "toss_cached",
+        "note": "llm_usage scan + indicators snapshot (60s cache)",
+        "n": 15,
+        "p50_ms": 10.01,
+        "p95_ms": 12.72,
+        "max_ms": 13.1,
+        "min_ms": 3.46,
+        "mean_ms": 9.6,
+        "bytes": 11452,
+        "bytes_gzip": 1554,
+        "items": 12,
+        "status": {
+          "200": 15
+        }
+      },
+      "watchlist": {
+        "path": "/api/watchlist",
+        "source": "db",
+        "note": "1 query per watchlist row (last_bar)",
+        "n": 15,
+        "p50_ms": 6.15,
+        "p95_ms": 9.1,
+        "max_ms": 9.36,
+        "min_ms": 4.22,
+        "mean_ms": 6.55,
+        "bytes": 2,
+        "bytes_gzip": 22,
+        "items": 0,
+        "status": {
+          "200": 15
+        }
+      },
+      "market_universe": {
+        "path": "/api/market/universe?limit=40",
+        "source": "toss_cached",
+        "note": "Toss stocks_all, 20h cache",
+        "n": 15,
+        "p50_ms": 5.03,
+        "p95_ms": 8.07,
+        "max_ms": 9.28,
+        "min_ms": 3.92,
+        "mean_ms": 5.59,
+        "bytes": 2373,
+        "bytes_gzip": 572,
+        "items": 40,
+        "status": {
+          "200": 15
+        }
+      },
+      "market_indicators": {
+        "path": "/api/market/indicators",
+        "source": "toss_cached",
+        "note": "6 indicators, ~9 Toss calls per refresh, 60s cache",
+        "n": 15,
+        "p50_ms": 4.73,
+        "p95_ms": 5.97,
+        "max_ms": 6.65,
+        "min_ms": 3.2,
+        "mean_ms": 4.71,
+        "bytes": 2190,
+        "bytes_gzip": 996,
+        "items": 6,
+        "status": {
+          "200": 15
+        }
+      },
+      "reports": {
+        "path": "/api/reports",
+        "source": "db",
+        "note": "daily_reports payloads (limit 30)",
+        "n": 15,
+        "p50_ms": 9.82,
+        "p95_ms": 11.23,
+        "max_ms": 12.16,
+        "min_ms": 8.15,
+        "mean_ms": 9.84,
+        "bytes": 32876,
+        "bytes_gzip": 8635,
+        "items": 3,
+        "status": {
+          "200": 15
+        }
+      },
+      "schedule": {
+        "path": "/api/schedule",
+        "source": "db",
+        "note": "scheduler.view(): kv reads + calendar math",
+        "n": 15,
+        "p50_ms": 4.79,
+        "p95_ms": 6.62,
+        "max_ms": 7.61,
+        "min_ms": 3.85,
+        "mean_ms": 5.0,
+        "bytes": 784,
+        "bytes_gzip": 358,
+        "items": 9,
+        "status": {
+          "200": 15
+        }
+      },
+      "memory_cards": {
+        "path": "/api/memory/cards",
+        "source": "db",
+        "note": "all memory cards",
+        "n": 15,
+        "p50_ms": 6.26,
+        "p95_ms": 7.64,
+        "max_ms": 8.86,
+        "min_ms": 5.05,
+        "mean_ms": 6.44,
+        "bytes": 93,
+        "bytes_gzip": 95,
+        "items": 0,
+        "status": {
+          "200": 15
+        }
+      },
+      "us_system": {
+        "path": "/api/us/system",
+        "source": "db",
+        "note": "",
+        "n": 15,
+        "p50_ms": 5.56,
+        "p95_ms": 7.78,
+        "max_ms": 9.67,
+        "min_ms": 3.59,
+        "mean_ms": 5.75,
+        "bytes": 1104,
+        "bytes_gzip": 748,
+        "items": 4,
+        "status": {
+          "200": 15
+        }
+      },
+      "us_portfolio": {
+        "path": "/api/us/portfolio",
+        "source": "toss_cached",
+        "note": "quotes 5s cache",
+        "n": 15,
+        "p50_ms": 7.05,
+        "p95_ms": 10.22,
+        "max_ms": 10.75,
+        "min_ms": 4.21,
+        "mean_ms": 7.4,
+        "bytes": 1087,
+        "bytes_gzip": 686,
+        "items": 9,
+        "status": {
+          "200": 15
+        }
+      },
+      "us_agent_structure": {
+        "path": "/api/us/agent/structure",
+        "source": "db",
+        "note": "",
+        "n": 15,
+        "p50_ms": 8.64,
+        "p95_ms": 9.87,
+        "max_ms": 10.08,
+        "min_ms": 5.62,
+        "mean_ms": 8.29,
+        "bytes": 5030,
+        "bytes_gzip": 2450,
+        "items": 10,
+        "status": {
+          "200": 15
+        }
+      },
+      "us_chat": {
+        "path": "/api/us/chat?limit=200",
+        "source": "db",
+        "note": "",
+        "n": 15,
+        "p50_ms": 6.72,
+        "p95_ms": 8.48,
+        "max_ms": 9.38,
+        "min_ms": 5.25,
+        "mean_ms": 6.85,
+        "bytes": 1899,
+        "bytes_gzip": 685,
+        "items": 7,
+        "status": {
+          "200": 15
+        }
+      },
+      "us_events": {
+        "path": "/api/us/events?limit=200",
+        "source": "db",
+        "note": "",
+        "n": 15,
+        "p50_ms": 7.21,
+        "p95_ms": 9.1,
+        "max_ms": 9.41,
+        "min_ms": 4.15,
+        "mean_ms": 6.94,
+        "bytes": 1711,
+        "bytes_gzip": 530,
+        "items": 6,
+        "status": {
+          "200": 15
+        }
+      },
+      "us_orders": {
+        "path": "/api/us/orders?limit=300",
+        "source": "db",
+        "note": "",
+        "n": 15,
+        "p50_ms": 6.06,
+        "p95_ms": 8.65,
+        "max_ms": 9.96,
+        "min_ms": 3.89,
+        "mean_ms": 6.3,
+        "bytes": 2,
+        "bytes_gzip": 22,
+        "items": 0,
+        "status": {
+          "200": 15
+        }
+      },
+      "us_fills": {
+        "path": "/api/us/fills?limit=200",
+        "source": "db",
+        "note": "",
+        "n": 15,
+        "p50_ms": 5.9,
+        "p95_ms": 7.96,
+        "max_ms": 9.37,
+        "min_ms": 3.31,
+        "mean_ms": 6.02,
+        "bytes": 2,
+        "bytes_gzip": 22,
+        "items": 0,
+        "status": {
+          "200": 15
+        }
+      },
+      "us_equity": {
+        "path": "/api/us/equity?limit=1000",
+        "source": "db",
+        "note": "",
+        "n": 15,
+        "p50_ms": 7.38,
+        "p95_ms": 9.22,
+        "max_ms": 9.39,
+        "min_ms": 3.63,
+        "mean_ms": 7.12,
+        "bytes": 1185,
+        "bytes_gzip": 222,
+        "items": 16,
+        "status": {
+          "200": 15
+        }
+      },
+      "us_agent_runs": {
+        "path": "/api/us/agent/runs?limit=20",
+        "source": "db",
+        "note": "",
+        "n": 15,
+        "p50_ms": 6.01,
+        "p95_ms": 7.15,
+        "max_ms": 7.78,
+        "min_ms": 3.67,
+        "mean_ms": 5.87,
+        "bytes": 1082,
+        "bytes_gzip": 319,
+        "items": 3,
+        "status": {
+          "200": 15
+        }
+      },
+      "us_agent_decisions": {
+        "path": "/api/us/agent/decisions?limit=100",
+        "source": "db",
+        "note": "(extra)",
+        "n": 15,
+        "p50_ms": 6.08,
+        "p95_ms": 7.25,
+        "max_ms": 7.33,
+        "min_ms": 3.25,
+        "mean_ms": 5.74,
+        "bytes": 2,
+        "bytes_gzip": 22,
+        "items": 0,
+        "status": {
+          "200": 15
+        }
+      },
+      "us_agent_progress": {
+        "path": "/api/us/agent/progress",
+        "source": "db",
+        "note": "(extra)",
+        "n": 15,
+        "p50_ms": 4.63,
+        "p95_ms": 5.98,
+        "max_ms": 6.17,
+        "min_ms": 2.15,
+        "mean_ms": 4.66,
+        "bytes": 47,
+        "bytes_gzip": 60,
+        "items": null,
+        "status": {
+          "200": 15
+        }
+      },
+      "us_llm_profile": {
+        "path": "/api/us/llm/profile",
+        "source": "db",
+        "note": "",
+        "n": 15,
+        "p50_ms": 5.78,
+        "p95_ms": 7.02,
+        "max_ms": 7.6,
+        "min_ms": 4.45,
+        "mean_ms": 5.73,
+        "bytes": 3117,
+        "bytes_gzip": 916,
+        "items": null,
+        "status": {
+          "200": 15
+        }
+      },
+      "us_watchlist": {
+        "path": "/api/us/watchlist",
+        "source": "db",
+        "note": "",
+        "n": 15,
+        "p50_ms": 8.3,
+        "p95_ms": 11.19,
+        "max_ms": 11.93,
+        "min_ms": 4.39,
+        "mean_ms": 8.43,
+        "bytes": 807,
+        "bytes_gzip": 335,
+        "items": 9,
+        "status": {
+          "200": 15
+        }
+      },
+      "us_market_universe": {
+        "path": "/api/us/market/universe?limit=40",
+        "source": "toss_cached",
+        "note": "20h cache",
+        "n": 15,
+        "p50_ms": 5.86,
+        "p95_ms": 7.42,
+        "max_ms": 8.02,
+        "min_ms": 4.03,
+        "mean_ms": 6.0,
+        "bytes": 2499,
+        "bytes_gzip": 625,
+        "items": 40,
+        "status": {
+          "200": 15
+        }
+      },
+      "us_reports": {
+        "path": "/api/us/reports",
+        "source": "db",
+        "note": "",
+        "n": 15,
+        "p50_ms": 6.12,
+        "p95_ms": 8.8,
+        "max_ms": 9.8,
+        "min_ms": 4.63,
+        "mean_ms": 6.41,
+        "bytes": 2,
+        "bytes_gzip": 22,
+        "items": 0,
+        "status": {
+          "200": 15
+        }
+      },
+      "us_schedule": {
+        "path": "/api/us/schedule",
+        "source": "db",
+        "note": "",
+        "n": 15,
+        "p50_ms": 4.92,
+        "p95_ms": 7.16,
+        "max_ms": 8.01,
+        "min_ms": 3.12,
+        "mean_ms": 5.02,
+        "bytes": 796,
+        "bytes_gzip": 382,
+        "items": 9,
+        "status": {
+          "200": 15
+        }
+      },
+      "us_memory_cards": {
+        "path": "/api/us/memory/cards",
+        "source": "db",
+        "note": "",
+        "n": 15,
+        "p50_ms": 5.2,
+        "p95_ms": 7.8,
+        "max_ms": 8.35,
+        "min_ms": 3.87,
+        "mean_ms": 5.7,
+        "bytes": 93,
+        "bytes_gzip": 95,
+        "items": 0,
+        "status": {
+          "200": 15
+        }
+      }
+    }
+  },
+  "inprocess": {
+    "schema": "inprocess/v1",
+    "taken_at": "2026-11-04T14:35:55.199518+00:00",
+    "env": {
+      "python": "3.12.12",
+      "platform": "macOS-27.2-arm64-arm-64bit",
+      "db": "sqlite file (alembic head)",
+      "clock": "2026-11-02T10:00:00+09:00"
+    },
+    "params": {
+      "n": 20,
+      "warmup": 2,
+      "volume": {
+        "chat_messages": 2000,
+        "agent_runs": 300,
+        "decisions_per_run": 7,
+        "orders": 1000,
+        "fills": 1000,
+        "audit_events": 5000,
+        "equity_snapshots": 2000,
+        "price_symbols": 50,
+        "price_days": 200,
+        "llm_usage_per_run": 10,
+        "llm_usage_chat": 150,
+        "daily_reports": 60,
+        "memory_cards": 20,
+        "watchlist": 20,
+        "positions": 8,
+        "api_cache_rows": 200
+      }
+    },
+    "seed_rows": {
+      "KR": {
+        "daily_prices": 10000,
+        "watchlist": 20,
+        "agent_runs": 300,
+        "orders": 1000,
+        "fills": 1000,
+        "agent_decisions": 2100,
+        "chat_messages": 2000,
+        "audit_events": 5000,
+        "equity_snapshots": 2000,
+        "llm_usage": 3150,
+        "daily_reports": 60,
+        "memory_cards": 20,
+        "api_cache": 200,
+        "paper_state_bytes": 73449
+      },
+      "US": {
+        "daily_prices": 10000,
+        "watchlist": 20,
+        "agent_runs": 300,
+        "orders": 1000,
+        "fills": 1000,
+        "agent_decisions": 2100,
+        "chat_messages": 2000,
+        "audit_events": 5000,
+        "equity_snapshots": 2000,
+        "llm_usage": 3150,
+        "daily_reports": 60,
+        "memory_cards": 20,
+        "paper_state_bytes": 73189
+      }
+    },
+    "timings": {
+      "create_app_ms": 246.8,
+      "seed_ms": 1039.6
+    },
+    "endpoints": {
+      "overview": {
+        "path": "/api/overview",
+        "source": "toss_cached",
+        "status": 200,
+        "bytes": 2699,
+        "bytes_gzip": 1368,
+        "items": 2,
+        "median_ms": 2.387,
+        "p95_ms": 2.458,
+        "min_ms": 2.258,
+        "sql_statements": 8,
+        "sql_by_db": {
+          "kr": 4,
+          "us": 4
+        },
+        "db_ms_median": 0.349,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 6.594,
+          "sql": 13,
+          "toss_calls": 1,
+          "toss_by_api": {
+            "fx": 1
+          }
+        }
+      },
+      "markets": {
+        "path": "/api/markets",
+        "source": "db",
+        "status": 200,
+        "bytes": 730,
+        "bytes_gzip": 335,
+        "items": 2,
+        "median_ms": 0.6,
+        "p95_ms": 0.644,
+        "min_ms": 0.565,
+        "sql_statements": 0,
+        "sql_by_db": {
+          "kr": 0,
+          "us": 0
+        },
+        "db_ms_median": 0.0,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 0.719,
+          "sql": 0,
+          "toss_calls": 0,
+          "toss_by_api": {}
+        }
+      },
+      "system": {
+        "path": "/api/system",
+        "source": "db",
+        "status": 200,
+        "bytes": 964,
+        "bytes_gzip": 608,
+        "items": 4,
+        "median_ms": 0.73,
+        "p95_ms": 0.76,
+        "min_ms": 0.71,
+        "sql_statements": 1,
+        "sql_by_db": {
+          "kr": 1,
+          "us": 0
+        },
+        "db_ms_median": 0.006,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 0.776,
+          "sql": 1,
+          "toss_calls": 0,
+          "toss_by_api": {}
+        }
+      },
+      "portfolio": {
+        "path": "/api/portfolio",
+        "source": "toss_cached",
+        "status": 200,
+        "bytes": 3831,
+        "bytes_gzip": 1136,
+        "items": 20,
+        "median_ms": 1.057,
+        "p95_ms": 1.112,
+        "min_ms": 0.99,
+        "sql_statements": 3,
+        "sql_by_db": {
+          "kr": 3,
+          "us": 0
+        },
+        "db_ms_median": 0.019,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 1.112,
+          "sql": 3,
+          "toss_calls": 0,
+          "toss_by_api": {}
+        }
+      },
+      "agent_structure": {
+        "path": "/api/agent/structure",
+        "source": "db",
+        "status": 200,
+        "bytes": 10619,
+        "bytes_gzip": 4796,
+        "items": 13,
+        "median_ms": 2.027,
+        "p95_ms": 2.069,
+        "min_ms": 1.894,
+        "sql_statements": 4,
+        "sql_by_db": {
+          "kr": 4,
+          "us": 0
+        },
+        "db_ms_median": 0.064,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 3.689,
+          "sql": 4,
+          "toss_calls": 0,
+          "toss_by_api": {}
+        }
+      },
+      "chat": {
+        "path": "/api/chat?limit=200",
+        "source": "db",
+        "status": 200,
+        "bytes": 164244,
+        "bytes_gzip": 42161,
+        "items": 200,
+        "median_ms": 6.002,
+        "p95_ms": 6.089,
+        "min_ms": 5.704,
+        "sql_statements": 1,
+        "sql_by_db": {
+          "kr": 1,
+          "us": 0
+        },
+        "db_ms_median": 0.019,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 6.28,
+          "sql": 1,
+          "toss_calls": 0,
+          "toss_by_api": {}
+        }
+      },
+      "events": {
+        "path": "/api/events?limit=200",
+        "source": "db",
+        "status": 200,
+        "bytes": 377129,
+        "bytes_gzip": 97788,
+        "items": 200,
+        "median_ms": 11.127,
+        "p95_ms": 13.152,
+        "min_ms": 10.678,
+        "sql_statements": 1,
+        "sql_by_db": {
+          "kr": 1,
+          "us": 0
+        },
+        "db_ms_median": 0.022,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 11.234,
+          "sql": 1,
+          "toss_calls": 0,
+          "toss_by_api": {}
+        }
+      },
+      "orders": {
+        "path": "/api/orders?limit=300",
+        "source": "db",
+        "status": 200,
+        "bytes": 166104,
+        "bytes_gzip": 28685,
+        "items": 300,
+        "median_ms": 6.976,
+        "p95_ms": 7.877,
+        "min_ms": 6.484,
+        "sql_statements": 1,
+        "sql_by_db": {
+          "kr": 1,
+          "us": 0
+        },
+        "db_ms_median": 0.029,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 9.621,
+          "sql": 2,
+          "toss_calls": 0,
+          "toss_by_api": {}
+        }
+      },
+      "fills": {
+        "path": "/api/fills?limit=200",
+        "source": "db",
+        "status": 200,
+        "bytes": 36245,
+        "bytes_gzip": 5891,
+        "items": 200,
+        "median_ms": 2.792,
+        "p95_ms": 3.903,
+        "min_ms": 2.642,
+        "sql_statements": 1,
+        "sql_by_db": {
+          "kr": 1,
+          "us": 0
+        },
+        "db_ms_median": 0.02,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 3.527,
+          "sql": 1,
+          "toss_calls": 0,
+          "toss_by_api": {}
+        }
+      },
+      "equity": {
+        "path": "/api/equity?limit=1000",
+        "source": "db",
+        "status": 200,
+        "bytes": 79452,
+        "bytes_gzip": 16050,
+        "items": 1000,
+        "median_ms": 6.924,
+        "p95_ms": 30.368,
+        "min_ms": 6.494,
+        "sql_statements": 1,
+        "sql_by_db": {
+          "kr": 1,
+          "us": 0
+        },
+        "db_ms_median": 0.021,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 7.129,
+          "sql": 1,
+          "toss_calls": 0,
+          "toss_by_api": {}
+        }
+      },
+      "agent_runs": {
+        "path": "/api/agent/runs?limit=20",
+        "source": "db",
+        "status": 200,
+        "bytes": 25351,
+        "bytes_gzip": 8914,
+        "items": 20,
+        "median_ms": 1.571,
+        "p95_ms": 1.735,
+        "min_ms": 1.485,
+        "sql_statements": 1,
+        "sql_by_db": {
+          "kr": 1,
+          "us": 0
+        },
+        "db_ms_median": 0.021,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 1.714,
+          "sql": 1,
+          "toss_calls": 0,
+          "toss_by_api": {}
+        }
+      },
+      "agent_decisions": {
+        "path": "/api/agent/decisions?limit=100",
+        "source": "db",
+        "status": 200,
+        "bytes": 119396,
+        "bytes_gzip": 31732,
+        "items": 100,
+        "median_ms": 4.434,
+        "p95_ms": 5.499,
+        "min_ms": 4.237,
+        "sql_statements": 1,
+        "sql_by_db": {
+          "kr": 1,
+          "us": 0
+        },
+        "db_ms_median": 0.025,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 4.889,
+          "sql": 1,
+          "toss_calls": 0,
+          "toss_by_api": {}
+        }
+      },
+      "agent_progress": {
+        "path": "/api/agent/progress",
+        "source": "db",
+        "status": 200,
+        "bytes": 47,
+        "bytes_gzip": 60,
+        "items": null,
+        "median_ms": 0.568,
+        "p95_ms": 0.664,
+        "min_ms": 0.525,
+        "sql_statements": 0,
+        "sql_by_db": {
+          "kr": 0,
+          "us": 0
+        },
+        "db_ms_median": 0.0,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 0.671,
+          "sql": 0,
+          "toss_calls": 0,
+          "toss_by_api": {}
+        }
+      },
+      "llm_profile": {
+        "path": "/api/llm/profile",
+        "source": "db",
+        "status": 200,
+        "bytes": 3710,
+        "bytes_gzip": 905,
+        "items": null,
+        "median_ms": 0.707,
+        "p95_ms": 0.777,
+        "min_ms": 0.668,
+        "sql_statements": 0,
+        "sql_by_db": {
+          "kr": 0,
+          "us": 0
+        },
+        "db_ms_median": 0.0,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 0.789,
+          "sql": 0,
+          "toss_calls": 0,
+          "toss_by_api": {}
+        }
+      },
+      "llm_costs": {
+        "path": "/api/llm/costs?months=12",
+        "source": "toss_cached",
+        "status": 200,
+        "bytes": 11712,
+        "bytes_gzip": 1864,
+        "items": 12,
+        "median_ms": 1.326,
+        "p95_ms": 2.492,
+        "min_ms": 1.244,
+        "sql_statements": 1,
+        "sql_by_db": {
+          "kr": 1,
+          "us": 0
+        },
+        "db_ms_median": 0.092,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 95.639,
+          "sql": 2,
+          "toss_calls": 8,
+          "toss_by_api": {
+            "index_prices": 1,
+            "prices": 1,
+            "fx": 1,
+            "index_candles": 3,
+            "candles": 2
+          }
+        }
+      },
+      "watchlist": {
+        "path": "/api/watchlist",
+        "source": "db",
+        "status": 200,
+        "bytes": 1852,
+        "bytes_gzip": 366,
+        "items": 20,
+        "median_ms": 1.885,
+        "p95_ms": 2.224,
+        "min_ms": 1.718,
+        "sql_statements": 2,
+        "sql_by_db": {
+          "kr": 2,
+          "us": 0
+        },
+        "db_ms_median": 0.046,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 2.477,
+          "sql": 2,
+          "toss_calls": 0,
+          "toss_by_api": {}
+        }
+      },
+      "market_universe": {
+        "path": "/api/market/universe?limit=40",
+        "source": "toss_cached",
+        "status": 200,
+        "bytes": 2423,
+        "bytes_gzip": 365,
+        "items": 40,
+        "median_ms": 0.498,
+        "p95_ms": 0.533,
+        "min_ms": 0.475,
+        "sql_statements": 0,
+        "sql_by_db": {
+          "kr": 0,
+          "us": 0
+        },
+        "db_ms_median": 0.0,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 0.645,
+          "sql": 0,
+          "toss_calls": 2,
+          "toss_by_api": {
+            "stocks_all": 2
+          }
+        }
+      },
+      "market_indicators": {
+        "path": "/api/market/indicators",
+        "source": "toss_cached",
+        "status": 200,
+        "bytes": 2539,
+        "bytes_gzip": 889,
+        "items": 6,
+        "median_ms": 0.529,
+        "p95_ms": 0.555,
+        "min_ms": 0.505,
+        "sql_statements": 0,
+        "sql_by_db": {
+          "kr": 0,
+          "us": 0
+        },
+        "db_ms_median": 0.0,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 0.562,
+          "sql": 0,
+          "toss_calls": 0,
+          "toss_by_api": {}
+        }
+      },
+      "reports": {
+        "path": "/api/reports",
+        "source": "db",
+        "status": 200,
+        "bytes": 753695,
+        "bytes_gzip": 192740,
+        "items": 30,
+        "median_ms": 18.918,
+        "p95_ms": 19.774,
+        "min_ms": 18.426,
+        "sql_statements": 1,
+        "sql_by_db": {
+          "kr": 1,
+          "us": 0
+        },
+        "db_ms_median": 0.027,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 21.291,
+          "sql": 1,
+          "toss_calls": 0,
+          "toss_by_api": {}
+        }
+      },
+      "schedule": {
+        "path": "/api/schedule",
+        "source": "db",
+        "status": 200,
+        "bytes": 844,
+        "bytes_gzip": 360,
+        "items": 9,
+        "median_ms": 0.631,
+        "p95_ms": 0.673,
+        "min_ms": 0.602,
+        "sql_statements": 0,
+        "sql_by_db": {
+          "kr": 0,
+          "us": 0
+        },
+        "db_ms_median": 0.0,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 0.786,
+          "sql": 0,
+          "toss_calls": 0,
+          "toss_by_api": {}
+        }
+      },
+      "memory_cards": {
+        "path": "/api/memory/cards",
+        "source": "db",
+        "status": 200,
+        "bytes": 7057,
+        "bytes_gzip": 2212,
+        "items": 20,
+        "median_ms": 1.021,
+        "p95_ms": 1.127,
+        "min_ms": 0.985,
+        "sql_statements": 1,
+        "sql_by_db": {
+          "kr": 1,
+          "us": 0
+        },
+        "db_ms_median": 0.007,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 1.401,
+          "sql": 1,
+          "toss_calls": 0,
+          "toss_by_api": {}
+        }
+      },
+      "us_system": {
+        "path": "/api/us/system",
+        "source": "db",
+        "status": 200,
+        "bytes": 1066,
+        "bytes_gzip": 678,
+        "items": 4,
+        "median_ms": 0.809,
+        "p95_ms": 0.841,
+        "min_ms": 0.78,
+        "sql_statements": 1,
+        "sql_by_db": {
+          "kr": 0,
+          "us": 1
+        },
+        "db_ms_median": 0.006,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 0.963,
+          "sql": 1,
+          "toss_calls": 0,
+          "toss_by_api": {}
+        }
+      },
+      "us_portfolio": {
+        "path": "/api/us/portfolio",
+        "source": "toss_cached",
+        "status": 200,
+        "bytes": 3994,
+        "bytes_gzip": 1298,
+        "items": 20,
+        "median_ms": 1.142,
+        "p95_ms": 1.253,
+        "min_ms": 1.084,
+        "sql_statements": 3,
+        "sql_by_db": {
+          "kr": 0,
+          "us": 3
+        },
+        "db_ms_median": 0.02,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 1.242,
+          "sql": 3,
+          "toss_calls": 0,
+          "toss_by_api": {}
+        }
+      },
+      "us_agent_structure": {
+        "path": "/api/us/agent/structure",
+        "source": "db",
+        "status": 200,
+        "bytes": 9854,
+        "bytes_gzip": 4746,
+        "items": 10,
+        "median_ms": 2.049,
+        "p95_ms": 2.111,
+        "min_ms": 1.981,
+        "sql_statements": 4,
+        "sql_by_db": {
+          "kr": 0,
+          "us": 4
+        },
+        "db_ms_median": 0.066,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 3.319,
+          "sql": 4,
+          "toss_calls": 0,
+          "toss_by_api": {}
+        }
+      },
+      "us_chat": {
+        "path": "/api/us/chat?limit=200",
+        "source": "db",
+        "status": 200,
+        "bytes": 141129,
+        "bytes_gzip": 37281,
+        "items": 200,
+        "median_ms": 5.441,
+        "p95_ms": 5.555,
+        "min_ms": 5.227,
+        "sql_statements": 1,
+        "sql_by_db": {
+          "kr": 0,
+          "us": 1
+        },
+        "db_ms_median": 0.017,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 5.851,
+          "sql": 1,
+          "toss_calls": 0,
+          "toss_by_api": {}
+        }
+      },
+      "us_events": {
+        "path": "/api/us/events?limit=200",
+        "source": "db",
+        "status": 200,
+        "bytes": 504857,
+        "bytes_gzip": 129676,
+        "items": 200,
+        "median_ms": 14.138,
+        "p95_ms": 14.389,
+        "min_ms": 13.686,
+        "sql_statements": 1,
+        "sql_by_db": {
+          "kr": 0,
+          "us": 1
+        },
+        "db_ms_median": 0.017,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 14.454,
+          "sql": 1,
+          "toss_calls": 0,
+          "toss_by_api": {}
+        }
+      },
+      "us_orders": {
+        "path": "/api/us/orders?limit=300",
+        "source": "db",
+        "status": 200,
+        "bytes": 165879,
+        "bytes_gzip": 29098,
+        "items": 300,
+        "median_ms": 6.692,
+        "p95_ms": 7.946,
+        "min_ms": 6.505,
+        "sql_statements": 1,
+        "sql_by_db": {
+          "kr": 0,
+          "us": 1
+        },
+        "db_ms_median": 0.028,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 8.702,
+          "sql": 2,
+          "toss_calls": 0,
+          "toss_by_api": {}
+        }
+      },
+      "us_fills": {
+        "path": "/api/us/fills?limit=200",
+        "source": "db",
+        "status": 200,
+        "bytes": 36018,
+        "bytes_gzip": 5877,
+        "items": 200,
+        "median_ms": 2.732,
+        "p95_ms": 2.821,
+        "min_ms": 2.613,
+        "sql_statements": 1,
+        "sql_by_db": {
+          "kr": 0,
+          "us": 1
+        },
+        "db_ms_median": 0.021,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 3.519,
+          "sql": 1,
+          "toss_calls": 0,
+          "toss_by_api": {}
+        }
+      },
+      "us_equity": {
+        "path": "/api/us/equity?limit=1000",
+        "source": "db",
+        "status": 200,
+        "bytes": 76426,
+        "bytes_gzip": 16173,
+        "items": 1000,
+        "median_ms": 6.755,
+        "p95_ms": 23.657,
+        "min_ms": 6.365,
+        "sql_statements": 1,
+        "sql_by_db": {
+          "kr": 0,
+          "us": 1
+        },
+        "db_ms_median": 0.018,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 7.21,
+          "sql": 1,
+          "toss_calls": 0,
+          "toss_by_api": {}
+        }
+      },
+      "us_agent_runs": {
+        "path": "/api/us/agent/runs?limit=20",
+        "source": "db",
+        "status": 200,
+        "bytes": 25360,
+        "bytes_gzip": 8058,
+        "items": 20,
+        "median_ms": 1.491,
+        "p95_ms": 1.575,
+        "min_ms": 1.44,
+        "sql_statements": 1,
+        "sql_by_db": {
+          "kr": 0,
+          "us": 1
+        },
+        "db_ms_median": 0.02,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 1.615,
+          "sql": 1,
+          "toss_calls": 0,
+          "toss_by_api": {}
+        }
+      },
+      "us_agent_decisions": {
+        "path": "/api/us/agent/decisions?limit=100",
+        "source": "db",
+        "status": 200,
+        "bytes": 119044,
+        "bytes_gzip": 30976,
+        "items": 100,
+        "median_ms": 4.36,
+        "p95_ms": 4.481,
+        "min_ms": 4.189,
+        "sql_statements": 1,
+        "sql_by_db": {
+          "kr": 0,
+          "us": 1
+        },
+        "db_ms_median": 0.026,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 4.693,
+          "sql": 1,
+          "toss_calls": 0,
+          "toss_by_api": {}
+        }
+      },
+      "us_agent_progress": {
+        "path": "/api/us/agent/progress",
+        "source": "db",
+        "status": 200,
+        "bytes": 47,
+        "bytes_gzip": 60,
+        "items": null,
+        "median_ms": 0.552,
+        "p95_ms": 0.586,
+        "min_ms": 0.522,
+        "sql_statements": 0,
+        "sql_by_db": {
+          "kr": 0,
+          "us": 0
+        },
+        "db_ms_median": 0.0,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 0.657,
+          "sql": 0,
+          "toss_calls": 0,
+          "toss_by_api": {}
+        }
+      },
+      "us_llm_profile": {
+        "path": "/api/us/llm/profile",
+        "source": "db",
+        "status": 200,
+        "bytes": 3724,
+        "bytes_gzip": 915,
+        "items": null,
+        "median_ms": 0.721,
+        "p95_ms": 0.786,
+        "min_ms": 0.682,
+        "sql_statements": 0,
+        "sql_by_db": {
+          "kr": 0,
+          "us": 0
+        },
+        "db_ms_median": 0.0,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 0.738,
+          "sql": 0,
+          "toss_calls": 0,
+          "toss_by_api": {}
+        }
+      },
+      "us_watchlist": {
+        "path": "/api/us/watchlist",
+        "source": "db",
+        "status": 200,
+        "bytes": 1784,
+        "bytes_gzip": 497,
+        "items": 20,
+        "median_ms": 1.85,
+        "p95_ms": 1.942,
+        "min_ms": 1.746,
+        "sql_statements": 2,
+        "sql_by_db": {
+          "kr": 0,
+          "us": 2
+        },
+        "db_ms_median": 0.046,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 2.172,
+          "sql": 2,
+          "toss_calls": 0,
+          "toss_by_api": {}
+        }
+      },
+      "us_market_universe": {
+        "path": "/api/us/market/universe?limit=40",
+        "source": "toss_cached",
+        "status": 200,
+        "bytes": 2424,
+        "bytes_gzip": 437,
+        "items": 40,
+        "median_ms": 0.509,
+        "p95_ms": 0.552,
+        "min_ms": 0.488,
+        "sql_statements": 0,
+        "sql_by_db": {
+          "kr": 0,
+          "us": 0
+        },
+        "db_ms_median": 0.0,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 0.626,
+          "sql": 0,
+          "toss_calls": 3,
+          "toss_by_api": {
+            "stocks_all": 3
+          }
+        }
+      },
+      "us_reports": {
+        "path": "/api/us/reports",
+        "source": "db",
+        "status": 200,
+        "bytes": 752743,
+        "bytes_gzip": 189268,
+        "items": 30,
+        "median_ms": 18.542,
+        "p95_ms": 18.88,
+        "min_ms": 18.091,
+        "sql_statements": 1,
+        "sql_by_db": {
+          "kr": 0,
+          "us": 1
+        },
+        "db_ms_median": 0.024,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 19.131,
+          "sql": 1,
+          "toss_calls": 0,
+          "toss_by_api": {}
+        }
+      },
+      "us_schedule": {
+        "path": "/api/us/schedule",
+        "source": "db",
+        "status": 200,
+        "bytes": 858,
+        "bytes_gzip": 396,
+        "items": 9,
+        "median_ms": 0.646,
+        "p95_ms": 0.723,
+        "min_ms": 0.617,
+        "sql_statements": 0,
+        "sql_by_db": {
+          "kr": 0,
+          "us": 0
+        },
+        "db_ms_median": 0.0,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 0.811,
+          "sql": 0,
+          "toss_calls": 0,
+          "toss_by_api": {}
+        }
+      },
+      "us_memory_cards": {
+        "path": "/api/us/memory/cards",
+        "source": "db",
+        "status": 200,
+        "bytes": 6934,
+        "bytes_gzip": 2348,
+        "items": 20,
+        "median_ms": 1.029,
+        "p95_ms": 1.078,
+        "min_ms": 0.978,
+        "sql_statements": 1,
+        "sql_by_db": {
+          "kr": 0,
+          "us": 1
+        },
+        "db_ms_median": 0.006,
+        "toss_calls_mean": 0.0,
+        "repeated_statements": [],
+        "cold": {
+          "wall_ms": 1.406,
+          "sql": 1,
+          "toss_calls": 0,
+          "toss_by_api": {}
+        }
+      }
+    },
+    "background": {
+      "kr_intraday_1min": {
+        "median_ms": 3.151,
+        "p95_ms": 29.639,
+        "min_ms": 2.889,
+        "sql_statements": 6,
+        "sql_by_db": {
+          "kr": 6,
+          "us": 0
+        },
+        "db_ms_median": 0.086,
+        "toss_calls_mean": 2.0,
+        "toss_by_api": {
+          "prices": 2
+        }
+      },
+      "kr_sync_data_10min": {
+        "median_ms": 24.048,
+        "p95_ms": 25.216,
+        "min_ms": 23.654,
+        "sql_statements": 48,
+        "sql_by_db": {
+          "kr": 48,
+          "us": 0
+        },
+        "db_ms_median": 0.471,
+        "toss_calls_mean": 23.0,
+        "toss_by_api": {
+          "prices": 1,
+          "candles": 22
+        }
+      },
+      "kr_scheduler_due_1min": {
+        "median_ms": 0.108,
+        "p95_ms": 0.172,
+        "min_ms": 0.107,
+        "sql_statements": 0,
+        "sql_by_db": {
+          "kr": 0,
+          "us": 0
+        },
+        "db_ms_median": 0.0,
+        "toss_calls_mean": 0.0,
+        "toss_by_api": {}
+      },
+      "indicators_refresh_60s": {
+        "median_ms": 1.205,
+        "p95_ms": 1.234,
+        "min_ms": 1.161,
+        "sql_statements": 0,
+        "sql_by_db": {
+          "kr": 0,
+          "us": 0
+        },
+        "db_ms_median": 0.0,
+        "toss_calls_mean": 8.0,
+        "toss_by_api": {
+          "index_prices": 1,
+          "prices": 1,
+          "fx": 1,
+          "index_candles": 3,
+          "candles": 2
+        }
+      },
+      "us_intraday_1min": {
+        "median_ms": 5.183,
+        "p95_ms": 28.055,
+        "min_ms": 5.098,
+        "sql_statements": 11,
+        "sql_by_db": {
+          "kr": 0,
+          "us": 11
+        },
+        "db_ms_median": 0.107,
+        "toss_calls_mean": 2.0,
+        "toss_by_api": {
+          "prices": 2
+        }
+      },
+      "us_sync_data_10min": {
+        "median_ms": 39.996,
+        "p95_ms": 41.421,
+        "min_ms": 39.495,
+        "sql_statements": 50,
+        "sql_by_db": {
+          "kr": 0,
+          "us": 50
+        },
+        "db_ms_median": 0.526,
+        "toss_calls_mean": 24.0,
+        "toss_by_api": {
+          "prices": 1,
+          "candles": 23
+        }
+      },
+      "us_scheduler_due_1min": {
+        "median_ms": 0.12,
+        "p95_ms": 0.16,
+        "min_ms": 0.107,
+        "sql_statements": 0,
+        "sql_by_db": {
+          "kr": 0,
+          "us": 0
+        },
+        "db_ms_median": 0.0,
+        "toss_calls_mean": 0.0,
+        "toss_by_api": {}
+      }
+    },
+    "agent_session": {
+      "llm_scripted": {
+        "run_id": 301,
+        "status": "DONE",
+        "wall_ms": 2036.6,
+        "llm_calls": 6,
+        "tool_calls": 25,
+        "sql_statements": 123,
+        "db_ms": 4.7,
+        "toss_calls": 62,
+        "toss_by_api": {
+          "index_prices": 1,
+          "index_candles": 2,
+          "index_investor": 2,
+          "sector_rankings": 2,
+          "fx": 1,
+          "investor_rankings": 3,
+          "prices": 9,
+          "rankings": 2,
+          "stocks": 1,
+          "orderbook": 4,
+          "trades": 4,
+          "price_limits": 4,
+          "warnings": 4,
+          "investor-trading": 4,
+          "program-trades": 4,
+          "short-selling": 4,
+          "credit-trades": 4,
+          "securities-lending": 4,
+          "sectors": 1,
+          "sector": 1,
+          "sector_stocks": 1
+        },
+        "llm_request_bytes": [
+          13463,
+          26101,
+          33336,
+          44810,
+          58301,
+          59748
+        ],
+        "llm_request_bytes_total": 235759,
+        "chat_rows_written": 39,
+        "audit_rows_written": 8,
+        "repeated_statements": [
+          {
+            "count": 39,
+            "statement": "[kr] INSERT INTO chat_messages (ts, run_id, role, kind, content, payload) VALUES (?, ?, ?, ?, ?, ?)"
+          },
+          {
+            "count": 22,
+            "statement": "[kr] SELECT daily_prices.id, daily_prices.symbol, daily_prices.day, daily_prices.name, daily_prices.market, daily_prices.open, daily_prices.high, daily_prices.l"
+          },
+          {
+            "count": 8,
+            "statement": "[kr] INSERT INTO audit_events (ts, type, symbol, message, payload) VALUES (?, ?, ?, ?, ?)"
+          },
+          {
+            "count": 6,
+            "statement": "[kr] INSERT INTO llm_usage (ts, kind, run_id, model, calls, input_tokens, cached_tokens, output_tokens, max_input_tokens, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?"
+          },
+          {
+            "count": 6,
+            "statement": "[kr] SELECT count(*) AS count_1 FROM daily_prices WHERE daily_prices.symbol = ? AND daily_prices.day >= ? AND daily_prices.day <= ?"
+          },
+          {
+            "count": 6,
+            "statement": "[kr] SELECT daily_prices.id, daily_prices.symbol, daily_prices.day, daily_prices.name, daily_prices.market, daily_prices.open, daily_prices.high, daily_prices.l"
+          }
+        ]
+      },
+      "rule_based": {
+        "run_id": 302,
+        "wall_ms": 69.3,
+        "sql_statements": 75,
+        "db_ms": 1.4,
+        "toss_calls": 13
+      }
+    },
+    "paper_state_bytes_after": 73039,
+    "db_file_bytes": {
+      "us_market.db-wal": 26532832,
+      "us_market.db": 26402816,
+      "us_market.db-shm": 65536,
+      "kr.db-wal": 49011552,
+      "kr.db-shm": 98304,
+      "kr.db": 48914432
+    }
+  },
+  "db": {
+    "schema": "db/v1",
+    "taken_at": "2026-11-04T14:43:36.704947+00:00",
+    "kr_postgres": {
+      "engine": "postgresql",
+      "version": "16.15",
+      "database_bytes": 15596567,
+      "extensions": [
+        "plpgsql"
+      ],
+      "settings": {
+        "autovacuum": "on",
+        "effective_cache_size": "524288",
+        "shared_buffers": "16384",
+        "track_counts": "on",
+        "work_mem": "4096"
+      },
+      "tables": {
+        "chat_messages": {
+          "rows": 2172,
+          "total_bytes": 1720320,
+          "heap_bytes": 1343488,
+          "index_bytes": 278528,
+          "toast_bytes": 65536,
+          "n_live_tup": 2172,
+          "n_dead_tup": 0,
+          "seq_scan": 18,
+          "seq_tup_read": 38667,
+          "idx_scan": 606,
+          "n_tup_ins": 267,
+          "n_tup_upd": 0,
+          "n_tup_del": 0,
+          "n_tup_hot_upd": 0,
+          "last_autovacuum": null,
+          "last_autoanalyze": "2026-11-04T12:46:20.43143+00:00",
+          "autovacuum_count": 0
+        },
+        "api_cache": {
+          "rows": 114,
+          "total_bytes": 1286144,
+          "heap_bytes": 49152,
+          "index_bytes": 49152,
+          "toast_bytes": 1155072,
+          "n_live_tup": 114,
+          "n_dead_tup": 0,
+          "seq_scan": 226,
+          "seq_tup_read": 43356,
+          "idx_scan": 16,
+          "n_tup_ins": 18,
+          "n_tup_upd": 36,
+          "n_tup_del": 84,
+          "n_tup_hot_upd": 35,
+          "last_autovacuum": "2026-11-04T14:41:56.273466+00:00",
+          "last_autoanalyze": "2026-11-04T14:40:56.242032+00:00",
+          "autovacuum_count": 1
+        },
+        "daily_prices": {
+          "rows": 4574,
+          "total_bytes": 1163264,
+          "heap_bytes": 638976,
+          "index_bytes": 491520,
+          "toast_bytes": 0,
+          "n_live_tup": 4574,
+          "n_dead_tup": 62,
+          "seq_scan": 10,
+          "seq_tup_read": 31868,
+          "idx_scan": 18514,
+          "n_tup_ins": 485,
+          "n_tup_upd": 411,
+          "n_tup_del": 0,
+          "n_tup_hot_upd": 410,
+          "last_autovacuum": null,
+          "last_autoanalyze": "2026-11-04T05:42:59.946469+00:00",
+          "autovacuum_count": 0
+        },
+        "corp_codes": {
+          "rows": 4009,
+          "total_bytes": 786432,
+          "heap_bytes": 524288,
+          "index_bytes": 229376,
+          "toast_bytes": 0,
+          "n_live_tup": 0,
+          "n_dead_tup": 0,
+          "seq_scan": 51,
+          "seq_tup_read": 204459,
+          "idx_scan": 47,
+          "n_tup_ins": 0,
+          "n_tup_upd": 0,
+          "n_tup_del": 0,
+          "n_tup_hot_upd": 0,
+          "last_autovacuum": null,
+          "last_autoanalyze": null,
+          "autovacuum_count": 0
+        },
+        "agent_decisions": {
+          "rows": 336,
+          "total_bytes": 647168,
+          "heap_bytes": 524288,
+          "index_bytes": 81920,
+          "toast_bytes": 8192,
+          "n_live_tup": 25,
+          "n_dead_tup": 7,
+          "seq_scan": 12,
+          "seq_tup_read": 4122,
+          "idx_scan": 360,
+          "n_tup_ins": 25,
+          "n_tup_upd": 25,
+          "n_tup_del": 0,
+          "n_tup_hot_upd": 25,
+          "last_autovacuum": null,
+          "last_autoanalyze": null,
+          "autovacuum_count": 0
+        },
+        "audit_events": {
+          "rows": 537,
+          "total_bytes": 483328,
+          "heap_bytes": 131072,
+          "index_bytes": 98304,
+          "toast_bytes": 221184,
+          "n_live_tup": 77,
+          "n_dead_tup": 0,
+          "seq_scan": 259,
+          "seq_tup_read": 137052,
+          "idx_scan": 34,
+          "n_tup_ins": 77,
+          "n_tup_upd": 0,
+          "n_tup_del": 0,
+          "n_tup_hot_upd": 0,
+          "last_autovacuum": null,
+          "last_autoanalyze": null,
+          "autovacuum_count": 0
+        },
+        "agent_runs": {
+          "rows": 51,
+          "total_bytes": 188416,
+          "heap_bytes": 106496,
+          "index_bytes": 49152,
+          "toast_bytes": 8192,
+          "n_live_tup": 9,
+          "n_dead_tup": 5,
+          "seq_scan": 121,
+          "seq_tup_read": 6011,
+          "idx_scan": 593,
+          "n_tup_ins": 9,
+          "n_tup_upd": 12,
+          "n_tup_del": 0,
+          "n_tup_hot_upd": 11,
+          "last_autovacuum": null,
+          "last_autoanalyze": null,
+          "autovacuum_count": 0
+        },
+        "equity_snapshots": {
+          "rows": 520,
+          "total_bytes": 172032,
+          "heap_bytes": 81920,
+          "index_bytes": 65536,
+          "toast_bytes": 0,
+          "n_live_tup": 521,
+          "n_dead_tup": 43,
+          "seq_scan": 15,
+          "seq_tup_read": 6877,
+          "idx_scan": 316,
+          "n_tup_ins": 148,
+          "n_tup_upd": 0,
+          "n_tup_del": 0,
+          "n_tup_hot_upd": 0,
+          "last_autovacuum": null,
+          "last_autoanalyze": "2026-11-04T06:12:01.563026+00:00",
+          "autovacuum_count": 0
+        },
+        "orders": {
+          "rows": 19,
+          "total_bytes": 163840,
+          "heap_bytes": 16384,
+          "index_bytes": 114688,
+          "toast_bytes": 8192,
+          "n_live_tup": 4,
+          "n_dead_tup": 5,
+          "seq_scan": 640,
+          "seq_tup_read": 11881,
+          "idx_scan": 19,
+          "n_tup_ins": 4,
+          "n_tup_upd": 5,
+          "n_tup_del": 0,
+          "n_tup_hot_upd": 0,
+          "last_autovacuum": null,
+          "last_autoanalyze": null,
+          "autovacuum_count": 0
+        },
+        "paper_account": {
+          "rows": 1,
+          "total_bytes": 131072,
+          "heap_bytes": 24576,
+          "index_bytes": 16384,
+          "toast_bytes": 65536,
+          "n_live_tup": 0,
+          "n_dead_tup": 5,
+          "seq_scan": 10,
+          "seq_tup_read": 10,
+          "idx_scan": 27,
+          "n_tup_ins": 0,
+          "n_tup_upd": 5,
+          "n_tup_del": 0,
+          "n_tup_hot_upd": 5,
+          "last_autovacuum": null,
+          "last_autoanalyze": null,
+          "autovacuum_count": 0
+        },
+        "daily_reports": {
+          "rows": 3,
+          "total_bytes": 122880,
+          "heap_bytes": 16384,
+          "index_bytes": 16384,
+          "toast_bytes": 65536,
+          "n_live_tup": 1,
+          "n_dead_tup": 0,
+          "seq_scan": 7,
+          "seq_tup_read": 21,
+          "idx_scan": 52,
+          "n_tup_ins": 1,
+          "n_tup_upd": 0,
+          "n_tup_del": 0,
+          "n_tup_hot_upd": 0,
+          "last_autovacuum": null,
+          "last_autoanalyze": null,
+          "autovacuum_count": 0
+        },
+        "llm_usage": {
+          "rows": 68,
+          "total_bytes": 90112,
+          "heap_bytes": 16384,
+          "index_bytes": 49152,
+          "toast_bytes": 0,
+          "n_live_tup": 68,
+          "n_dead_tup": 0,
+          "seq_scan": 91,
+          "seq_tup_read": 5593,
+          "idx_scan": 47,
+          "n_tup_ins": 68,
+          "n_tup_upd": 0,
+          "n_tup_del": 0,
+          "n_tup_hot_upd": 0,
+          "last_autovacuum": null,
+          "last_autoanalyze": "2026-11-04T12:18:19.049524+00:00",
+          "autovacuum_count": 0
+        },
+        "fills": {
+          "rows": 19,
+          "total_bytes": 73728,
+          "heap_bytes": 8192,
+          "index_bytes": 65536,
+          "toast_bytes": 0,
+          "n_live_tup": 4,
+          "n_dead_tup": 0,
+          "seq_scan": 94,
+          "seq_tup_read": 1741,
+          "idx_scan": 1,
+          "n_tup_ins": 4,
+          "n_tup_upd": 0,
+          "n_tup_del": 0,
+          "n_tup_hot_upd": 0,
+          "last_autovacuum": null,
+          "last_autoanalyze": null,
+          "autovacuum_count": 0
+        },
+        "app_settings": {
+          "rows": 10,
+          "total_bytes": 65536,
+          "heap_bytes": 8192,
+          "index_bytes": 16384,
+          "toast_bytes": 8192,
+          "n_live_tup": 2,
+          "n_dead_tup": 2,
+          "seq_scan": 17743,
+          "seq_tup_read": 173025,
+          "idx_scan": 0,
+          "n_tup_ins": 2,
+          "n_tup_upd": 14,
+          "n_tup_del": 0,
+          "n_tup_hot_upd": 14,
+          "last_autovacuum": null,
+          "last_autoanalyze": null,
+          "autovacuum_count": 0
+        },
+        "strategies": {
+          "rows": 2,
+          "total_bytes": 49152,
+          "heap_bytes": 8192,
+          "index_bytes": 32768,
+          "toast_bytes": 8192,
+          "n_live_tup": 0,
+          "n_dead_tup": 0,
+          "seq_scan": 109,
+          "seq_tup_read": 218,
+          "idx_scan": 0,
+          "n_tup_ins": 0,
+          "n_tup_upd": 0,
+          "n_tup_del": 0,
+          "n_tup_hot_upd": 0,
+          "last_autovacuum": null,
+          "last_autoanalyze": null,
+          "autovacuum_count": 0
+        },
+        "alembic_version": {
+          "rows": 1,
+          "total_bytes": 24576,
+          "heap_bytes": 8192,
+          "index_bytes": 16384,
+          "toast_bytes": 0,
+          "n_live_tup": 0,
+          "n_dead_tup": 3,
+          "seq_scan": 21,
+          "seq_tup_read": 21,
+          "idx_scan": 3,
+          "n_tup_ins": 0,
+          "n_tup_upd": 3,
+          "n_tup_del": 0,
+          "n_tup_hot_upd": 0,
+          "last_autovacuum": null,
+          "last_autoanalyze": null,
+          "autovacuum_count": 0
+        },
+        "memory_cards": {
+          "rows": 0,
+          "total_bytes": 24576,
+          "heap_bytes": 0,
+          "index_bytes": 16384,
+          "toast_bytes": 8192,
+          "n_live_tup": 0,
+          "n_dead_tup": 0,
+          "seq_scan": 130,
+          "seq_tup_read": 0,
+          "idx_scan": 0,
+          "n_tup_ins": 0,
+          "n_tup_upd": 0,
+          "n_tup_del": 0,
+          "n_tup_hot_upd": 0,
+          "last_autovacuum": null,
+          "last_autoanalyze": null,
+          "autovacuum_count": 0
+        },
+        "users": {
+          "rows": 0,
+          "total_bytes": 16384,
+          "heap_bytes": 0,
+          "index_bytes": 16384,
+          "toast_bytes": 0,
+          "n_live_tup": 0,
+          "n_dead_tup": 0,
+          "seq_scan": 306,
+          "seq_tup_read": 0,
+          "idx_scan": 0,
+          "n_tup_ins": 0,
+          "n_tup_upd": 0,
+          "n_tup_del": 0,
+          "n_tup_hot_upd": 0,
+          "last_autovacuum": null,
+          "last_autoanalyze": null,
+          "autovacuum_count": 0
+        },
+        "watchlist": {
+          "rows": 0,
+          "total_bytes": 8192,
+          "heap_bytes": 0,
+          "index_bytes": 8192,
+          "toast_bytes": 0,
+          "n_live_tup": 0,
+          "n_dead_tup": 0,
+          "seq_scan": 669,
+          "seq_tup_read": 0,
+          "idx_scan": 0,
+          "n_tup_ins": 0,
+          "n_tup_upd": 0,
+          "n_tup_del": 0,
+          "n_tup_hot_upd": 0,
+          "last_autovacuum": null,
+          "last_autoanalyze": null,
+          "autovacuum_count": 0
+        }
+      },
+      "indexes": [
+        {
+          "table": "agent_decisions",
+          "index": "agent_decisions_pkey",
+          "bytes": 16384,
+          "idx_scan": 112,
+          "idx_tup_read": 6250,
+          "indexdef": "CREATE UNIQUE INDEX agent_decisions_pkey ON public.agent_decisions USING btree (id)"
+        },
+        {
+          "table": "agent_decisions",
+          "index": "ix_agent_decisions_created_at",
+          "bytes": 16384,
+          "idx_scan": 17,
+          "idx_tup_read": 17,
+          "indexdef": "CREATE INDEX ix_agent_decisions_created_at ON public.agent_decisions USING btree (created_at)"
+        },
+        {
+          "table": "agent_decisions",
+          "index": "ix_agent_decisions_order_id",
+          "bytes": 16384,
+          "idx_scan": 0,
+          "idx_tup_read": 0,
+          "indexdef": "CREATE INDEX ix_agent_decisions_order_id ON public.agent_decisions USING btree (order_id)"
+        },
+        {
+          "table": "agent_decisions",
+          "index": "ix_agent_decisions_run_id",
+          "bytes": 16384,
+          "idx_scan": 213,
+          "idx_tup_read": 1244,
+          "indexdef": "CREATE INDEX ix_agent_decisions_run_id ON public.agent_decisions USING btree (run_id)"
+        },
+        {
+          "table": "agent_decisions",
+          "index": "ix_agent_decisions_symbol",
+          "bytes": 16384,
+          "idx_scan": 18,
+          "idx_tup_read": 638,
+          "indexdef": "CREATE INDEX ix_agent_decisions_symbol ON public.agent_decisions USING btree (symbol)"
+        },
+        {
+          "table": "agent_runs",
+          "index": "agent_runs_pkey",
+          "bytes": 16384,
+          "idx_scan": 516,
+          "idx_tup_read": 1302,
+          "indexdef": "CREATE UNIQUE INDEX agent_runs_pkey ON public.agent_runs USING btree (id)"
+        },
+        {
+          "table": "agent_runs",
+          "index": "ix_agent_runs_started_at",
+          "bytes": 16384,
+          "idx_scan": 58,
+          "idx_tup_read": 58,
+          "indexdef": "CREATE INDEX ix_agent_runs_started_at ON public.agent_runs USING btree (started_at)"
+        },
+        {
+          "table": "agent_runs",
+          "index": "ix_agent_runs_status_id",
+          "bytes": 16384,
+          "idx_scan": 19,
+          "idx_tup_read": 57,
+          "indexdef": "CREATE INDEX ix_agent_runs_status_id ON public.agent_runs USING btree (status, id)"
+        },
+        {
+          "table": "alembic_version",
+          "index": "alembic_version_pkc",
+          "bytes": 16384,
+          "idx_scan": 3,
+          "idx_tup_read": 3,
+          "indexdef": "CREATE UNIQUE INDEX alembic_version_pkc ON public.alembic_version USING btree (version_num)"
+        },
+        {
+          "table": "api_cache",
+          "index": "api_cache_pkey",
+          "bytes": 32768,
+          "idx_scan": 15,
+          "idx_tup_read": 3,
+          "indexdef": "CREATE UNIQUE INDEX api_cache_pkey ON public.api_cache USING btree (key)"
+        },
+        {
+          "table": "api_cache",
+          "index": "ix_api_cache_fetched_at",
+          "bytes": 16384,
+          "idx_scan": 1,
+          "idx_tup_read": 1,
+          "indexdef": "CREATE INDEX ix_api_cache_fetched_at ON public.api_cache USING btree (fetched_at)"
+        },
+        {
+          "table": "app_settings",
+          "index": "app_settings_pkey",
+          "bytes": 16384,
+          "idx_scan": 0,
+          "idx_tup_read": 0,
+          "indexdef": "CREATE UNIQUE INDEX app_settings_pkey ON public.app_settings USING btree (key)"
+        },
+        {
+          "table": "audit_events",
+          "index": "audit_events_pkey",
+          "bytes": 32768,
+          "idx_scan": 25,
+          "idx_tup_read": 4842,
+          "indexdef": "CREATE UNIQUE INDEX audit_events_pkey ON public.audit_events USING btree (id)"
+        },
+        {
+          "table": "audit_events",
+          "index": "ix_audit_events_symbol",
+          "bytes": 16384,
+          "idx_scan": 0,
+          "idx_tup_read": 0,
+          "indexdef": "CREATE INDEX ix_audit_events_symbol ON public.audit_events USING btree (symbol)"
+        },
+        {
+          "table": "audit_events",
+          "index": "ix_audit_events_ts",
+          "bytes": 32768,
+          "idx_scan": 7,
+          "idx_tup_read": 39,
+          "indexdef": "CREATE INDEX ix_audit_events_ts ON public.audit_events USING btree (ts)"
+        },
+        {
+          "table": "audit_events",
+          "index": "ix_audit_events_type",
+          "bytes": 16384,
+          "idx_scan": 2,
+          "idx_tup_read": 11,
+          "indexdef": "CREATE INDEX ix_audit_events_type ON public.audit_events USING btree (type)"
+        },
+        {
+          "table": "chat_messages",
+          "index": "chat_messages_pkey",
+          "bytes": 65536,
+          "idx_scan": 548,
+          "idx_tup_read": 174750,
+          "indexdef": "CREATE UNIQUE INDEX chat_messages_pkey ON public.chat_messages USING btree (id)"
+        },
+        {
+          "table": "chat_messages",
+          "index": "ix_chat_messages_role_id",
+          "bytes": 90112,
+          "idx_scan": 19,
+          "idx_tup_read": 95,
+          "indexdef": "CREATE INDEX ix_chat_messages_role_id ON public.chat_messages USING btree (role, id)"
+        },
+        {
+          "table": "chat_messages",
+          "index": "ix_chat_messages_run_id",
+          "bytes": 32768,
+          "idx_scan": 0,
+          "idx_tup_read": 0,
+          "indexdef": "CREATE INDEX ix_chat_messages_run_id ON public.chat_messages USING btree (run_id)"
+        },
+        {
+          "table": "chat_messages",
+          "index": "ix_chat_messages_ts",
+          "bytes": 65536,
+          "idx_scan": 39,
+          "idx_tup_read": 3290,
+          "indexdef": "CREATE INDEX ix_chat_messages_ts ON public.chat_messages USING btree (ts)"
+        },
+        {
+          "table": "corp_codes",
+          "index": "corp_codes_pkey",
+          "bytes": 229376,
+          "idx_scan": 47,
+          "idx_tup_read": 47,
+          "indexdef": "CREATE UNIQUE INDEX corp_codes_pkey ON public.corp_codes USING btree (stock_code)"
+        },
+        {
+          "table": "daily_prices",
+          "index": "daily_prices_pkey",
+          "bytes": 122880,
+          "idx_scan": 411,
+          "idx_tup_read": 412,
+          "indexdef": "CREATE UNIQUE INDEX daily_prices_pkey ON public.daily_prices USING btree (id)"
+        },
+        {
+          "table": "daily_prices",
+          "index": "ix_daily_prices_day",
+          "bytes": 57344,
+          "idx_scan": 3634,
+          "idx_tup_read": 7550,
+          "indexdef": "CREATE INDEX ix_daily_prices_day ON public.daily_prices USING btree (day)"
+        },
+        {
+          "table": "daily_prices",
+          "index": "uq_daily_price",
+          "bytes": 237568,
+          "idx_scan": 14470,
+          "idx_tup_read": 57449,
+          "indexdef": "CREATE UNIQUE INDEX uq_daily_price ON public.daily_prices USING btree (symbol, day)"
+        },
+        {
+          "table": "daily_reports",
+          "index": "daily_reports_pkey",
+          "bytes": 16384,
+          "idx_scan": 52,
+          "idx_tup_read": 163,
+          "indexdef": "CREATE UNIQUE INDEX daily_reports_pkey ON public.daily_reports USING btree (day)"
+        },
+        {
+          "table": "equity_snapshots",
+          "index": "equity_snapshots_pkey",
+          "bytes": 32768,
+          "idx_scan": 151,
+          "idx_tup_read": 74959,
+          "indexdef": "CREATE UNIQUE INDEX equity_snapshots_pkey ON public.equity_snapshots USING btree (id)"
+        },
+        {
+          "table": "equity_snapshots",
+          "index": "ix_equity_snapshots_ts",
+          "bytes": 32768,
+          "idx_scan": 165,
+          "idx_tup_read": 165,
+          "indexdef": "CREATE INDEX ix_equity_snapshots_ts ON public.equity_snapshots USING btree (ts)"
+        },
+        {
+          "table": "fills",
+          "index": "fills_pkey",
+          "bytes": 16384,
+          "idx_scan": 1,
+          "idx_tup_read": 2,
+          "indexdef": "CREATE UNIQUE INDEX fills_pkey ON public.fills USING btree (id)"
+        },
+        {
+          "table": "fills",
+          "index": "ix_fills_filled_at",
+          "bytes": 16384,
+          "idx_scan": 0,
+          "idx_tup_read": 0,
+          "indexdef": "CREATE INDEX ix_fills_filled_at ON public.fills USING btree (filled_at)"
+        },
+        {
+          "table": "fills",
+          "index": "ix_fills_order_id",
+          "bytes": 16384,
+          "idx_scan": 0,
+          "idx_tup_read": 0,
+          "indexdef": "CREATE INDEX ix_fills_order_id ON public.fills USING btree (order_id)"
+        },
+        {
+          "table": "fills",
+          "index": "ix_fills_symbol",
+          "bytes": 16384,
+          "idx_scan": 0,
+          "idx_tup_read": 0,
+          "indexdef": "CREATE INDEX ix_fills_symbol ON public.fills USING btree (symbol)"
+        },
+        {
+          "table": "llm_usage",
+          "index": "ix_llm_usage_run_id",
+          "bytes": 16384,
+          "idx_scan": 0,
+          "idx_tup_read": 0,
+          "indexdef": "CREATE INDEX ix_llm_usage_run_id ON public.llm_usage USING btree (run_id)"
+        },
+        {
+          "table": "llm_usage",
+          "index": "ix_llm_usage_ts",
+          "bytes": 16384,
+          "idx_scan": 47,
+          "idx_tup_read": 47,
+          "indexdef": "CREATE INDEX ix_llm_usage_ts ON public.llm_usage USING btree (ts)"
+        },
+        {
+          "table": "llm_usage",
+          "index": "llm_usage_pkey",
+          "bytes": 16384,
+          "idx_scan": 0,
+          "idx_tup_read": 0,
+          "indexdef": "CREATE UNIQUE INDEX llm_usage_pkey ON public.llm_usage USING btree (id)"
+        },
+        {
+          "table": "memory_cards",
+          "index": "ix_memory_cards_symbol_kind",
+          "bytes": 8192,
+          "idx_scan": 0,
+          "idx_tup_read": 0,
+          "indexdef": "CREATE INDEX ix_memory_cards_symbol_kind ON public.memory_cards USING btree (symbol, kind)"
+        },
+        {
+          "table": "memory_cards",
+          "index": "memory_cards_pkey",
+          "bytes": 8192,
+          "idx_scan": 0,
+          "idx_tup_read": 0,
+          "indexdef": "CREATE UNIQUE INDEX memory_cards_pkey ON public.memory_cards USING btree (id)"
+        },
+        {
+          "table": "orders",
+          "index": "ix_orders_broker_order_id",
+          "bytes": 16384,
+          "idx_scan": 0,
+          "idx_tup_read": 0,
+          "indexdef": "CREATE INDEX ix_orders_broker_order_id ON public.orders USING btree (broker_order_id)"
+        },
+        {
+          "table": "orders",
+          "index": "ix_orders_client_order_id",
+          "bytes": 16384,
+          "idx_scan": 0,
+          "idx_tup_read": 0,
+          "indexdef": "CREATE UNIQUE INDEX ix_orders_client_order_id ON public.orders USING btree (client_order_id)"
+        },
+        {
+          "table": "orders",
+          "index": "ix_orders_created_at",
+          "bytes": 16384,
+          "idx_scan": 19,
+          "idx_tup_read": 19,
+          "indexdef": "CREATE INDEX ix_orders_created_at ON public.orders USING btree (created_at)"
+        },
+        {
+          "table": "orders",
+          "index": "ix_orders_run_id",
+          "bytes": 16384,
+          "idx_scan": 0,
+          "idx_tup_read": 0,
+          "indexdef": "CREATE INDEX ix_orders_run_id ON public.orders USING btree (run_id)"
+        },
+        {
+          "table": "orders",
+          "index": "ix_orders_status",
+          "bytes": 16384,
+          "idx_scan": 0,
+          "idx_tup_read": 0,
+          "indexdef": "CREATE INDEX ix_orders_status ON public.orders USING btree (status)"
+        },
+        {
+          "table": "orders",
+          "index": "ix_orders_symbol",
+          "bytes": 16384,
+          "idx_scan": 0,
+          "idx_tup_read": 0,
+          "indexdef": "CREATE INDEX ix_orders_symbol ON public.orders USING btree (symbol)"
+        },
+        {
+          "table": "orders",
+          "index": "orders_pkey",
+          "bytes": 16384,
+          "idx_scan": 0,
+          "idx_tup_read": 0,
+          "indexdef": "CREATE UNIQUE INDEX orders_pkey ON public.orders USING btree (id)"
+        },
+        {
+          "table": "paper_account",
+          "index": "paper_account_pkey",
+          "bytes": 16384,
+          "idx_scan": 27,
+          "idx_tup_read": 27,
+          "indexdef": "CREATE UNIQUE INDEX paper_account_pkey ON public.paper_account USING btree (id)"
+        },
+        {
+          "table": "strategies",
+          "index": "strategies_name_key",
+          "bytes": 16384,
+          "idx_scan": 0,
+          "idx_tup_read": 0,
+          "indexdef": "CREATE UNIQUE INDEX strategies_name_key ON public.strategies USING btree (name)"
+        },
+        {
+          "table": "strategies",
+          "index": "strategies_pkey",
+          "bytes": 16384,
+          "idx_scan": 0,
+          "idx_tup_read": 0,
+          "indexdef": "CREATE UNIQUE INDEX strategies_pkey ON public.strategies USING btree (id)"
+        },
+        {
+          "table": "users",
+          "index": "users_pkey",
+          "bytes": 8192,
+          "idx_scan": 0,
+          "idx_tup_read": 0,
+          "indexdef": "CREATE UNIQUE INDEX users_pkey ON public.users USING btree (id)"
+        },
+        {
+          "table": "users",
+          "index": "users_username_key",
+          "bytes": 8192,
+          "idx_scan": 0,
+          "idx_tup_read": 0,
+          "indexdef": "CREATE UNIQUE INDEX users_username_key ON public.users USING btree (username)"
+        },
+        {
+          "table": "watchlist",
+          "index": "watchlist_pkey",
+          "bytes": 8192,
+          "idx_scan": 0,
+          "idx_tup_read": 0,
+          "indexdef": "CREATE UNIQUE INDEX watchlist_pkey ON public.watchlist USING btree (symbol)"
+        }
+      ],
+      "redundant_indexes": [],
+      "column_sizes": {
+        "api_cache.payload": {
+          "type": "json",
+          "n": 114,
+          "avg_len": 85137,
+          "max_len": 229895,
+          "sum_len": 9705631,
+          "avg_stored": 8991,
+          "p95_len": 211086
+        },
+        "chat_messages.payload": {
+          "type": "json",
+          "n": 2172,
+          "avg_len": 427,
+          "max_len": 32177,
+          "sum_len": 928057,
+          "avg_stored": 403,
+          "p95_len": 1511
+        },
+        "audit_events.payload": {
+          "type": "json",
+          "n": 537,
+          "avg_len": 962,
+          "max_len": 12215,
+          "sum_len": 516489,
+          "avg_stored": 399,
+          "p95_len": 10794
+        },
+        "agent_decisions.evidence": {
+          "type": "json",
+          "n": 336,
+          "avg_len": 414,
+          "max_len": 1285,
+          "sum_len": 138954,
+          "avg_stored": 415,
+          "p95_len": 785
+        },
+        "chat_messages.content": {
+          "type": "text",
+          "n": 2172,
+          "avg_len": 42,
+          "max_len": 627,
+          "sum_len": 91576,
+          "avg_stored": 94,
+          "p95_len": 151
+        },
+        "agent_decisions.rationale": {
+          "type": "text",
+          "n": 336,
+          "avg_len": 190,
+          "max_len": 451,
+          "sum_len": 63934,
+          "avg_stored": 398,
+          "p95_len": 288
+        },
+        "daily_reports.payload": {
+          "type": "json",
+          "n": 3,
+          "avg_len": 17008,
+          "max_len": 32165,
+          "sum_len": 51025,
+          "avg_stored": 5025,
+          "p95_len": 32165
+        },
+        "agent_runs.summary": {
+          "type": "text",
+          "n": 51,
+          "avg_len": 341,
+          "max_len": 612,
+          "sum_len": 17380,
+          "avg_stored": 698,
+          "p95_len": 569
+        },
+        "audit_events.message": {
+          "type": "text",
+          "n": 537,
+          "avg_len": 20,
+          "max_len": 133,
+          "sum_len": 10815,
+          "avg_stored": 34,
+          "p95_len": 73
+        },
+        "agent_runs.market_view": {
+          "type": "text",
+          "n": 51,
+          "avg_len": 185,
+          "max_len": 305,
+          "sum_len": 9428,
+          "avg_stored": 388,
+          "p95_len": 295
+        },
+        "paper_account.state": {
+          "type": "json",
+          "n": 1,
+          "avg_len": 8126,
+          "max_len": 8126,
+          "sum_len": 8126,
+          "avg_stored": 2489,
+          "p95_len": 8126
+        },
+        "agent_runs.usage": {
+          "type": "json",
+          "n": 51,
+          "avg_len": 68,
+          "max_len": 123,
+          "sum_len": 3468,
+          "avg_stored": 69,
+          "p95_len": 77
+        },
+        "app_settings.value": {
+          "type": "json",
+          "n": 10,
+          "avg_len": 133,
+          "max_len": 573,
+          "sum_len": 1327,
+          "avg_stored": 135,
+          "p95_len": 573
+        },
+        "agent_runs.error": {
+          "type": "text",
+          "n": 51,
+          "avg_len": 102,
+          "max_len": 215,
+          "sum_len": 406,
+          "avg_stored": 103,
+          "p95_len": 215
+        },
+        "strategies.params": {
+          "type": "json",
+          "n": 2,
+          "avg_len": 32,
+          "max_len": 40,
+          "sum_len": 64,
+          "avg_stored": 33,
+          "p95_len": 40
+        },
+        "strategies.symbols": {
+          "type": "json",
+          "n": 2,
+          "avg_len": 2,
+          "max_len": 2,
+          "sum_len": 4,
+          "avg_stored": 3,
+          "p95_len": 2
+        },
+        "memory_cards.text": {
+          "type": "text",
+          "n": 0,
+          "avg_len": null,
+          "max_len": null,
+          "sum_len": null,
+          "avg_stored": null,
+          "p95_len": null
+        }
+      },
+      "breakdowns": {
+        "audit_events_by_type": [
+          {
+            "type": "SIGNAL",
+            "n": 336,
+            "avg_payload": 34,
+            "max_payload": 34,
+            "avg_message": 17
+          },
+          {
+            "type": "AGENT_RUN",
+            "n": 49,
+            "avg_payload": 117,
+            "max_payload": 169,
+            "avg_message": 11
+          },
+          {
+            "type": "AGENT_PAYLOAD",
+            "n": 44,
+            "avg_payload": 10495,
+            "max_payload": 12215,
+            "avg_message": 8
+          },
+          {
+            "type": "SYSTEM",
+            "n": 27,
+            "avg_payload": 2,
+            "max_payload": 2,
+            "avg_message": 94
+          },
+          {
+            "type": "ORDER",
+            "n": 19,
+            "avg_payload": 635,
+            "max_payload": 884,
+            "avg_message": 13
+          },
+          {
+            "type": "FILL",
+            "n": 19,
+            "avg_payload": 51,
+            "max_payload": 52,
+            "avg_message": 20
+          },
+          {
+            "type": "FILLED",
+            "n": 19,
+            "avg_payload": 1077,
+            "max_payload": 1324,
+            "avg_message": 16
+          },
+          {
+            "type": "CONFIG",
+            "n": 9,
+            "avg_payload": 79,
+            "max_payload": 239,
+            "avg_message": 41
+          },
+          {
+            "type": "RISK_BLOCK",
+            "n": 5,
+            "avg_payload": 87,
+            "max_payload": 89,
+            "avg_message": 34
+          },
+          {
+            "type": "REPORT",
+            "n": 3,
+            "avg_payload": 2,
+            "max_payload": 2,
+            "avg_message": 20
+          },
+          {
+            "type": "SUBMITTED",
+            "n": 3,
+            "avg_payload": 954,
+            "max_payload": 1219,
+            "avg_message": 19
+          },
+          {
+            "type": "ERROR",
+            "n": 1,
+            "avg_payload": 2,
+            "max_payload": 2,
+            "avg_message": 70
+          },
+          {
+            "type": "ENGINE",
+            "n": 1,
+            "avg_payload": 2,
+            "max_payload": 2,
+            "avg_message": 24
+          },
+          {
+            "type": "KILL_SWITCH",
+            "n": 1,
+            "avg_payload": 15,
+            "max_payload": 15,
+            "avg_message": 18
+          },
+          {
+            "type": "ACCOUNT_RESET",
+            "n": 1,
+            "avg_payload": 2,
+            "max_payload": 2,
+            "avg_message": 31
+          }
+        ],
+        "chat_messages_by_role_kind": [
+          {
+            "role": "analyst",
+            "kind": "tool",
+            "n": 1199,
+            "avg_payload": 337,
+            "max_payload": 970,
+            "avg_content": 19
+          },
+          {
+            "role": "analyst",
+            "kind": "text",
+            "n": 457,
+            "avg_payload": 3,
+            "max_payload": 41,
+            "avg_content": 89
+          },
+          {
+            "role": "analyst",
+            "kind": "decision",
+            "n": 336,
+            "avg_payload": 1320,
+            "max_payload": 3052,
+            "avg_content": 10
+          },
+          {
+            "role": "system",
+            "kind": "text",
+            "n": 84,
+            "avg_payload": 14,
+            "max_payload": 22,
+            "avg_content": 53
+          },
+          {
+            "role": "analyst",
+            "kind": "summary",
+            "n": 44,
+            "avg_payload": 44,
+            "max_payload": 45,
+            "avg_content": 395
+          },
+          {
+            "role": "broker",
+            "kind": "fill",
+            "n": 19,
+            "avg_payload": 1170,
+            "max_payload": 1419,
+            "avg_content": 51
+          },
+          {
+            "role": "user",
+            "kind": "text",
+            "n": 14,
+            "avg_payload": 2,
+            "max_payload": 2,
+            "avg_content": 20
+          },
+          {
+            "role": "risk",
+            "kind": "text",
+            "n": 8,
+            "avg_payload": 20,
+            "max_payload": 20,
+            "avg_content": 48
+          },
+          {
+            "role": "risk",
+            "kind": "block",
+            "n": 5,
+            "avg_payload": 44,
+            "max_payload": 44,
+            "avg_content": 66
+          },
+          {
+            "role": "system",
+            "kind": "summary",
+            "n": 3,
+            "avg_payload": 17020,
+            "max_payload": 32177,
+            "avg_content": 76
+          },
+          {
+            "role": "broker",
+            "kind": "text",
+            "n": 3,
+            "avg_payload": 974,
+            "max_payload": 1239,
+            "avg_content": 54
+          }
+        ],
+        "api_cache_by_prefix": [
+          {
+            "prefix": "dart",
+            "n": 114,
+            "avg_payload": 85137,
+            "max_payload": 229895,
+            "oldest": "2026-11-02T04:28:30.526391+00:00",
+            "newest": "2026-11-04T14:20:03.741842+00:00"
+          }
+        ],
+        "app_settings_value_sizes": [
+          {
+            "key": "push",
+            "bytes": 573,
+            "updated_at": "2026-11-04T12:31:10.430333+00:00"
+          },
+          {
+            "key": "toss_health",
+            "bytes": 262,
+            "updated_at": "2026-11-02T04:02:53.552409+00:00"
+          },
+          {
+            "key": "risk",
+            "bytes": 229,
+            "updated_at": "2026-11-02T04:28:16.649287+00:00"
+          },
+          {
+            "key": "engine",
+            "bytes": 77,
+            "updated_at": "2026-11-04T12:41:09.903863+00:00"
+          },
+          {
+            "key": "account_source",
+            "bytes": 76,
+            "updated_at": "2026-11-02T04:21:22.426177+00:00"
+          },
+          {
+            "key": "sod",
+            "bytes": 43,
+            "updated_at": "2026-11-03T21:19:53.308167+00:00"
+          },
+          {
+            "key": "llm_paid_model",
+            "bytes": 26,
+            "updated_at": "2026-11-04T12:43:06.360985+00:00"
+          },
+          {
+            "key": "boot_notice",
+            "bytes": 21,
+            "updated_at": "2026-11-03T23:41:47.631235+00:00"
+          },
+          {
+            "key": "llm_profile",
+            "bytes": 18,
+            "updated_at": "2026-11-04T14:02:27.163786+00:00"
+          },
+          {
+            "key": "sim_clock",
+            "bytes": 2,
+            "updated_at": "2026-11-02T04:02:53.330234+00:00"
+          }
+        ],
+        "paper_account_state": [
+          {
+            "id": 1,
+            "bytes": 8126,
+            "orders": 19,
+            "client_ids": 19,
+            "positions": 5
+          }
+        ],
+        "agent_runs_usage": [
+          {
+            "n": 51,
+            "avg_usage": 68,
+            "max_usage": 123
+          }
+        ],
+        "time_ranges": [
+          {
+            "tbl": "chat_messages",
+            "oldest": "2026-11-02T04:02:53.331908+00:00",
+            "newest": "2026-11-04T14:02:27.167098+00:00"
+          },
+          {
+            "tbl": "audit_events",
+            "oldest": "2026-11-02T04:02:53.330508+00:00",
+            "newest": "2026-11-04T14:40:49.628636+00:00"
+          },
+          {
+            "tbl": "equity_snapshots",
+            "oldest": "2026-11-02T04:02:53.558926+00:00",
+            "newest": "2026-11-04T14:32:26.391162+00:00"
+          },
+          {
+            "tbl": "agent_runs",
+            "oldest": "2026-11-02T04:06:32.677017+00:00",
+            "newest": "2026-11-04T14:02:04.921265+00:00"
+          },
+          {
+            "tbl": "daily_prices",
+            "oldest": "2026-02-09T00:00:00+00:00",
+            "newest": "2026-11-04T00:00:00+00:00"
+          },
+          {
+            "tbl": "llm_usage",
+            "oldest": "2026-11-02T04:06:32.677017+00:00",
+            "newest": "2026-11-04T12:46:22.362147+00:00"
+          }
+        ],
+        "daily_prices_symbols": [
+          {
+            "symbols": 40,
+            "rows": 4574,
+            "rows_per_symbol": 114
+          }
+        ],
+        "equity_snapshots_per_kst_day": [
+          {
+            "day": "2026-11-02",
+            "n": 110,
+            "outside_kr_session": 65
+          },
+          {
+            "day": "2026-11-03",
+            "n": 212,
+            "outside_kr_session": 103
+          },
+          {
+            "day": "2026-11-04",
+            "n": 198,
+            "outside_kr_session": 113
+          }
+        ],
+        "chat_messages_per_kst_day": [
+          {
+            "day": "2026-11-02",
+            "n": 812
+          },
+          {
+            "day": "2026-11-03",
+            "n": 1093
+          },
+          {
+            "day": "2026-11-04",
+            "n": 267
+          }
+        ],
+        "account_since": [
+          {
+            "since": "2026-11-02T04:02:53.330508+00:00",
+            "source": "toss"
+          }
+        ]
+      },
+      "filter_columns": [
+        {
+          "table": "orders",
+          "column": "created_at",
+          "used_in": "routes.py:253 orders since-filter; reports/daily.py:26 day range",
+          "indexed": true,
+          "rows": 19
+        },
+        {
+          "table": "orders",
+          "column": "status",
+          "used_in": "routes.py:249, engine.py:166, orders.py:115/123/370",
+          "indexed": true,
+          "rows": 19
+        },
+        {
+          "table": "orders",
+          "column": "symbol",
+          "used_in": "orders.py:123 last_order_times",
+          "indexed": true,
+          "rows": 19
+        },
+        {
+          "table": "orders",
+          "column": "run_id",
+          "used_in": "container.py:198 purge_legacy; trades.py join",
+          "indexed": true,
+          "rows": 19
+        },
+        {
+          "table": "orders",
+          "column": "broker_order_id",
+          "used_in": "orders.py:330/341 live order sync",
+          "indexed": true,
+          "rows": 19
+        },
+        {
+          "table": "fills",
+          "column": "filled_at",
+          "used_in": "routes.py:270 since-filter; trades.py:40 ledger; reports/daily.py:24",
+          "indexed": true,
+          "rows": 19
+        },
+        {
+          "table": "fills",
+          "column": "symbol",
+          "used_in": "routes.py:1300 candles markers",
+          "indexed": true,
+          "rows": 19
+        },
+        {
+          "table": "fills",
+          "column": "order_id",
+          "used_in": "orders.py:230; trades.py:38 join",
+          "indexed": true,
+          "rows": 19
+        },
+        {
+          "table": "agent_runs",
+          "column": "started_at",
+          "used_in": "routes.py:434/1529 since-filter; runner.py:290; reports/daily.py:36",
+          "indexed": true,
+          "rows": 51
+        },
+        {
+          "table": "agent_runs",
+          "column": "status",
+          "used_in": "runner.py:288 memory_snapshot status='DONE'",
+          "indexed": true,
+          "rows": 51
+        },
+        {
+          "table": "agent_decisions",
+          "column": "run_id",
+          "used_in": "routes.py:445; runner.py:297; reports/daily.py:39",
+          "indexed": true,
+          "rows": 336
+        },
+        {
+          "table": "agent_decisions",
+          "column": "symbol",
+          "used_in": "routes.py:462/1303",
+          "indexed": true,
+          "rows": 336
+        },
+        {
+          "table": "agent_decisions",
+          "column": "created_at",
+          "used_in": "routes.py:464 since-filter",
+          "indexed": true,
+          "rows": 336
+        },
+        {
+          "table": "agent_decisions",
+          "column": "order_id",
+          "used_in": "container.py:203 purge_legacy",
+          "indexed": true,
+          "rows": 336
+        },
+        {
+          "table": "chat_messages",
+          "column": "run_id",
+          "used_in": "routes.py:447 run detail",
+          "indexed": true,
+          "rows": 2172
+        },
+        {
+          "table": "chat_messages",
+          "column": "role",
+          "used_in": "runner.py:309/697 role filters (USER/ANALYST)",
+          "indexed": true,
+          "rows": 2172
+        },
+        {
+          "table": "chat_messages",
+          "column": "ts",
+          "used_in": "runner.py:696/716 today's chat",
+          "indexed": true,
+          "rows": 2172
+        },
+        {
+          "table": "audit_events",
+          "column": "type",
+          "used_in": "routes.py:927; reports/daily.py:31",
+          "indexed": true,
+          "rows": 537
+        },
+        {
+          "table": "audit_events",
+          "column": "ts",
+          "used_in": "reports/daily.py:31; purge_legacy",
+          "indexed": true,
+          "rows": 537
+        },
+        {
+          "table": "equity_snapshots",
+          "column": "ts",
+          "used_in": "routes.py:235 since-filter",
+          "indexed": true,
+          "rows": 520
+        },
+        {
+          "table": "llm_usage",
+          "column": "ts",
+          "used_in": "costs.py:209 months window",
+          "indexed": true,
+          "rows": 68
+        },
+        {
+          "table": "daily_prices",
+          "column": "symbol",
+          "used_in": "store.py:109 history/last_bar/name_of",
+          "indexed": true,
+          "rows": 4574
+        },
+        {
+          "table": "daily_prices",
+          "column": "day",
+          "used_in": "store.py:77/129 sync_day/snapshot",
+          "indexed": true,
+          "rows": 4574
+        },
+        {
+          "table": "memory_cards",
+          "column": "kind",
+          "used_in": "routes.py:1120 duplicate check",
+          "indexed": false,
+          "rows": 0
+        },
+        {
+          "table": "memory_cards",
+          "column": "symbol",
+          "used_in": "routes.py:1120 duplicate check",
+          "indexed": true,
+          "rows": 0
+        },
+        {
+          "table": "api_cache",
+          "column": "fetched_at",
+          "used_in": "(no filter in code; TTL checked in Python)",
+          "indexed": true,
+          "rows": 114
+        }
+      ],
+      "missing_indexes": [
+        {
+          "table": "memory_cards",
+          "column": "kind",
+          "used_in": "routes.py:1120 duplicate check",
+          "indexed": false,
+          "rows": 0
+        }
+      ],
+      "explain": {
+        "chat_latest_200": {
+          "execution_ms": 0.182,
+          "planning_ms": 0.519,
+          "rows": 200,
+          "shared_hit": 139,
+          "shared_read": 0,
+          "nodes": [
+            "Limit",
+            "Index Scan on chat_messages using chat_messages_pkey"
+          ]
+        },
+        "events_latest_200": {
+          "execution_ms": 0.23,
+          "planning_ms": 0.418,
+          "rows": 200,
+          "shared_hit": 19,
+          "shared_read": 0,
+          "nodes": [
+            "Limit",
+            "Sort",
+            "Seq Scan on audit_events"
+          ]
+        },
+        "orders_since_300": {
+          "execution_ms": 0.087,
+          "planning_ms": 0.657,
+          "rows": 19,
+          "shared_hit": 5,
+          "shared_read": 0,
+          "nodes": [
+            "Limit",
+            "Sort",
+            "Seq Scan on orders"
+          ]
+        },
+        "fills_since_200": {
+          "execution_ms": 0.056,
+          "planning_ms": 0.444,
+          "rows": 19,
+          "shared_hit": 4,
+          "shared_read": 0,
+          "nodes": [
+            "Limit",
+            "Sort",
+            "Seq Scan on fills"
+          ]
+        },
+        "equity_since_1000": {
+          "execution_ms": 0.197,
+          "planning_ms": 0.384,
+          "rows": 520,
+          "shared_hit": 51,
+          "shared_read": 0,
+          "nodes": [
+            "Limit",
+            "Index Scan on equity_snapshots using equity_snapshots_pkey"
+          ]
+        },
+        "runs_since_20": {
+          "execution_ms": 0.151,
+          "planning_ms": 0.656,
+          "rows": 20,
+          "shared_hit": 16,
+          "shared_read": 0,
+          "nodes": [
+            "Limit",
+            "Sort",
+            "Seq Scan on agent_runs"
+          ]
+        },
+        "memory_runs_done_3": {
+          "execution_ms": 0.029,
+          "planning_ms": 0.532,
+          "rows": 3,
+          "shared_hit": 3,
+          "shared_read": 0,
+          "nodes": [
+            "Limit",
+            "Index Scan on agent_runs using ix_agent_runs_status_id"
+          ]
+        },
+        "memory_user_msgs_5": {
+          "execution_ms": 0.049,
+          "planning_ms": 0.569,
+          "rows": 5,
+          "shared_hit": 7,
+          "shared_read": 0,
+          "nodes": [
+            "Limit",
+            "Index Scan on chat_messages using ix_chat_messages_role_id"
+          ]
+        },
+        "last_order_times": {
+          "execution_ms": 0.028,
+          "planning_ms": 0.421,
+          "rows": 19,
+          "shared_hit": 2,
+          "shared_read": 0,
+          "nodes": [
+            "Seq Scan on orders"
+          ]
+        },
+        "trade_ledger_all": {
+          "execution_ms": 0.132,
+          "planning_ms": 0.894,
+          "rows": 19,
+          "shared_hit": 9,
+          "shared_read": 0,
+          "nodes": [
+            "Sort",
+            "Hash Join",
+            "Seq Scan on fills",
+            "Hash",
+            "Seq Scan on orders"
+          ]
+        },
+        "name_of_last_bar": {
+          "execution_ms": 0.051,
+          "planning_ms": 0.467,
+          "rows": 1,
+          "shared_hit": 4,
+          "shared_read": 0,
+          "nodes": [
+            "Limit",
+            "Limit",
+            "Seq Scan on daily_prices",
+            "Index Scan on daily_prices using uq_daily_price"
+          ]
+        },
+        "fills_by_symbol": {
+          "execution_ms": 0.027,
+          "planning_ms": 0.406,
+          "rows": 1,
+          "shared_hit": 2,
+          "shared_read": 0,
+          "nodes": [
+            "Seq Scan on fills",
+            "Limit",
+            "Seq Scan on fills"
+          ]
+        },
+        "llm_usage_12mo": {
+          "execution_ms": 0.039,
+          "planning_ms": 0.37,
+          "rows": 68,
+          "shared_hit": 2,
+          "shared_read": 0,
+          "nodes": [
+            "Seq Scan on llm_usage"
+          ]
+        }
+      },
+      "activity": {
+        "seconds": 60.3,
+        "server_state": {
+          "KR": {
+            "open_now": false,
+            "agent_running": false
+          },
+          "US": {
+            "open_now": true,
+            "agent_running": false
+          }
+        },
+        "per_minute": {
+          "xact_commit": 37.8,
+          "xact_rollback": 0.0,
+          "tup_returned": 2762.5,
+          "tup_fetched": 917.2,
+          "tup_inserted": 0.0,
+          "tup_updated": 0.0,
+          "tup_deleted": 0.0
+        },
+        "tables_per_minute": {
+          "daily_prices": {
+            "seq_scan": 0.0,
+            "idx_scan": 12.0,
+            "n_tup_ins": 0.0,
+            "n_tup_upd": 0.0
+          }
+        }
+      }
+    },
+    "us_sqlite": {
+      "engine": "sqlite",
+      "file_bytes": {
+        "us_market.db-wal": 53592,
+        "us_market.db": 454656,
+        "us_market.db-shm": 32768
+      },
+      "page_size": 4096,
+      "page_count": 111,
+      "freelist_count": 5,
+      "journal_mode": "wal",
+      "dbstat_available": true,
+      "tables": {
+        "agent_decisions": {
+          "rows": 0,
+          "table_bytes": 4096,
+          "index_bytes": 16384
+        },
+        "agent_runs": {
+          "rows": 3,
+          "table_bytes": 4096,
+          "index_bytes": 8192
+        },
+        "alembic_version": {
+          "rows": 1,
+          "table_bytes": 4096,
+          "index_bytes": 4096
+        },
+        "api_cache": {
+          "rows": 0,
+          "table_bytes": 4096,
+          "index_bytes": 8192
+        },
+        "app_settings": {
+          "rows": 6,
+          "table_bytes": 4096,
+          "index_bytes": 4096
+        },
+        "audit_events": {
+          "rows": 6,
+          "table_bytes": 4096,
+          "index_bytes": 12288
+        },
+        "chat_messages": {
+          "rows": 7,
+          "table_bytes": 4096,
+          "index_bytes": 12288
+        },
+        "corp_codes": {
+          "rows": 0,
+          "table_bytes": 4096,
+          "index_bytes": 4096
+        },
+        "daily_prices": {
+          "rows": 1251,
+          "table_bytes": 139264,
+          "index_bytes": 65536
+        },
+        "daily_reports": {
+          "rows": 0,
+          "table_bytes": 4096,
+          "index_bytes": 4096
+        },
+        "equity_snapshots": {
+          "rows": 16,
+          "table_bytes": 4096,
+          "index_bytes": 4096
+        },
+        "fills": {
+          "rows": 0,
+          "table_bytes": 4096,
+          "index_bytes": 12288
+        },
+        "llm_usage": {
+          "rows": 0,
+          "table_bytes": 4096,
+          "index_bytes": 8192
+        },
+        "memory_cards": {
+          "rows": 0,
+          "table_bytes": 4096,
+          "index_bytes": 4096
+        },
+        "orders": {
+          "rows": 0,
+          "table_bytes": 4096,
+          "index_bytes": 24576
+        },
+        "paper_account": {
+          "rows": 1,
+          "table_bytes": 4096,
+          "index_bytes": 0
+        },
+        "strategies": {
+          "rows": 2,
+          "table_bytes": 4096,
+          "index_bytes": 4096
+        },
+        "users": {
+          "rows": 0,
+          "table_bytes": 4096,
+          "index_bytes": 4096
+        },
+        "watchlist": {
+          "rows": 9,
+          "table_bytes": 4096,
+          "index_bytes": 4096
+        }
+      },
+      "indexes": [
+        {
+          "table": "agent_decisions",
+          "index": "ix_agent_decisions_created_at",
+          "columns": [
+            "created_at"
+          ],
+          "bytes": 4096,
+          "auto": false
+        },
+        {
+          "table": "agent_decisions",
+          "index": "ix_agent_decisions_order_id",
+          "columns": [
+            "order_id"
+          ],
+          "bytes": 4096,
+          "auto": false
+        },
+        {
+          "table": "agent_decisions",
+          "index": "ix_agent_decisions_run_id",
+          "columns": [
+            "run_id"
+          ],
+          "bytes": 4096,
+          "auto": false
+        },
+        {
+          "table": "agent_decisions",
+          "index": "ix_agent_decisions_symbol",
+          "columns": [
+            "symbol"
+          ],
+          "bytes": 4096,
+          "auto": false
+        },
+        {
+          "table": "agent_runs",
+          "index": "ix_agent_runs_started_at",
+          "columns": [
+            "started_at"
+          ],
+          "bytes": 4096,
+          "auto": false
+        },
+        {
+          "table": "agent_runs",
+          "index": "ix_agent_runs_status_id",
+          "columns": [
+            "status",
+            "id"
+          ],
+          "bytes": 4096,
+          "auto": false
+        },
+        {
+          "table": "alembic_version",
+          "index": "sqlite_autoindex_alembic_version_1",
+          "columns": [
+            "version_num"
+          ],
+          "bytes": 4096,
+          "auto": true
+        },
+        {
+          "table": "api_cache",
+          "index": "ix_api_cache_fetched_at",
+          "columns": [
+            "fetched_at"
+          ],
+          "bytes": 4096,
+          "auto": false
+        },
+        {
+          "table": "api_cache",
+          "index": "sqlite_autoindex_api_cache_1",
+          "columns": [
+            "key"
+          ],
+          "bytes": 4096,
+          "auto": true
+        },
+        {
+          "table": "app_settings",
+          "index": "sqlite_autoindex_app_settings_1",
+          "columns": [
+            "key"
+          ],
+          "bytes": 4096,
+          "auto": true
+        },
+        {
+          "table": "audit_events",
+          "index": "ix_audit_events_symbol",
+          "columns": [
+            "symbol"
+          ],
+          "bytes": 4096,
+          "auto": false
+        },
+        {
+          "table": "audit_events",
+          "index": "ix_audit_events_ts",
+          "columns": [
+            "ts"
+          ],
+          "bytes": 4096,
+          "auto": false
+        },
+        {
+          "table": "audit_events",
+          "index": "ix_audit_events_type",
+          "columns": [
+            "type"
+          ],
+          "bytes": 4096,
+          "auto": false
+        },
+        {
+          "table": "chat_messages",
+          "index": "ix_chat_messages_role_id",
+          "columns": [
+            "role",
+            "id"
+          ],
+          "bytes": 4096,
+          "auto": false
+        },
+        {
+          "table": "chat_messages",
+          "index": "ix_chat_messages_run_id",
+          "columns": [
+            "run_id"
+          ],
+          "bytes": 4096,
+          "auto": false
+        },
+        {
+          "table": "chat_messages",
+          "index": "ix_chat_messages_ts",
+          "columns": [
+            "ts"
+          ],
+          "bytes": 4096,
+          "auto": false
+        },
+        {
+          "table": "corp_codes",
+          "index": "sqlite_autoindex_corp_codes_1",
+          "columns": [
+            "stock_code"
+          ],
+          "bytes": 4096,
+          "auto": true
+        },
+        {
+          "table": "daily_prices",
+          "index": "ix_daily_prices_day",
+          "columns": [
+            "day"
+          ],
+          "bytes": 28672,
+          "auto": false
+        },
+        {
+          "table": "daily_prices",
+          "index": "sqlite_autoindex_daily_prices_1",
+          "columns": [
+            "symbol",
+            "day"
+          ],
+          "bytes": 36864,
+          "auto": true
+        },
+        {
+          "table": "daily_reports",
+          "index": "sqlite_autoindex_daily_reports_1",
+          "columns": [
+            "day"
+          ],
+          "bytes": 4096,
+          "auto": true
+        },
+        {
+          "table": "equity_snapshots",
+          "index": "ix_equity_snapshots_ts",
+          "columns": [
+            "ts"
+          ],
+          "bytes": 4096,
+          "auto": false
+        },
+        {
+          "table": "fills",
+          "index": "ix_fills_filled_at",
+          "columns": [
+            "filled_at"
+          ],
+          "bytes": 4096,
+          "auto": false
+        },
+        {
+          "table": "fills",
+          "index": "ix_fills_order_id",
+          "columns": [
+            "order_id"
+          ],
+          "bytes": 4096,
+          "auto": false
+        },
+        {
+          "table": "fills",
+          "index": "ix_fills_symbol",
+          "columns": [
+            "symbol"
+          ],
+          "bytes": 4096,
+          "auto": false
+        },
+        {
+          "table": "llm_usage",
+          "index": "ix_llm_usage_run_id",
+          "columns": [
+            "run_id"
+          ],
+          "bytes": 4096,
+          "auto": false
+        },
+        {
+          "table": "llm_usage",
+          "index": "ix_llm_usage_ts",
+          "columns": [
+            "ts"
+          ],
+          "bytes": 4096,
+          "auto": false
+        },
+        {
+          "table": "memory_cards",
+          "index": "ix_memory_cards_symbol_kind",
+          "columns": [
+            "symbol",
+            "kind"
+          ],
+          "bytes": 4096,
+          "auto": false
+        },
+        {
+          "table": "orders",
+          "index": "ix_orders_broker_order_id",
+          "columns": [
+            "broker_order_id"
+          ],
+          "bytes": 4096,
+          "auto": false
+        },
+        {
+          "table": "orders",
+          "index": "ix_orders_client_order_id",
+          "columns": [
+            "client_order_id"
+          ],
+          "bytes": 4096,
+          "auto": false
+        },
+        {
+          "table": "orders",
+          "index": "ix_orders_created_at",
+          "columns": [
+            "created_at"
+          ],
+          "bytes": 4096,
+          "auto": false
+        },
+        {
+          "table": "orders",
+          "index": "ix_orders_run_id",
+          "columns": [
+            "run_id"
+          ],
+          "bytes": 4096,
+          "auto": false
+        },
+        {
+          "table": "orders",
+          "index": "ix_orders_status",
+          "columns": [
+            "status"
+          ],
+          "bytes": 4096,
+          "auto": false
+        },
+        {
+          "table": "orders",
+          "index": "ix_orders_symbol",
+          "columns": [
+            "symbol"
+          ],
+          "bytes": 4096,
+          "auto": false
+        },
+        {
+          "table": "strategies",
+          "index": "sqlite_autoindex_strategies_1",
+          "columns": [
+            "name"
+          ],
+          "bytes": 4096,
+          "auto": true
+        },
+        {
+          "table": "users",
+          "index": "sqlite_autoindex_users_1",
+          "columns": [
+            "username"
+          ],
+          "bytes": 4096,
+          "auto": true
+        },
+        {
+          "table": "watchlist",
+          "index": "sqlite_autoindex_watchlist_1",
+          "columns": [
+            "symbol"
+          ],
+          "bytes": 4096,
+          "auto": true
+        }
+      ],
+      "column_sizes": {
+        "chat_messages.content": {
+          "type": "TEXT",
+          "n": 7,
+          "avg_len": 91.0,
+          "max_len": 143,
+          "sum_len": 640
+        },
+        "audit_events.message": {
+          "type": "TEXT",
+          "n": 6,
+          "avg_len": 96.0,
+          "max_len": 179,
+          "sum_len": 573
+        },
+        "app_settings.value": {
+          "type": "JSON",
+          "n": 6,
+          "avg_len": 71.0,
+          "max_len": 226,
+          "sum_len": 428
+        },
+        "agent_runs.error": {
+          "type": "TEXT",
+          "n": 3,
+          "avg_len": 89.0,
+          "max_len": 89,
+          "sum_len": 267
+        },
+        "paper_account.state": {
+          "type": "JSON",
+          "n": 1,
+          "avg_len": 159.0,
+          "max_len": 159,
+          "sum_len": 159
+        },
+        "audit_events.payload": {
+          "type": "JSON",
+          "n": 6,
+          "avg_len": 25.0,
+          "max_len": 47,
+          "sum_len": 147
+        },
+        "chat_messages.payload": {
+          "type": "JSON",
+          "n": 7,
+          "avg_len": 10.0,
+          "max_len": 22,
+          "sum_len": 72
+        },
+        "strategies.params": {
+          "type": "JSON",
+          "n": 2,
+          "avg_len": 32.0,
+          "max_len": 40,
+          "sum_len": 64
+        },
+        "agent_runs.usage": {
+          "type": "JSON",
+          "n": 3,
+          "avg_len": 2.0,
+          "max_len": 2,
+          "sum_len": 6
+        },
+        "strategies.symbols": {
+          "type": "JSON",
+          "n": 2,
+          "avg_len": 2.0,
+          "max_len": 2,
+          "sum_len": 4
+        },
+        "agent_decisions.rationale": {
+          "type": "TEXT",
+          "n": 0,
+          "avg_len": null,
+          "max_len": null,
+          "sum_len": null
+        },
+        "agent_decisions.evidence": {
+          "type": "JSON",
+          "n": 0,
+          "avg_len": null,
+          "max_len": null,
+          "sum_len": null
+        },
+        "agent_runs.market_view": {
+          "type": "TEXT",
+          "n": 3,
+          "avg_len": 0.0,
+          "max_len": 0,
+          "sum_len": 0
+        },
+        "agent_runs.summary": {
+          "type": "TEXT",
+          "n": 3,
+          "avg_len": 0.0,
+          "max_len": 0,
+          "sum_len": 0
+        },
+        "api_cache.payload": {
+          "type": "JSON",
+          "n": 0,
+          "avg_len": null,
+          "max_len": null,
+          "sum_len": null
+        },
+        "daily_reports.payload": {
+          "type": "JSON",
+          "n": 0,
+          "avg_len": null,
+          "max_len": null,
+          "sum_len": null
+        },
+        "memory_cards.text": {
+          "type": "TEXT",
+          "n": 0,
+          "avg_len": null,
+          "max_len": null,
+          "sum_len": null
+        }
+      },
+      "filter_columns": [
+        {
+          "table": "orders",
+          "column": "created_at",
+          "used_in": "routes.py:253 orders since-filter; reports/daily.py:26 day range",
+          "indexed": true,
+          "rows": 0
+        },
+        {
+          "table": "orders",
+          "column": "status",
+          "used_in": "routes.py:249, engine.py:166, orders.py:115/123/370",
+          "indexed": true,
+          "rows": 0
+        },
+        {
+          "table": "orders",
+          "column": "symbol",
+          "used_in": "orders.py:123 last_order_times",
+          "indexed": true,
+          "rows": 0
+        },
+        {
+          "table": "orders",
+          "column": "run_id",
+          "used_in": "container.py:198 purge_legacy; trades.py join",
+          "indexed": true,
+          "rows": 0
+        },
+        {
+          "table": "orders",
+          "column": "broker_order_id",
+          "used_in": "orders.py:330/341 live order sync",
+          "indexed": true,
+          "rows": 0
+        },
+        {
+          "table": "fills",
+          "column": "filled_at",
+          "used_in": "routes.py:270 since-filter; trades.py:40 ledger; reports/daily.py:24",
+          "indexed": true,
+          "rows": 0
+        },
+        {
+          "table": "fills",
+          "column": "symbol",
+          "used_in": "routes.py:1300 candles markers",
+          "indexed": true,
+          "rows": 0
+        },
+        {
+          "table": "fills",
+          "column": "order_id",
+          "used_in": "orders.py:230; trades.py:38 join",
+          "indexed": true,
+          "rows": 0
+        },
+        {
+          "table": "agent_runs",
+          "column": "started_at",
+          "used_in": "routes.py:434/1529 since-filter; runner.py:290; reports/daily.py:36",
+          "indexed": true,
+          "rows": 3
+        },
+        {
+          "table": "agent_runs",
+          "column": "status",
+          "used_in": "runner.py:288 memory_snapshot status='DONE'",
+          "indexed": true,
+          "rows": 3
+        },
+        {
+          "table": "agent_decisions",
+          "column": "run_id",
+          "used_in": "routes.py:445; runner.py:297; reports/daily.py:39",
+          "indexed": true,
+          "rows": 0
+        },
+        {
+          "table": "agent_decisions",
+          "column": "symbol",
+          "used_in": "routes.py:462/1303",
+          "indexed": true,
+          "rows": 0
+        },
+        {
+          "table": "agent_decisions",
+          "column": "created_at",
+          "used_in": "routes.py:464 since-filter",
+          "indexed": true,
+          "rows": 0
+        },
+        {
+          "table": "agent_decisions",
+          "column": "order_id",
+          "used_in": "container.py:203 purge_legacy",
+          "indexed": true,
+          "rows": 0
+        },
+        {
+          "table": "chat_messages",
+          "column": "run_id",
+          "used_in": "routes.py:447 run detail",
+          "indexed": true,
+          "rows": 7
+        },
+        {
+          "table": "chat_messages",
+          "column": "role",
+          "used_in": "runner.py:309/697 role filters (USER/ANALYST)",
+          "indexed": true,
+          "rows": 7
+        },
+        {
+          "table": "chat_messages",
+          "column": "ts",
+          "used_in": "runner.py:696/716 today's chat",
+          "indexed": true,
+          "rows": 7
+        },
+        {
+          "table": "audit_events",
+          "column": "type",
+          "used_in": "routes.py:927; reports/daily.py:31",
+          "indexed": true,
+          "rows": 6
+        },
+        {
+          "table": "audit_events",
+          "column": "ts",
+          "used_in": "reports/daily.py:31; purge_legacy",
+          "indexed": true,
+          "rows": 6
+        },
+        {
+          "table": "equity_snapshots",
+          "column": "ts",
+          "used_in": "routes.py:235 since-filter",
+          "indexed": true,
+          "rows": 16
+        },
+        {
+          "table": "llm_usage",
+          "column": "ts",
+          "used_in": "costs.py:209 months window",
+          "indexed": true,
+          "rows": 0
+        },
+        {
+          "table": "daily_prices",
+          "column": "symbol",
+          "used_in": "store.py:109 history/last_bar/name_of",
+          "indexed": true,
+          "rows": 1251
+        },
+        {
+          "table": "daily_prices",
+          "column": "day",
+          "used_in": "store.py:77/129 sync_day/snapshot",
+          "indexed": true,
+          "rows": 1251
+        },
+        {
+          "table": "memory_cards",
+          "column": "kind",
+          "used_in": "routes.py:1120 duplicate check",
+          "indexed": false,
+          "rows": 0
+        },
+        {
+          "table": "memory_cards",
+          "column": "symbol",
+          "used_in": "routes.py:1120 duplicate check",
+          "indexed": true,
+          "rows": 0
+        },
+        {
+          "table": "api_cache",
+          "column": "fetched_at",
+          "used_in": "(no filter in code; TTL checked in Python)",
+          "indexed": true,
+          "rows": 0
+        }
+      ],
+      "missing_indexes": [
+        {
+          "table": "memory_cards",
+          "column": "kind",
+          "used_in": "routes.py:1120 duplicate check",
+          "indexed": false,
+          "rows": 0
+        }
+      ],
+      "paper_account_state": {
+        "bytes": 159,
+        "orders": 0,
+        "positions": 0
+      },
+      "app_settings_value_sizes": [
+        {
+          "key": "risk",
+          "bytes": 226
+        },
+        {
+          "key": "account_source",
+          "bytes": 76
+        },
+        {
+          "key": "sched_fired",
+          "bytes": 44
+        },
+        {
+          "key": "sod",
+          "bytes": 40
+        },
+        {
+          "key": "engine",
+          "bytes": 21
+        },
+        {
+          "key": "boot_notice",
+          "bytes": 21
+        }
+      ]
+    }
+  },
+  "code": {
+    "schema": "code/v1",
+    "taken_at": "2026-11-04T14:36:02.081834+00:00",
+    "app": {
+      "files": 83,
+      "lines": 13531,
+      "code_lines": 11546,
+      "top_modules": [
+        {
+          "file": "app/agent/tools.py",
+          "lines": 1024,
+          "code": 955
+        },
+        {
+          "file": "app/agent/runner.py",
+          "lines": 899,
+          "code": 822
+        },
+        {
+          "file": "app/market/toss.py",
+          "lines": 575,
+          "code": 509
+        },
+        {
+          "file": "app/container.py",
+          "lines": 568,
+          "code": 512
+        },
+        {
+          "file": "app/brokers/paper.py",
+          "lines": 535,
+          "code": 481
+        },
+        {
+          "file": "app/engine/scheduler.py",
+          "lines": 467,
+          "code": 391
+        },
+        {
+          "file": "app/engine/engine.py",
+          "lines": 414,
+          "code": 364
+        },
+        {
+          "file": "app/brokers/toss_live.py",
+          "lines": 403,
+          "code": 351
+        },
+        {
+          "file": "app/engine/orders.py",
+          "lines": 400,
+          "code": 369
+        },
+        {
+          "file": "app/agent/costs.py",
+          "lines": 396,
+          "code": 345
+        },
+        {
+          "file": "app/agent/llm.py",
+          "lines": 375,
+          "code": 326
+        },
+        {
+          "file": "app/db/models.py",
+          "lines": 289,
+          "code": 229
+        },
+        {
+          "file": "app/engine/push.py",
+          "lines": 285,
+          "code": 245
+        },
+        {
+          "file": "app/agent/profiles.py",
+          "lines": 276,
+          "code": 241
+        },
+        {
+          "file": "app/api/routes/llm.py",
+          "lines": 275,
+          "code": 223
+        },
+        {
+          "file": "app/api/routes/agent.py",
+          "lines": 244,
+          "code": 210
+        },
+        {
+          "file": "app/agent/activity.py",
+          "lines": 237,
+          "code": 180
+        },
+        {
+          "file": "app/research/dart.py",
+          "lines": 236,
+          "code": 207
+        },
+        {
+          "file": "app/api/routes/memory.py",
+          "lines": 233,
+          "code": 195
+        },
+        {
+          "file": "app/core/config.py",
+          "lines": 233,
+          "code": 170
+        }
+      ]
+    },
+    "tests_src": {
+      "files": 34,
+      "lines": 6829
+    },
+    "functions": {
+      "count": 721,
+      "over_50_lines": 30,
+      "over_100_lines": 4,
+      "largest": [
+        {
+          "function": "build_container",
+          "file": "app/container.py",
+          "line": 293,
+          "lines": 154
+        },
+        {
+          "function": "_build_us",
+          "file": "app/container.py",
+          "line": 449,
+          "lines": 120
+        },
+        {
+          "function": "run_backtest",
+          "file": "app/backtest/engine.py",
+          "line": 58,
+          "lines": 116
+        },
+        {
+          "function": "_run_tools",
+          "file": "app/agent/runner.py",
+          "line": 369,
+          "lines": 103
+        },
+        {
+          "function": "agent_structure",
+          "file": "app/api/routes/agent.py",
+          "line": 118,
+          "lines": 95
+        },
+        {
+          "function": "rule_based_decisions",
+          "file": "app/agent/rule_agent.py",
+          "line": 36,
+          "lines": 93
+        },
+        {
+          "function": "_us_spec",
+          "file": "app/agent/tools.py",
+          "line": 275,
+          "lines": 93
+        },
+        {
+          "function": "run",
+          "file": "app/agent/runner.py",
+          "line": 181,
+          "lines": 87
+        },
+        {
+          "function": "build_daily_report",
+          "file": "app/reports/daily.py",
+          "line": 15,
+          "lines": 81
+        },
+        {
+          "function": "_execute_one",
+          "file": "app/agent/runner.py",
+          "line": 599,
+          "lines": 80
+        },
+        {
+          "function": "submit",
+          "file": "app/engine/orders.py",
+          "line": 131,
+          "lines": 80
+        },
+        {
+          "function": "check",
+          "file": "app/agent/llm_check.py",
+          "line": 75,
+          "lines": 70
+        },
+        {
+          "function": "t_explore_sector",
+          "file": "app/agent/tools.py",
+          "line": 915,
+          "lines": 69
+        },
+        {
+          "function": "_announce",
+          "file": "app/engine/orders.py",
+          "line": 251,
+          "lines": 68
+        },
+        {
+          "function": "check",
+          "file": "app/risk/rules.py",
+          "line": 79,
+          "lines": 67
+        },
+        {
+          "function": "t_get_price_history",
+          "file": "app/agent/tools.py",
+          "line": 527,
+          "lines": 65
+        },
+        {
+          "function": "t_get_financials",
+          "file": "app/agent/tools.py",
+          "line": 593,
+          "lines": 65
+        },
+        {
+          "function": "screen",
+          "file": "app/market/toss.py",
+          "line": 446,
+          "lines": 65
+        },
+        {
+          "function": "t_get_market_overview",
+          "file": "app/agent/tools.py",
+          "line": 686,
+          "lines": 64
+        },
+        {
+          "function": "portfolio",
+          "file": "app/engine/engine.py",
+          "line": 159,
+          "lines": 61
+        }
+      ]
+    },
+    "complexity_c901": {
+      "threshold": 10,
+      "count": 9,
+      "top": [
+        {
+          "function": "check",
+          "complexity": 16,
+          "file": "app/risk/rules.py",
+          "line": 79
+        },
+        {
+          "function": "run_backtest",
+          "complexity": 15,
+          "file": "app/backtest/engine.py",
+          "line": 58
+        },
+        {
+          "function": "place_order",
+          "complexity": 14,
+          "file": "app/brokers/toss_live.py",
+          "line": 294
+        },
+        {
+          "function": "normalize_decisions",
+          "complexity": 13,
+          "file": "app/agent/runner.py",
+          "line": 825
+        },
+        {
+          "function": "_run_tools",
+          "complexity": 12,
+          "file": "app/agent/runner.py",
+          "line": 369
+        },
+        {
+          "function": "chat",
+          "complexity": 11,
+          "file": "app/agent/llm.py",
+          "line": 220
+        },
+        {
+          "function": "_responses",
+          "complexity": 11,
+          "file": "app/agent/llm.py",
+          "line": 277
+        },
+        {
+          "function": "rule_based_decisions",
+          "complexity": 11,
+          "file": "app/agent/rule_agent.py",
+          "line": 36
+        },
+        {
+          "function": "_us_market_overview",
+          "complexity": 11,
+          "file": "app/agent/tools.py",
+          "line": 751
+        }
+      ],
+      "all": [
+        {
+          "function": "check",
+          "complexity": 16,
+          "file": "app/risk/rules.py",
+          "line": 79
+        },
+        {
+          "function": "run_backtest",
+          "complexity": 15,
+          "file": "app/backtest/engine.py",
+          "line": 58
+        },
+        {
+          "function": "place_order",
+          "complexity": 14,
+          "file": "app/brokers/toss_live.py",
+          "line": 294
+        },
+        {
+          "function": "normalize_decisions",
+          "complexity": 13,
+          "file": "app/agent/runner.py",
+          "line": 825
+        },
+        {
+          "function": "_run_tools",
+          "complexity": 12,
+          "file": "app/agent/runner.py",
+          "line": 369
+        },
+        {
+          "function": "chat",
+          "complexity": 11,
+          "file": "app/agent/llm.py",
+          "line": 220
+        },
+        {
+          "function": "_responses",
+          "complexity": 11,
+          "file": "app/agent/llm.py",
+          "line": 277
+        },
+        {
+          "function": "rule_based_decisions",
+          "complexity": 11,
+          "file": "app/agent/rule_agent.py",
+          "line": 36
+        },
+        {
+          "function": "_us_market_overview",
+          "complexity": 11,
+          "file": "app/agent/tools.py",
+          "line": 751
+        }
+      ]
+    },
+    "duplicates": {
+      "identical_function_bodies": [
+        [
+          "app/agent/tools.py:31 _f",
+          "app/market/toss.py:83 _num"
+        ]
+      ],
+      "windows": {
+        "window_lines": 6,
+        "duplicated_windows": 38,
+        "clusters": 8,
+        "top": [
+          {
+            "locations": [
+              "app/container.py:404",
+              "app/container.py:526"
+            ],
+            "windows": 9
+          },
+          {
+            "locations": [
+              "app/agent/tools.py:106",
+              "app/agent/tools.py:289"
+            ],
+            "windows": 8
+          },
+          {
+            "locations": [
+              "app/container.py:426",
+              "app/container.py:548"
+            ],
+            "windows": 7
+          },
+          {
+            "locations": [
+              "app/agent/llm.py:241",
+              "app/agent/llm.py:303"
+            ],
+            "windows": 6
+          },
+          {
+            "locations": [
+              "app/brokers/paper.py:22",
+              "app/brokers/toss_live.py:31",
+              "app/engine/orders.py:14"
+            ],
+            "windows": 5
+          },
+          {
+            "locations": [
+              "app/brokers/paper.py:21",
+              "app/brokers/toss_live.py:30"
+            ],
+            "windows": 1
+          },
+          {
+            "locations": [
+              "app/brokers/toss_live.py:130",
+              "app/market/toss.py:157"
+            ],
+            "windows": 1
+          },
+          {
+            "locations": [
+              "app/risk/rules.py:154",
+              "app/risk/rules.py:164"
+            ],
+            "windows": 1
+          }
+        ]
+      }
+    },
+    "grep_counts": {
+      "type_ignore": 2,
+      "except_exception": 42,
+      "bare_except": 0,
+      "noqa": 0,
+      "todo_fixme": 1,
+      "private_access_engine_health": 5
+    },
+    "ruff_default_rules": {
+      "violations": 0,
+      "by_rule": {},
+      "seconds": 0.02
+    },
+    "mypy": {
+      "exit_code": 0,
+      "summary": "Success: no issues found in 83 source files",
+      "files_checked": 83,
+      "errors": 0,
+      "seconds": 7.4
+    },
+    "pytest": {
+      "exit_code": 0,
+      "summary": "323 passed in 23.89s",
+      "counts": {
+        "passed": 323
+      },
+      "total": 323,
+      "pytest_reported_s": 23.89,
+      "wall_s": 24.5,
+      "slowest": [
+        {
+          "seconds": 3.4,
+          "phase": "call",
+          "test": "tests/test_openrouter.py::test_fetch_errors_keep_previous_list"
+        },
+        {
+          "seconds": 1.15,
+          "phase": "call",
+          "test": "tests/test_llm_test_endpoint.py::test_check_only_hits_free_endpoint"
+        },
+        {
+          "seconds": 1.02,
+          "phase": "call",
+          "test": "tests/test_google_tool.py::test_tool_call_uses_run_id_limit_and_hides_links_in_chat"
+        },
+        {
+          "seconds": 1.01,
+          "phase": "call",
+          "test": "tests/test_llm_params.py::test_switches_token_param_and_drops_temperature_then_remembers"
+        },
+        {
+          "seconds": 1.01,
+          "phase": "call",
+          "test": "tests/test_llm_responses.py::test_real_responses_error_shape_drops_temperature_and_effort"
+        },
+        {
+          "seconds": 0.55,
+          "phase": "call",
+          "test": "tests/test_activity.py::test_session_shows_tool_details_and_progress"
+        },
+        {
+          "seconds": 0.55,
+          "phase": "call",
+          "test": "tests/test_engine_agent.py::test_llm_tool_loop_uses_toss_tools_and_places_orders"
+        },
+        {
+          "seconds": 0.53,
+          "phase": "call",
+          "test": "tests/test_engine_agent.py::test_llm_forced_submit_after_ignoring_nudge"
+        },
+        {
+          "seconds": 0.33,
+          "phase": "call",
+          "test": "tests/test_us_market.py::test_us_dispatcher_fires_each_job_once"
+        },
+        {
+          "seconds": 0.32,
+          "phase": "call",
+          "test": "tests/test_perf_refactor.py::test_sql_per_request_is_flat"
+        },
+        {
+          "seconds": 0.31,
+          "phase": "call",
+          "test": "tests/test_google_tool.py::test_structure_shows_google_readiness"
+        },
+        {
+          "seconds": 0.28,
+          "phase": "call",
+          "test": "tests/test_us_market.py::test_markets_and_overview"
+        },
+        {
+          "seconds": 0.27,
+          "phase": "call",
+          "test": "tests/test_push.py::test_push_api"
+        },
+        {
+          "seconds": 0.23,
+          "phase": "call",
+          "test": "tests/test_us_market.py::test_us_portfolio_usd_and_separate_from_kr"
+        },
+        {
+          "seconds": 0.23,
+          "phase": "call",
+          "test": "tests/test_live_broker.py::test_live_api_reports_mode_and_hides_previous_mode_history"
+        }
+      ]
+    }
+  },
+  "background_load": {
+    "jobs": [
+      {
+        "job": "dispatcher tick",
+        "stacks": "KR+US",
+        "trigger": "cron every minute at :01 (scheduler.py:291)",
+        "active": "24/7",
+        "calls": "Scheduler.due(): kv reads; once per local day refresh_calendar (health + calendar)",
+        "measured": "kr_scheduler_due_1min"
+      },
+      {
+        "job": "intraday",
+        "stacks": "KR+US",
+        "trigger": "interval 1 min (scheduler.py:300)",
+        "active": "health probe 24/7; work only open-1m..close+5m (engine.py:247-259)",
+        "calls": "toss_health -> prices(1 symbol) every tick (60 s cache, engine.py:269-277); settle; check_exits -> prices(positions); snapshot_equity every 10th minute",
+        "measured": "kr_intraday_1min"
+      },
+      {
+        "job": "refresh (KR)",
+        "stacks": "KR",
+        "trigger": "interval 10 min (scheduler.py:308-316)",
+        "active": "24/7 - no session gate",
+        "calls": "sync_data: per symbol in positions + open orders + watchlist: ensure_history + candles(10 d); settle; snapshot_equity (1 row per run)",
+        "measured": "kr_sync_data_10min"
+      },
+      {
+        "job": "refresh (US)",
+        "stacks": "US",
+        "trigger": "inside dispatcher tick, minute % 10 == 0 (scheduler.py:248)",
+        "active": "open-60m..close+30m only (_near_session)",
+        "calls": "same as KR refresh",
+        "measured": "us_sync_data_10min"
+      },
+      {
+        "job": "decision session",
+        "stacks": "KR 3/day, US 3/day (default schedule)",
+        "trigger": "dispatcher slots (morning/hourly)",
+        "active": "trading days",
+        "calls": "sync_data + check_exits + agent session (~25-27 tool calls)",
+        "measured": null
+      },
+      {
+        "job": "daily report",
+        "stacks": "KR 15:45 / US close+15m",
+        "trigger": "dispatcher slot",
+        "active": "trading days",
+        "calls": "build_daily_report",
+        "measured": null
+      },
+      {
+        "job": "UI: market indicators",
+        "stacks": "global",
+        "trigger": "browser poll 60 s (hooks.ts:32)",
+        "active": "while a tab is open",
+        "calls": "server cache 60 s (indicators.py); 8 Toss calls per refresh",
+        "measured": "indicators_refresh_60s"
+      },
+      {
+        "job": "UI: portfolio / overview",
+        "stacks": "per viewed market",
+        "trigger": "poll 10 s portfolio (hooks.ts:23), 30 s overview (Overview.tsx:33)",
+        "active": "while a tab is open",
+        "calls": "quotes via prices(positions), 5 s quote cache",
+        "measured": null
+      },
+      {
+        "job": "UI: system / agent structure",
+        "stacks": "KR+US",
+        "trigger": "poll 5 s current market + 30 s other (Layout.tsx:77-78); agent/structure 5 s (Agent.tsx:33)",
+        "active": "while a tab is open",
+        "calls": "DB only (kv reads)",
+        "measured": null
+      }
+    ],
+    "estimate": {
+      "inputs": {
+        "kr_positions": 5,
+        "kr_watchlist": 0,
+        "us_positions": 0,
+        "us_watchlist": 9,
+        "toss_calls_per_session": 62
+      },
+      "per_minute": {
+        "idle_no_ui": 2.6,
+        "kr_session_no_ui": 4.08,
+        "us_session_no_ui": 3.98,
+        "ui_open_extra": {
+          "indicators": 8,
+          "portfolio_poll_per_viewed_market": 6
+        }
+      },
+      "per_trading_day_no_ui": 4948,
+      "equity_rows_per_day": {
+        "kr_estimate": 186,
+        "us_estimate": 90
+      },
+      "assumptions": [
+        "toss_health cache is 60 s and intraday runs every 60 s, so every tick re-probes (1 prices call)",
+        "quote cache is 5 s, so each 1-min tick refetches quotes when positions exist",
+        "KR refresh job has no market-hours gate; US refresh runs only near the session",
+        "session cost uses the in-process scripted 25-tool session"
+      ]
+    }
+  },
+  "summary": {
+    "live: slowest p50": "chat 16.44 ms",
+    "live: largest payload": "events 141,648 B (32,892 B gzipped)",
+    "live: median of endpoint p50s": "6.68 ms",
+    "in-process: most SQL per request": "overview 8 statements",
+    "in-process: total SQL across all endpoints": 47,
+    "in-process: slowest median": "reports 18.918 ms",
+    "agent session (25 tool calls)": "123 SQL, 62 Toss calls, 235,759 B sent to the LLM",
+    "live KR DB size": "15.6 MB, 1 unindexed filter columns",
+    "code": "13,531 lines, C901>10: 9, tests 323 passed in 23.89s"
+  }
+}

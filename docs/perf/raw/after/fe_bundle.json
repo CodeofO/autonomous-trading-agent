@@ -1,0 +1,720 @@
+{
+  "label": "after",
+  "generated_at": "2026-11-04T16:14:43.154Z",
+  "git": {
+    "head": "80b1f74",
+    "branch": "main",
+    "frontend_uncommitted_paths": 82
+  },
+  "build": {
+    "command": "npx vite build --outDir perf/tmp/fe_build --emptyOutDir --sourcemap --manifest",
+    "wall_s": 1.33,
+    "warnings": []
+  },
+  "totals": {
+    "js_chunks": 39,
+    "css_files": 6,
+    "js_raw": 677595,
+    "js_gzip": 235326,
+    "js_brotli": 206029,
+    "css_raw": 82440,
+    "css_gzip": 19546,
+    "css_brotli": 17102,
+    "initial_js_raw": 309434,
+    "initial_js_gzip": 100441,
+    "initial_css_raw": 57938,
+    "initial_css_gzip": 12387,
+    "largest_js_raw": 258919,
+    "largest_js_gzip": 81729,
+    "public_assets_raw": 21324
+  },
+  "chunks": [
+    {
+      "file": "assets/AccountSection-[hash].js",
+      "type": "js",
+      "raw": 5886,
+      "gzip": 2539,
+      "brotli": 2202,
+      "is_entry": false,
+      "is_dynamic_entry": true,
+      "initial": false,
+      "source": "src/pages/settings/AccountSection.tsx"
+    },
+    {
+      "file": "assets/Agent-[hash].js",
+      "type": "js",
+      "raw": 12979,
+      "gzip": 4744,
+      "brotli": 4178,
+      "is_entry": false,
+      "is_dynamic_entry": true,
+      "initial": false,
+      "source": "src/pages/Agent.tsx"
+    },
+    {
+      "file": "assets/AlertsSection-[hash].js",
+      "type": "js",
+      "raw": 7219,
+      "gzip": 3087,
+      "brotli": 2676,
+      "is_entry": false,
+      "is_dynamic_entry": true,
+      "initial": false,
+      "source": "src/pages/settings/AlertsSection.tsx"
+    },
+    {
+      "file": "assets/AnimatedNumber-[hash].js",
+      "type": "js",
+      "raw": 1095,
+      "gzip": 622,
+      "brotli": 586,
+      "is_entry": false,
+      "is_dynamic_entry": false,
+      "initial": false,
+      "source": "_AnimatedNumber-BqXqeY3C.js"
+    },
+    {
+      "file": "assets/Backtest-[hash].js",
+      "type": "js",
+      "raw": 4519,
+      "gzip": 2063,
+      "brotli": 1769,
+      "is_entry": false,
+      "is_dynamic_entry": true,
+      "initial": false,
+      "source": "src/pages/Backtest.tsx"
+    },
+    {
+      "file": "assets/ChatFeed-[hash].css",
+      "type": "css",
+      "raw": 9029,
+      "gzip": 2120,
+      "brotli": 1867,
+      "is_entry": false,
+      "is_dynamic_entry": false,
+      "initial": false,
+      "source": "_ChatFeed-D3xn8gJr.css"
+    },
+    {
+      "file": "assets/ChatFeed-[hash].js",
+      "type": "js",
+      "raw": 24967,
+      "gzip": 8861,
+      "brotli": 7865,
+      "is_entry": false,
+      "is_dynamic_entry": false,
+      "initial": false,
+      "source": "_ChatFeed-LbZ9jkQ5.js"
+    },
+    {
+      "file": "assets/CommandPalette-[hash].css",
+      "type": "css",
+      "raw": 2343,
+      "gzip": 919,
+      "brotli": 762,
+      "is_entry": false,
+      "is_dynamic_entry": false,
+      "initial": false,
+      "source": "src/components/CommandPalette.tsx (css)"
+    },
+    {
+      "file": "assets/CommandPalette-[hash].js",
+      "type": "js",
+      "raw": 6392,
+      "gzip": 2995,
+      "brotli": 2618,
+      "is_entry": false,
+      "is_dynamic_entry": true,
+      "initial": false,
+      "source": "src/components/CommandPalette.tsx"
+    },
+    {
+      "file": "assets/Costs-[hash].js",
+      "type": "js",
+      "raw": 15359,
+      "gzip": 5549,
+      "brotli": 4959,
+      "is_entry": false,
+      "is_dynamic_entry": true,
+      "initial": false,
+      "source": "src/pages/Costs.tsx"
+    },
+    {
+      "file": "assets/Dashboard-[hash].js",
+      "type": "js",
+      "raw": 7555,
+      "gzip": 3078,
+      "brotli": 2679,
+      "is_entry": false,
+      "is_dynamic_entry": true,
+      "initial": false,
+      "source": "src/pages/Dashboard.tsx"
+    },
+    {
+      "file": "assets/HoldingsTable-[hash].js",
+      "type": "js",
+      "raw": 2125,
+      "gzip": 1011,
+      "brotli": 865,
+      "is_entry": false,
+      "is_dynamic_entry": false,
+      "initial": false,
+      "source": "_HoldingsTable-QiNlSs0F.js"
+    },
+    {
+      "file": "assets/LazyCharts-[hash].js",
+      "type": "js",
+      "raw": 508,
+      "gzip": 311,
+      "brotli": 258,
+      "is_entry": false,
+      "is_dynamic_entry": false,
+      "initial": false,
+      "source": "_LazyCharts-BwqI2N5v.js"
+    },
+    {
+      "file": "assets/LlmSection-[hash].js",
+      "type": "js",
+      "raw": 17940,
+      "gzip": 5717,
+      "brotli": 5039,
+      "is_entry": false,
+      "is_dynamic_entry": true,
+      "initial": false,
+      "source": "src/pages/settings/LlmSection.tsx"
+    },
+    {
+      "file": "assets/Login-[hash].js",
+      "type": "js",
+      "raw": 1756,
+      "gzip": 997,
+      "brotli": 831,
+      "is_entry": false,
+      "is_dynamic_entry": true,
+      "initial": false,
+      "source": "src/pages/Login.tsx"
+    },
+    {
+      "file": "assets/Logs-[hash].js",
+      "type": "js",
+      "raw": 1885,
+      "gzip": 1025,
+      "brotli": 874,
+      "is_entry": false,
+      "is_dynamic_entry": true,
+      "initial": false,
+      "source": "src/pages/Logs.tsx"
+    },
+    {
+      "file": "assets/ManagerSection-[hash].js",
+      "type": "js",
+      "raw": 3968,
+      "gzip": 1819,
+      "brotli": 1531,
+      "is_entry": false,
+      "is_dynamic_entry": true,
+      "initial": false,
+      "source": "src/pages/settings/ManagerSection.tsx"
+    },
+    {
+      "file": "assets/Memo-[hash].js",
+      "type": "js",
+      "raw": 15048,
+      "gzip": 5562,
+      "brotli": 4906,
+      "is_entry": false,
+      "is_dynamic_entry": true,
+      "initial": false,
+      "source": "src/pages/Memo.tsx"
+    },
+    {
+      "file": "assets/Overview-[hash].css",
+      "type": "css",
+      "raw": 6659,
+      "gzip": 1897,
+      "brotli": 1622,
+      "is_entry": false,
+      "is_dynamic_entry": false,
+      "initial": false,
+      "source": "src/pages/Overview.tsx (css)"
+    },
+    {
+      "file": "assets/Overview-[hash].js",
+      "type": "js",
+      "raw": 11274,
+      "gzip": 4413,
+      "brotli": 3902,
+      "is_entry": false,
+      "is_dynamic_entry": true,
+      "initial": false,
+      "source": "src/pages/Overview.tsx"
+    },
+    {
+      "file": "assets/Portfolio-[hash].js",
+      "type": "js",
+      "raw": 5558,
+      "gzip": 2029,
+      "brotli": 1749,
+      "is_entry": false,
+      "is_dynamic_entry": true,
+      "initial": false,
+      "source": "src/pages/Portfolio.tsx"
+    },
+    {
+      "file": "assets/RelTime-[hash].js",
+      "type": "js",
+      "raw": 566,
+      "gzip": 388,
+      "brotli": 336,
+      "is_entry": false,
+      "is_dynamic_entry": false,
+      "initial": false,
+      "source": "_RelTime-CJhC0oFm.js"
+    },
+    {
+      "file": "assets/RiskSection-[hash].js",
+      "type": "js",
+      "raw": 3741,
+      "gzip": 1801,
+      "brotli": 1546,
+      "is_entry": false,
+      "is_dynamic_entry": true,
+      "initial": false,
+      "source": "src/pages/settings/RiskSection.tsx"
+    },
+    {
+      "file": "assets/ScheduleSection-[hash].js",
+      "type": "js",
+      "raw": 7185,
+      "gzip": 2964,
+      "brotli": 2623,
+      "is_entry": false,
+      "is_dynamic_entry": true,
+      "initial": false,
+      "source": "src/pages/settings/ScheduleSection.tsx"
+    },
+    {
+      "file": "assets/SectionGate-[hash].js",
+      "type": "js",
+      "raw": 270,
+      "gzip": 222,
+      "brotli": 182,
+      "is_entry": false,
+      "is_dynamic_entry": false,
+      "initial": false,
+      "source": "_SectionGate-B5gRY4fO.js"
+    },
+    {
+      "file": "assets/Settings-[hash].js",
+      "type": "js",
+      "raw": 5499,
+      "gzip": 2398,
+      "brotli": 2090,
+      "is_entry": false,
+      "is_dynamic_entry": true,
+      "initial": false,
+      "source": "src/pages/Settings.tsx"
+    },
+    {
+      "file": "assets/Settings-[hash].css",
+      "type": "css",
+      "raw": 3813,
+      "gzip": 1199,
+      "brotli": 1023,
+      "is_entry": false,
+      "is_dynamic_entry": false,
+      "initial": false,
+      "source": "src/pages/Settings.tsx (css)"
+    },
+    {
+      "file": "assets/Sheet-[hash].css",
+      "type": "css",
+      "raw": 2658,
+      "gzip": 1024,
+      "brotli": 848,
+      "is_entry": false,
+      "is_dynamic_entry": false,
+      "initial": false,
+      "source": "src/components/Sheet.tsx (css)"
+    },
+    {
+      "file": "assets/Sheet-[hash].js",
+      "type": "js",
+      "raw": 2534,
+      "gzip": 1238,
+      "brotli": 1079,
+      "is_entry": false,
+      "is_dynamic_entry": true,
+      "initial": false,
+      "source": "src/components/Sheet.tsx"
+    },
+    {
+      "file": "assets/Skeleton-[hash].js",
+      "type": "js",
+      "raw": 649,
+      "gzip": 381,
+      "brotli": 347,
+      "is_entry": false,
+      "is_dynamic_entry": false,
+      "initial": false,
+      "source": "_Skeleton-Bi_QNtcc.js"
+    },
+    {
+      "file": "assets/Stock-[hash].js",
+      "type": "js",
+      "raw": 8529,
+      "gzip": 3286,
+      "brotli": 2823,
+      "is_entry": false,
+      "is_dynamic_entry": true,
+      "initial": false,
+      "source": "src/pages/Stock.tsx"
+    },
+    {
+      "file": "assets/StockSheet-[hash].js",
+      "type": "js",
+      "raw": 3829,
+      "gzip": 1834,
+      "brotli": 1613,
+      "is_entry": false,
+      "is_dynamic_entry": true,
+      "initial": false,
+      "source": "src/components/StockSheet.tsx"
+    },
+    {
+      "file": "assets/TradingRoom-[hash].js",
+      "type": "js",
+      "raw": 3417,
+      "gzip": 1677,
+      "brotli": 1432,
+      "is_entry": false,
+      "is_dynamic_entry": true,
+      "initial": false,
+      "source": "src/pages/TradingRoom.tsx"
+    },
+    {
+      "file": "assets/charts-[hash].js",
+      "type": "js",
+      "raw": 3572,
+      "gzip": 1686,
+      "brotli": 1523,
+      "is_entry": false,
+      "is_dynamic_entry": true,
+      "initial": false,
+      "source": "src/components/charts.tsx"
+    },
+    {
+      "file": "assets/format-[hash].js",
+      "type": "js",
+      "raw": 4324,
+      "gzip": 1797,
+      "brotli": 1606,
+      "is_entry": false,
+      "is_dynamic_entry": false,
+      "initial": false,
+      "source": "_format-BrzKTIdj.js"
+    },
+    {
+      "file": "assets/index-[hash].js",
+      "type": "js",
+      "raw": 50515,
+      "gzip": 18712,
+      "brotli": 16645,
+      "is_entry": true,
+      "is_dynamic_entry": false,
+      "initial": true,
+      "source": "index.html"
+    },
+    {
+      "file": "assets/index-[hash].css",
+      "type": "css",
+      "raw": 57938,
+      "gzip": 12387,
+      "brotli": 10980,
+      "is_entry": false,
+      "is_dynamic_entry": false,
+      "initial": true,
+      "source": "index.html (css)"
+    },
+    {
+      "file": "assets/memo-[hash].js",
+      "type": "js",
+      "raw": 2732,
+      "gzip": 1523,
+      "brotli": 1318,
+      "is_entry": false,
+      "is_dynamic_entry": false,
+      "initial": false,
+      "source": "_memo-BErYERAt.js"
+    },
+    {
+      "file": "assets/meta-[hash].js",
+      "type": "js",
+      "raw": 1317,
+      "gzip": 736,
+      "brotli": 619,
+      "is_entry": false,
+      "is_dynamic_entry": false,
+      "initial": false,
+      "source": "_meta-CZrdcJ6h.js"
+    },
+    {
+      "file": "assets/pullToRefresh-[hash].js",
+      "type": "js",
+      "raw": 1758,
+      "gzip": 868,
+      "brotli": 775,
+      "is_entry": false,
+      "is_dynamic_entry": true,
+      "initial": false,
+      "source": "src/ui/pullToRefresh.ts"
+    },
+    {
+      "file": "assets/schedule-[hash].js",
+      "type": "js",
+      "raw": 2500,
+      "gzip": 1371,
+      "brotli": 1215,
+      "is_entry": false,
+      "is_dynamic_entry": false,
+      "initial": false,
+      "source": "_schedule-BuUqBU-q.js"
+    },
+    {
+      "file": "assets/settingsQueries-[hash].js",
+      "type": "js",
+      "raw": 626,
+      "gzip": 375,
+      "brotli": 336,
+      "is_entry": false,
+      "is_dynamic_entry": false,
+      "initial": false,
+      "source": "_settingsQueries-BOlOEH3n.js"
+    },
+    {
+      "file": "assets/useDebounced-[hash].js",
+      "type": "js",
+      "raw": 259,
+      "gzip": 219,
+      "brotli": 180,
+      "is_entry": false,
+      "is_dynamic_entry": false,
+      "initial": false,
+      "source": "_useDebounced-CqDaDOnG.js"
+    },
+    {
+      "file": "assets/vendor-charts-[hash].js",
+      "type": "js",
+      "raw": 168821,
+      "gzip": 53699,
+      "brotli": 46778,
+      "is_entry": false,
+      "is_dynamic_entry": false,
+      "initial": false,
+      "source": "_vendor-charts-CtdrVSqb.js"
+    },
+    {
+      "file": "assets/vendor-react-[hash].js",
+      "type": "js",
+      "raw": 258919,
+      "gzip": 81729,
+      "brotli": 71476,
+      "is_entry": false,
+      "is_dynamic_entry": false,
+      "initial": true,
+      "source": "_vendor-react-CzeogRrB.js"
+    }
+  ],
+  "code_split": {
+    "routes_lazy": true,
+    "react_lazy_calls": 4,
+    "dynamic_imports_in_src": 27,
+    "dynamic_entry_chunks": 23,
+    "pages_imported_statically_in_app_tsx": 0
+  },
+  "by_package": [
+    {
+      "name": "app (src/)",
+      "bytes": 237783,
+      "pct": 35.1
+    },
+    {
+      "name": "react-dom",
+      "bytes": 173532,
+      "pct": 25.6
+    },
+    {
+      "name": "lightweight-charts",
+      "bytes": 159691,
+      "pct": 23.6
+    },
+    {
+      "name": "@tanstack/query-core",
+      "bytes": 36130,
+      "pct": 5.3
+    },
+    {
+      "name": "react-router",
+      "bytes": 32773,
+      "pct": 4.8
+    },
+    {
+      "name": "[unmapped]",
+      "bytes": 14095,
+      "pct": 2.1
+    },
+    {
+      "name": "fancy-canvas",
+      "bytes": 9079,
+      "pct": 1.3
+    },
+    {
+      "name": "react",
+      "bytes": 8234,
+      "pct": 1.2
+    },
+    {
+      "name": "scheduler",
+      "bytes": 3678,
+      "pct": 0.5
+    },
+    {
+      "name": "@tanstack/react-query",
+      "bytes": 2639,
+      "pct": 0.4
+    }
+  ],
+  "app_src_top_files": [
+    {
+      "name": "src/pages/settings/LlmSection.tsx",
+      "bytes": 17378,
+      "pct": 2.6
+    },
+    {
+      "name": "src/pages/Memo.tsx",
+      "bytes": 14664,
+      "pct": 2.2
+    },
+    {
+      "name": "src/pages/Costs.tsx",
+      "bytes": 13707,
+      "pct": 2
+    },
+    {
+      "name": "src/pages/Agent.tsx",
+      "bytes": 12670,
+      "pct": 1.9
+    },
+    {
+      "name": "src/pages/Overview.tsx",
+      "bytes": 10489,
+      "pct": 1.5
+    },
+    {
+      "name": "src/components/Layout.tsx",
+      "bytes": 10286,
+      "pct": 1.5
+    },
+    {
+      "name": "src/components/chat/SessionBlock.tsx",
+      "bytes": 8350,
+      "pct": 1.2
+    },
+    {
+      "name": "src/pages/Stock.tsx",
+      "bytes": 8186,
+      "pct": 1.2
+    },
+    {
+      "name": "src/pages/settings/AlertsSection.tsx",
+      "bytes": 6703,
+      "pct": 1
+    },
+    {
+      "name": "src/pages/ScheduleSettings.tsx",
+      "bytes": 6480,
+      "pct": 1
+    },
+    {
+      "name": "src/components/CommandPalette.tsx",
+      "bytes": 6089,
+      "pct": 0.9
+    },
+    {
+      "name": "src/components/chat/ChatFeed.tsx",
+      "bytes": 6020,
+      "pct": 0.9
+    },
+    {
+      "name": "src/components/chat/ChatMessage.tsx",
+      "bytes": 5810,
+      "pct": 0.9
+    },
+    {
+      "name": "src/pages/settings/AccountSection.tsx",
+      "bytes": 5489,
+      "pct": 0.8
+    },
+    {
+      "name": "src/pages/Portfolio.tsx",
+      "bytes": 5143,
+      "pct": 0.8
+    },
+    {
+      "name": "src/pages/Settings.tsx",
+      "bytes": 5141,
+      "pct": 0.8
+    },
+    {
+      "name": "src/live/store.ts",
+      "bytes": 4849,
+      "pct": 0.7
+    },
+    {
+      "name": "src/pages/Dashboard.tsx",
+      "bytes": 4789,
+      "pct": 0.7
+    },
+    {
+      "name": "src/components/chat/sessions.ts",
+      "bytes": 4381,
+      "pct": 0.6
+    },
+    {
+      "name": "src/utils/format.ts",
+      "bytes": 4280,
+      "pct": 0.6
+    }
+  ],
+  "mapped_bytes_total": 677634,
+  "served": {
+    "base_url": "http://localhost:15173",
+    "assets": [
+      {
+        "url": "/assets/index-[hash].js",
+        "content_encoding": "gzip",
+        "cache_control": "public, max-age=31536000, immutable",
+        "etag": true,
+        "bytes_on_wire": null,
+        "bytes_decoded": 50472
+      },
+      {
+        "url": "/assets/vendor-react-[hash].js",
+        "content_encoding": "gzip",
+        "cache_control": "public, max-age=31536000, immutable",
+        "etag": true,
+        "bytes_on_wire": null,
+        "bytes_decoded": 258869
+      },
+      {
+        "url": "/assets/index-[hash].css",
+        "content_encoding": "gzip",
+        "cache_control": "public, max-age=31536000, immutable",
+        "etag": true,
+        "bytes_on_wire": null,
+        "bytes_decoded": 57938
+      }
+    ],
+    "html_bytes": 1746
+  }
+}

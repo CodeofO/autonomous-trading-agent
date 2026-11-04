@@ -1,0 +1,537 @@
+{
+  "schema": "code/v1",
+  "taken_at": "2026-11-04T14:36:02.081834+00:00",
+  "app": {
+    "files": 83,
+    "lines": 13531,
+    "code_lines": 11546,
+    "top_modules": [
+      {
+        "file": "app/agent/tools.py",
+        "lines": 1024,
+        "code": 955
+      },
+      {
+        "file": "app/agent/runner.py",
+        "lines": 899,
+        "code": 822
+      },
+      {
+        "file": "app/market/toss.py",
+        "lines": 575,
+        "code": 509
+      },
+      {
+        "file": "app/container.py",
+        "lines": 568,
+        "code": 512
+      },
+      {
+        "file": "app/brokers/paper.py",
+        "lines": 535,
+        "code": 481
+      },
+      {
+        "file": "app/engine/scheduler.py",
+        "lines": 467,
+        "code": 391
+      },
+      {
+        "file": "app/engine/engine.py",
+        "lines": 414,
+        "code": 364
+      },
+      {
+        "file": "app/brokers/toss_live.py",
+        "lines": 403,
+        "code": 351
+      },
+      {
+        "file": "app/engine/orders.py",
+        "lines": 400,
+        "code": 369
+      },
+      {
+        "file": "app/agent/costs.py",
+        "lines": 396,
+        "code": 345
+      },
+      {
+        "file": "app/agent/llm.py",
+        "lines": 375,
+        "code": 326
+      },
+      {
+        "file": "app/db/models.py",
+        "lines": 289,
+        "code": 229
+      },
+      {
+        "file": "app/engine/push.py",
+        "lines": 285,
+        "code": 245
+      },
+      {
+        "file": "app/agent/profiles.py",
+        "lines": 276,
+        "code": 241
+      },
+      {
+        "file": "app/api/routes/llm.py",
+        "lines": 275,
+        "code": 223
+      },
+      {
+        "file": "app/api/routes/agent.py",
+        "lines": 244,
+        "code": 210
+      },
+      {
+        "file": "app/agent/activity.py",
+        "lines": 237,
+        "code": 180
+      },
+      {
+        "file": "app/research/dart.py",
+        "lines": 236,
+        "code": 207
+      },
+      {
+        "file": "app/api/routes/memory.py",
+        "lines": 233,
+        "code": 195
+      },
+      {
+        "file": "app/core/config.py",
+        "lines": 233,
+        "code": 170
+      }
+    ]
+  },
+  "tests_src": {
+    "files": 34,
+    "lines": 6829
+  },
+  "functions": {
+    "count": 721,
+    "over_50_lines": 30,
+    "over_100_lines": 4,
+    "largest": [
+      {
+        "function": "build_container",
+        "file": "app/container.py",
+        "line": 293,
+        "lines": 154
+      },
+      {
+        "function": "_build_us",
+        "file": "app/container.py",
+        "line": 449,
+        "lines": 120
+      },
+      {
+        "function": "run_backtest",
+        "file": "app/backtest/engine.py",
+        "line": 58,
+        "lines": 116
+      },
+      {
+        "function": "_run_tools",
+        "file": "app/agent/runner.py",
+        "line": 369,
+        "lines": 103
+      },
+      {
+        "function": "agent_structure",
+        "file": "app/api/routes/agent.py",
+        "line": 118,
+        "lines": 95
+      },
+      {
+        "function": "rule_based_decisions",
+        "file": "app/agent/rule_agent.py",
+        "line": 36,
+        "lines": 93
+      },
+      {
+        "function": "_us_spec",
+        "file": "app/agent/tools.py",
+        "line": 275,
+        "lines": 93
+      },
+      {
+        "function": "run",
+        "file": "app/agent/runner.py",
+        "line": 181,
+        "lines": 87
+      },
+      {
+        "function": "build_daily_report",
+        "file": "app/reports/daily.py",
+        "line": 15,
+        "lines": 81
+      },
+      {
+        "function": "_execute_one",
+        "file": "app/agent/runner.py",
+        "line": 599,
+        "lines": 80
+      },
+      {
+        "function": "submit",
+        "file": "app/engine/orders.py",
+        "line": 131,
+        "lines": 80
+      },
+      {
+        "function": "check",
+        "file": "app/agent/llm_check.py",
+        "line": 75,
+        "lines": 70
+      },
+      {
+        "function": "t_explore_sector",
+        "file": "app/agent/tools.py",
+        "line": 915,
+        "lines": 69
+      },
+      {
+        "function": "_announce",
+        "file": "app/engine/orders.py",
+        "line": 251,
+        "lines": 68
+      },
+      {
+        "function": "check",
+        "file": "app/risk/rules.py",
+        "line": 79,
+        "lines": 67
+      },
+      {
+        "function": "t_get_price_history",
+        "file": "app/agent/tools.py",
+        "line": 527,
+        "lines": 65
+      },
+      {
+        "function": "t_get_financials",
+        "file": "app/agent/tools.py",
+        "line": 593,
+        "lines": 65
+      },
+      {
+        "function": "screen",
+        "file": "app/market/toss.py",
+        "line": 446,
+        "lines": 65
+      },
+      {
+        "function": "t_get_market_overview",
+        "file": "app/agent/tools.py",
+        "line": 686,
+        "lines": 64
+      },
+      {
+        "function": "portfolio",
+        "file": "app/engine/engine.py",
+        "line": 159,
+        "lines": 61
+      }
+    ]
+  },
+  "complexity_c901": {
+    "threshold": 10,
+    "count": 9,
+    "top": [
+      {
+        "function": "check",
+        "complexity": 16,
+        "file": "app/risk/rules.py",
+        "line": 79
+      },
+      {
+        "function": "run_backtest",
+        "complexity": 15,
+        "file": "app/backtest/engine.py",
+        "line": 58
+      },
+      {
+        "function": "place_order",
+        "complexity": 14,
+        "file": "app/brokers/toss_live.py",
+        "line": 294
+      },
+      {
+        "function": "normalize_decisions",
+        "complexity": 13,
+        "file": "app/agent/runner.py",
+        "line": 825
+      },
+      {
+        "function": "_run_tools",
+        "complexity": 12,
+        "file": "app/agent/runner.py",
+        "line": 369
+      },
+      {
+        "function": "chat",
+        "complexity": 11,
+        "file": "app/agent/llm.py",
+        "line": 220
+      },
+      {
+        "function": "_responses",
+        "complexity": 11,
+        "file": "app/agent/llm.py",
+        "line": 277
+      },
+      {
+        "function": "rule_based_decisions",
+        "complexity": 11,
+        "file": "app/agent/rule_agent.py",
+        "line": 36
+      },
+      {
+        "function": "_us_market_overview",
+        "complexity": 11,
+        "file": "app/agent/tools.py",
+        "line": 751
+      }
+    ],
+    "all": [
+      {
+        "function": "check",
+        "complexity": 16,
+        "file": "app/risk/rules.py",
+        "line": 79
+      },
+      {
+        "function": "run_backtest",
+        "complexity": 15,
+        "file": "app/backtest/engine.py",
+        "line": 58
+      },
+      {
+        "function": "place_order",
+        "complexity": 14,
+        "file": "app/brokers/toss_live.py",
+        "line": 294
+      },
+      {
+        "function": "normalize_decisions",
+        "complexity": 13,
+        "file": "app/agent/runner.py",
+        "line": 825
+      },
+      {
+        "function": "_run_tools",
+        "complexity": 12,
+        "file": "app/agent/runner.py",
+        "line": 369
+      },
+      {
+        "function": "chat",
+        "complexity": 11,
+        "file": "app/agent/llm.py",
+        "line": 220
+      },
+      {
+        "function": "_responses",
+        "complexity": 11,
+        "file": "app/agent/llm.py",
+        "line": 277
+      },
+      {
+        "function": "rule_based_decisions",
+        "complexity": 11,
+        "file": "app/agent/rule_agent.py",
+        "line": 36
+      },
+      {
+        "function": "_us_market_overview",
+        "complexity": 11,
+        "file": "app/agent/tools.py",
+        "line": 751
+      }
+    ]
+  },
+  "duplicates": {
+    "identical_function_bodies": [
+      [
+        "app/agent/tools.py:31 _f",
+        "app/market/toss.py:83 _num"
+      ]
+    ],
+    "windows": {
+      "window_lines": 6,
+      "duplicated_windows": 38,
+      "clusters": 8,
+      "top": [
+        {
+          "locations": [
+            "app/container.py:404",
+            "app/container.py:526"
+          ],
+          "windows": 9
+        },
+        {
+          "locations": [
+            "app/agent/tools.py:106",
+            "app/agent/tools.py:289"
+          ],
+          "windows": 8
+        },
+        {
+          "locations": [
+            "app/container.py:426",
+            "app/container.py:548"
+          ],
+          "windows": 7
+        },
+        {
+          "locations": [
+            "app/agent/llm.py:241",
+            "app/agent/llm.py:303"
+          ],
+          "windows": 6
+        },
+        {
+          "locations": [
+            "app/brokers/paper.py:22",
+            "app/brokers/toss_live.py:31",
+            "app/engine/orders.py:14"
+          ],
+          "windows": 5
+        },
+        {
+          "locations": [
+            "app/brokers/paper.py:21",
+            "app/brokers/toss_live.py:30"
+          ],
+          "windows": 1
+        },
+        {
+          "locations": [
+            "app/brokers/toss_live.py:130",
+            "app/market/toss.py:157"
+          ],
+          "windows": 1
+        },
+        {
+          "locations": [
+            "app/risk/rules.py:154",
+            "app/risk/rules.py:164"
+          ],
+          "windows": 1
+        }
+      ]
+    }
+  },
+  "grep_counts": {
+    "type_ignore": 2,
+    "except_exception": 42,
+    "bare_except": 0,
+    "noqa": 0,
+    "todo_fixme": 1,
+    "private_access_engine_health": 5
+  },
+  "ruff_default_rules": {
+    "violations": 0,
+    "by_rule": {},
+    "seconds": 0.02
+  },
+  "mypy": {
+    "exit_code": 0,
+    "summary": "Success: no issues found in 83 source files",
+    "files_checked": 83,
+    "errors": 0,
+    "seconds": 7.4
+  },
+  "pytest": {
+    "exit_code": 0,
+    "summary": "323 passed in 23.89s",
+    "counts": {
+      "passed": 323
+    },
+    "total": 323,
+    "pytest_reported_s": 23.89,
+    "wall_s": 24.5,
+    "slowest": [
+      {
+        "seconds": 3.4,
+        "phase": "call",
+        "test": "tests/test_openrouter.py::test_fetch_errors_keep_previous_list"
+      },
+      {
+        "seconds": 1.15,
+        "phase": "call",
+        "test": "tests/test_llm_test_endpoint.py::test_check_only_hits_free_endpoint"
+      },
+      {
+        "seconds": 1.02,
+        "phase": "call",
+        "test": "tests/test_google_tool.py::test_tool_call_uses_run_id_limit_and_hides_links_in_chat"
+      },
+      {
+        "seconds": 1.01,
+        "phase": "call",
+        "test": "tests/test_llm_params.py::test_switches_token_param_and_drops_temperature_then_remembers"
+      },
+      {
+        "seconds": 1.01,
+        "phase": "call",
+        "test": "tests/test_llm_responses.py::test_real_responses_error_shape_drops_temperature_and_effort"
+      },
+      {
+        "seconds": 0.55,
+        "phase": "call",
+        "test": "tests/test_activity.py::test_session_shows_tool_details_and_progress"
+      },
+      {
+        "seconds": 0.55,
+        "phase": "call",
+        "test": "tests/test_engine_agent.py::test_llm_tool_loop_uses_toss_tools_and_places_orders"
+      },
+      {
+        "seconds": 0.53,
+        "phase": "call",
+        "test": "tests/test_engine_agent.py::test_llm_forced_submit_after_ignoring_nudge"
+      },
+      {
+        "seconds": 0.33,
+        "phase": "call",
+        "test": "tests/test_us_market.py::test_us_dispatcher_fires_each_job_once"
+      },
+      {
+        "seconds": 0.32,
+        "phase": "call",
+        "test": "tests/test_perf_refactor.py::test_sql_per_request_is_flat"
+      },
+      {
+        "seconds": 0.31,
+        "phase": "call",
+        "test": "tests/test_google_tool.py::test_structure_shows_google_readiness"
+      },
+      {
+        "seconds": 0.28,
+        "phase": "call",
+        "test": "tests/test_us_market.py::test_markets_and_overview"
+      },
+      {
+        "seconds": 0.27,
+        "phase": "call",
+        "test": "tests/test_push.py::test_push_api"
+      },
+      {
+        "seconds": 0.23,
+        "phase": "call",
+        "test": "tests/test_us_market.py::test_us_portfolio_usd_and_separate_from_kr"
+      },
+      {
+        "seconds": 0.23,
+        "phase": "call",
+        "test": "tests/test_live_broker.py::test_live_api_reports_mode_and_hides_previous_mode_history"
+      }
+    ]
+  }
+}

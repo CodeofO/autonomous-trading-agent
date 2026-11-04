@@ -1,8 +1,20 @@
 import type { Indicator } from "../api/types";
 import { useMarketIndicators } from "../hooks";
 import { fmtDateTime, fmtIndicator, fmtIndicatorChange, indicatorDirection } from "../utils/format";
+import { AnimatedNumber } from "./AnimatedNumber";
 
 const SKELETON_CARDS = 6;
+
+/** 단위별 글자 함수 (같은 단위면 같은 함수 — 숫자 칸이 다시 그려지지 않게) */
+const formats = new Map<string, (v: number | null | undefined) => string>();
+const formatFor = (unit: string) => {
+  let f = formats.get(unit);
+  if (!f) {
+    f = (v) => fmtIndicator(v, unit);
+    formats.set(unit, f);
+  }
+  return f;
+};
 
 /** 대시보드 맨 위 '주요 지표' 한 줄. 넓은 화면은 한 줄 격자, 휴대폰은 옆으로 넘겨 보는 줄 */
 export function IndicatorStrip() {
@@ -52,7 +64,9 @@ function IndicatorCard({ item, asOf }: { item: Indicator; asOf: string }) {
         <span className="ind-name">{item.name}</span>
         {item.note && <small className="ind-note">{item.note}</small>}
       </span>
-      <b className="ind-price">{failed ? "—" : fmtIndicator(item.price, item.unit)}</b>
+      <b className="ind-price">
+        {failed ? "—" : <AnimatedNumber value={item.price} format={formatFor(item.unit)} />}
+      </b>
       <span
         className={`ind-chg ${dir ?? ""}`}
         aria-label={

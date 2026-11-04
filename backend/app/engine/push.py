@@ -74,12 +74,15 @@ class PushNotifier:
         now: Callable[[], datetime] | None = None,
         live: bool = False,
         sender: Sender | None = None,
+        prefix: str = "",
     ) -> None:
+        """`prefix`: 알림 제목 앞에 붙일 시장 표시 (미장 스택은 "[미장] ", D-48). 구독 목록은 국장 kv 를 같이 쓴다."""
         self.kv = kv
         self.subject = subject
         self.names = names or (lambda s: s)
         self.now = now or (lambda: datetime.now().astimezone())
         self.live = live
+        self.prefix = prefix
         self.reason: str | None = None
         self._vapid: Any = None
         if private_key and private_key.strip():
@@ -176,9 +179,10 @@ class PushNotifier:
         if t == "FILL":
             side = _side_ko(msg.split(" ", 1)[0])
             qty, price = p.get("quantity", 0), float(p.get("price") or 0)
+            px = f"${price:,.2f}" if p.get("currency") == "USD" else f"{price:,.0f}원"
             out = (
                 "fills",
-                {"title": f"{side} 체결", "body": f"{name} {qty:,}주 @ {price:,.0f}원", "url": "/portfolio"},
+                {"title": f"{side} 체결", "body": f"{name} {qty:,}주 @ {px}", "url": "/portfolio"},
             )
         elif t == "RISK_BLOCK":
             what = f"{name} {_side_ko(str(p.get('side', '')))} {p.get('quantity', '')}주".strip()
@@ -199,6 +203,8 @@ class PushNotifier:
             out = ("agent", {"title": "📊 일일 리포트", "body": msg, "url": "/"})
         if out and self.live:
             out[1]["title"] = "[실거래] " + out[1]["title"]
+        if out and self.prefix:
+            out[1]["title"] = self.prefix + out[1]["title"]
         return out
 
     def on_audit(self, ev: dict[str, Any]) -> None:

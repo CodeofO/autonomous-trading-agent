@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
 
 // 휴대폰 화면(styles.css 의 @media (max-width: 760px) 와 같은 기준). 넓은 화면에서는 아래 동작을 하지 않는다
 export const MOBILE_QUERY = "(max-width: 760px)";
@@ -11,13 +11,49 @@ const matches = (query: string) =>
 export const isMobile = () => matches(MOBILE_QUERY);
 export const prefersReducedMotion = () => matches("(prefers-reduced-motion: reduce)");
 
-/** 하단 탭 순서상 위치 (종목 상세는 '자산', LLM 비용은 '설정' 탭 아래로 본다). 탭이 아니면 -1 */
+/**
+ * 움직임(숫자 굴러가기·시트 끌기 등)을 써도 되는지. 사용자가 '동작 줄이기'를 켰거나
+ * 화면 조건을 알 수 없으면(matchMedia 없음) 움직이지 않는다
+ */
+export const motionOk = () =>
+  typeof window !== "undefined" && typeof window.matchMedia === "function" && !prefersReducedMotion();
+
+/** 화면 조건(미디어 쿼리)이 맞는지 — 창 크기가 바뀌면 다시 그린다 */
+export function useMediaQuery(query: string): boolean {
+  const subscribe = useCallback(
+    (cb: () => void) => {
+      if (typeof window === "undefined" || typeof window.matchMedia !== "function") return () => {};
+      const mql = window.matchMedia(query) as MediaQueryList | undefined;
+      if (!mql || typeof mql.addEventListener !== "function") return () => {};
+      mql.addEventListener("change", cb);
+      return () => mql.removeEventListener("change", cb);
+    },
+    [query],
+  );
+  return useSyncExternalStore(
+    subscribe,
+    () => matches(query),
+    () => false,
+  );
+}
+
+/** 휴대폰 폭인지 (넓은 화면과 다르게 그리는 곳: 설정 목록 → 화면, 확인 창 → 아래 시트) */
+export const useIsMobile = () => useMediaQuery(MOBILE_QUERY);
+
+// 하단 탭이 없는 화면은 들어가는 길목의 탭 아래로 본다
+const PARENT_TAB: [prefix: string, tab: string][] = [
+  ["/stock", "/portfolio"], // 종목 상세 → 자산
+  ["/costs", "/settings"], // LLM 비용 → 설정 (설정 화면의 링크로 들어간다)
+  ["/memo", "/agent"], // 메모 카드 → 구조 (매니저의 기억에서 들어간다)
+];
+
+/**
+ * 하단 탭 순서상 위치. 탭이 아니면 -1.
+ * 한눈에 보기(전체)도 '/' 라 '홈' 탭이고, 종목 상세는 '자산', LLM 비용은 '설정', 메모 카드는 '구조' 탭 아래로 본다
+ */
 export function navIndex(pathname: string, tabs: readonly string[]): number {
-  const path = pathname.startsWith("/stock/")
-    ? "/portfolio"
-    : pathname === "/costs" || pathname.startsWith("/costs/")
-      ? "/settings"
-      : pathname;
+  const parent = PARENT_TAB.find(([p]) => pathname === p || pathname.startsWith(`${p}/`));
+  const path = parent ? parent[1] : pathname;
   return tabs.findIndex((to) => (to === "/" ? path === "/" : path === to || path.startsWith(`${to}/`)));
 }
 

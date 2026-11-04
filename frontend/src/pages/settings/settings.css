@@ -1,0 +1,270 @@
+/* 설정 화면: 주제 목록 + 내용 (pages/Settings.tsx · pages/settings/*) — 설정 조각과 함께 받는다 */
+.settings {
+  display: grid;
+  grid-template-columns: 270px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.settings-nav {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.settings-group-title {
+  margin: 0 4px 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-dim);
+}
+.settings-group-title small {
+  font-weight: 500;
+}
+.settings-group-items {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+.settings-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  transition:
+    background-color 0.12s ease,
+    transform 0.12s ease;
+}
+.settings-item:last-child {
+  border-bottom: 0;
+}
+.settings-item:hover {
+  background: var(--panel-2);
+  text-decoration: none;
+}
+.settings-item.active {
+  background: var(--accent-soft);
+}
+.settings-item.active b {
+  color: var(--accent);
+}
+.settings-item:focus-visible {
+  outline-offset: -2px;
+}
+.settings-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--panel-2);
+  font-size: 17px;
+}
+.settings-item.active .settings-icon {
+  background: var(--panel);
+}
+.settings-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.settings-text small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.settings-chev {
+  display: none;
+  flex: none;
+  color: var(--text-dim);
+  font-size: 22px;
+  line-height: 1;
+}
+.settings-pane {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: pane-fade 0.16s ease-out;
+}
+@keyframes pane-fade {
+  from {
+    opacity: 0.4;
+  }
+}
+.settings-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+}
+.settings-title {
+  margin: 0;
+  font-size: 20px;
+}
+.settings-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 44px;
+  padding: 6px 10px 6px 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.settings-back span {
+  margin-top: -3px;
+  font-size: 28px;
+  line-height: 1;
+}
+/* 어느 시장에 적용되는지 (지금 시장에만 적용되는 주제는 강조) */
+.settings-scope {
+  align-self: flex-start;
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--panel-2);
+  color: var(--text-dim);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.settings-scope.scope-market {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.settings-foot {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+}
+/* 데이터 연결 상태 */
+.status-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.status-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+}
+.status-list li:last-child {
+  border-bottom: 0;
+}
+.status-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border);
+}
+.status-dot.on {
+  background: var(--ok);
+}
+.status-dot.off {
+  background: var(--warn);
+}
+.status-label {
+  min-width: 96px;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+.status-value {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.status-value.warn {
+  color: var(--warn);
+}
+
+@media (max-width: 760px) {
+  /* 설정: 목록 → 주제 화면 (iOS 설정처럼) */
+  .settings {
+    display: block;
+  }
+  .settings-nav {
+    position: static;
+    gap: 18px;
+  }
+  .settings-nav.pop {
+    animation: settings-pop 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .settings-item {
+    min-height: 60px;
+    padding: 10px 14px;
+  }
+  .settings-item.active {
+    background: none;
+  }
+  .settings-item.active b {
+    color: inherit;
+  }
+  .settings-chev {
+    display: block;
+  }
+  .settings-pane {
+    animation: none;
+  }
+  .settings-pane.push {
+    animation: settings-push 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  /* 주제 화면 머리줄은 위에 붙는다 ('‹ 설정' 이 늘 손 닿는 곳에) */
+  .settings-head {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    margin: -14px calc(-1 * max(12px, env(safe-area-inset-right))) 0
+      calc(-1 * max(12px, env(safe-area-inset-left)));
+    padding: 4px max(12px, env(safe-area-inset-right)) 4px max(12px, env(safe-area-inset-left));
+    background: var(--bg);
+    box-shadow: 0 1px 0 var(--border);
+  }
+  .settings-title {
+    font-size: 17px;
+  }
+  .settings-scope {
+    font-size: 12px;
+  }
+  .settings .card-head .btn.tiny,
+  .watch .link {
+    min-height: 40px;
+  }
+}
+@keyframes settings-push {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+}
+@keyframes settings-pop {
+  from {
+    opacity: 0.4;
+    transform: translateX(-20px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-pane,
+  .settings-pane.push,
+  .settings-nav.pop {
+    animation: none;
+  }
+  .settings-item {
+    transition: none;
+  }
+}

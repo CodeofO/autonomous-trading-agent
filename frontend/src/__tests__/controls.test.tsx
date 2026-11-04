@@ -4,7 +4,8 @@ import { Route, Routes } from "react-router-dom";
 import { KillSwitch } from "../components/KillSwitch";
 import { Layout } from "../components/Layout";
 import { Login } from "../pages/Login";
-import { RiskSettings, validateRisk } from "../pages/Settings";
+import { RiskSettings } from "../pages/settings/RiskSection";
+import { validateRisk } from "../utils/risk";
 import { fmtPct, fmtWon, signClass } from "../utils/format";
 import { mockFetch, renderWithProviders, SYSTEM } from "./utils";
 
@@ -18,9 +19,10 @@ describe("킬 스위치", () => {
     expect(screen.getByRole("dialog", { name: /킬 스위치를 작동할까요/ })).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "즉시 전체 정지" }));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-    const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe("/api/engine/kill");
+    // 정지 뒤에는 모든 화면을 다시 받는다(시장 목록 포함) — 정지 요청만 골라 본다
+    const kills = () => fetchMock.mock.calls.filter(([u]) => u === "/api/engine/kill");
+    await waitFor(() => expect(kills()).toHaveLength(1));
+    const [, init] = kills()[0];
     expect((init as RequestInit).method).toBe("POST");
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
@@ -88,10 +90,12 @@ describe("레이아웃", () => {
     expect(
       screen.getByRole("link", { name: "포트폴리오·주문" }).querySelector(".nav-short"),
     ).toHaveTextContent("자산");
-    // 하단 탭바는 7칸 + 넓은 화면 사이드바에만 있는 'LLM 비용'
+    // 하단 탭바는 7칸 + 넓은 화면 사이드바에만 있는 '메모 카드'·'LLM 비용'
     const links = screen.getAllByRole("link");
     expect(links.filter((a) => !a.classList.contains("desktop-only"))).toHaveLength(7);
-    expect(links.filter((a) => a.classList.contains("desktop-only"))).toHaveLength(1);
+    expect(
+      links.filter((a) => a.classList.contains("desktop-only")).map((a) => a.getAttribute("href")),
+    ).toEqual(["/memo", "/costs"]);
     expect(screen.getByRole("status", { name: /연결/ })).toBeInTheDocument(); // 모바일 상단 연결 점
   });
 

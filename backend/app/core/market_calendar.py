@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from app.core.clock import KST
 
@@ -68,9 +69,21 @@ class Session:
 
 
 class MarketCalendar:
+    """국내 장 캘린더. 미국은 `app.core.us_calendar.UsMarketCalendar`(같은 공개 인터페이스).
+
+    거래일(`Session.day`)은 그 시장의 현지 날짜다(`local_date`). 국내는 KST 날짜와 같다.
+    """
+
+    tz: ZoneInfo = KST
+    pre_open_window: timedelta = PRE_OPEN_WINDOW
+
     def __init__(self, extra_holidays: set[date] | None = None) -> None:
         self._holidays: set[date] = set(KRX_HOLIDAYS) | (extra_holidays or set())
         self._overrides: dict[date, Session | None] = {}  # 토스 장 운영 캘린더 (우선 적용)
+
+    def local_date(self, t: datetime) -> date:
+        """`t` 시점의 현지 날짜(거래일 기준 날짜). 국내 = KST 날짜, 미국 = 뉴욕 날짜."""
+        return t.astimezone(self.tz).date()
 
     def is_trading_day(self, d: date) -> bool:
         if d in self._overrides:
@@ -90,16 +103,16 @@ class MarketCalendar:
         )
 
     def is_market_open(self, t: datetime) -> bool:
-        s = self.session(t.astimezone(KST).date())
+        s = self.session(self.local_date(t))
         return s is not None and s.open <= t < s.close
 
     def is_order_allowed(self, t: datetime) -> bool:
         """주문 허용 시각: 거래일의 연속매매 구간."""
-        s = self.session(t.astimezone(KST).date())
+        s = self.session(self.local_date(t))
         return s is not None and s.open <= t < s.order_cutoff
 
     def next_session(self, t: datetime) -> Session:
-        d = t.astimezone(KST).date()
+        d = self.local_date(t)
         for i in range(0, 30):
             s = self.session(d + timedelta(days=i))
             if s is not None and s.close > t:
@@ -135,7 +148,7 @@ class MarketCalendar:
 
     def latest_published_day(self, now: datetime) -> date:
         """`now` 시점에 공식 일봉이 공개돼 있는 가장 최근 거래일."""
-        d = now.astimezone(KST).date()
+        d = self.local_date(now)
         for _ in range(40):
             if self.is_trading_day(d) and self.publish_time(d) <= now:
                 return d
@@ -144,10 +157,10 @@ class MarketCalendar:
 
     def fill_basis(self, t: datetime) -> str | None:
         """주문 접수 시각 → 체결 기준가. OPEN(시가) | CLOSE(종가) | None(접수 불가)."""
-        s = self.session(t.astimezone(KST).date())
+        s = self.session(self.local_date(t))
         if s is None:
             return None
-        if s.open - PRE_OPEN_WINDOW <= t < s.open:
+        if s.open - self.pre_open_window <= t < s.open:
             return "OPEN"
         if s.open <= t < s.order_cutoff:
             return "CLOSE"

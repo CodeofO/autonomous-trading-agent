@@ -1,7 +1,7 @@
 """토스증권 Open API — **조회 전용** 클라이언트와 시세 공급자.
 
 공식 문서: docs/TOSS_API_NOTES.md (OpenAPI 1.2.28)
-- 허용 경로: 토큰 발급, 현재가, 캔들, 종목 정보, 전체 종목, 랭킹, 국내 장 운영 캘린더
+- 허용 경로: 토큰 발급, 현재가, 캔들, 종목 정보, 전체 종목, 랭킹, 국내·미국 장 운영 캘린더 (조회만)
 - 주문·계좌 경로는 `core/http.check_outbound` 가 항상 차단한다 (이 모듈에는 주문 코드가 없다)
 - 토큰은 클라이언트당 1개만 유효 → 메모리에 두고 재사용, 만료 60초 전 또는 401 수신 시에만 재발급
 """
@@ -14,6 +14,7 @@ import re
 import time
 from datetime import date, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from app.core.clock import KST, Clock
 from app.core.http import Route, SafeHttpClient, TokenBucket
@@ -32,7 +33,7 @@ ROUTES = [
     Route(HOST, "GET", re.compile(r"/api/v1/stocks")),
     Route(HOST, "GET", re.compile(r"/api/v1/stocks/all")),
     Route(HOST, "GET", re.compile(r"/api/v1/rankings")),
-    Route(HOST, "GET", re.compile(r"/api/v1/market-calendar/KR")),
+    Route(HOST, "GET", re.compile(r"/api/v1/market-calendar/(KR|US)")),
     Route(HOST, "GET", re.compile(r"/api/v1/orderbook")),
     Route(HOST, "GET", re.compile(r"/api/v1/trades")),
     Route(HOST, "GET", re.compile(r"/api/v1/price-limits")),
@@ -197,19 +198,23 @@ class TossClient:
                 out[str(it["symbol"])] = it
         return out
 
-    async def stocks_all(self, market: str) -> list[dict[str, Any]]:
-        rows = await self._get(
-            "STOCK_ALL", "/api/v1/stocks/all", {"market": market, "status": "ACTIVE", "securityType": "STOCK"}
-        )
+    async def stocks_all(self, market: str, security_type: str | None = "STOCK") -> list[dict[str, Any]]:
+        """마켓별 전체 종목. security_type=None 이면 모든 유형(미장은 STOCK·ETF 를 한 번에 받아 걸러 쓴다)."""
+        params = {"market": market, "status": "ACTIVE"}
+        if security_type:
+            params["securityType"] = security_type
+        rows = await self._get("STOCK_ALL", "/api/v1/stocks/all", params)
         return list(rows or [])
 
-    async def rankings(self, type_: str, duration: str, count: int = 100) -> list[dict[str, Any]]:
+    async def rankings(
+        self, type_: str, duration: str, count: int = 100, market_country: str = "KR"
+    ) -> list[dict[str, Any]]:
         res = await self._get(
             "RANKING",
             "/api/v1/rankings",
             {
                 "type": type_,
-                "marketCountry": "KR",
+                "marketCountry": market_country,
                 "duration": duration,
                 "excludeInvestmentCaution": "true",
                 "count": max(1, min(100, count)),
@@ -220,6 +225,11 @@ class TossClient:
     async def market_calendar_kr(self, day: date | None = None) -> dict[str, Any]:
         params = {"date": day.isoformat()} if day else None
         return dict(await self._get("MARKET_INFO", "/api/v1/market-calendar/KR", params) or {})
+
+    async def market_calendar_us(self, day: date | None = None) -> dict[str, Any]:
+        """미국 장 운영 정보. `day` 는 미국 현지 날짜. 응답 시각은 모두 KST(+09:00)."""
+        params = {"date": day.isoformat()} if day else None
+        return dict(await self._get("MARKET_INFO", "/api/v1/market-calendar/US", params) or {})
 
     # ------------------------------------------------------------ 시세 부가 정보
     async def orderbook(self, symbol: str) -> dict[str, Any]:
@@ -291,18 +301,24 @@ class TossClient:
     async def sectors(self) -> list[dict[str, Any]]:
         return list((await self._get("SECTOR", "/api/v1/sectors") or {}).get("sectors") or [])
 
-    async def sector(self, sector_id: str) -> dict[str, Any]:
-        return dict(await self._get("SECTOR", f"/api/v1/sectors/{sector_id}", {"marketCountry": "KR"}) or {})
+    async def sector(self, sector_id: str, market_country: str = "KR") -> dict[str, Any]:
+        return dict(
+            await self._get("SECTOR", f"/api/v1/sectors/{sector_id}", {"marketCountry": market_country}) or {}
+        )
 
-    async def sector_stocks(self, sector_id: str) -> list[dict[str, Any]]:
-        res = await self._get("SECTOR", f"/api/v1/sectors/{sector_id}/stocks", {"marketCountry": "KR"})
+    async def sector_stocks(self, sector_id: str, market_country: str = "KR") -> list[dict[str, Any]]:
+        res = await self._get(
+            "SECTOR", f"/api/v1/sectors/{sector_id}/stocks", {"marketCountry": market_country}
+        )
         return list((res or {}).get("stocks") or [])
 
-    async def sector_rankings(self, type_: str = "TOP_GAINERS", duration: str = "1d") -> list[dict[str, Any]]:
+    async def sector_rankings(
+        self, type_: str = "TOP_GAINERS", duration: str = "1d", market_country: str = "KR"
+    ) -> list[dict[str, Any]]:
         res = await self._get(
             "SECTOR_RANKING",
             "/api/v1/sectors/rankings",
-            {"type": type_, "marketCountry": "KR", "duration": duration},
+            {"type": type_, "marketCountry": market_country, "duration": duration},
         )
         return list((res or {}).get("rankings") or [])
 
@@ -323,9 +339,23 @@ class TossMarketProvider:
 
     name = "toss"
 
-    def __init__(self, client: TossClient, clock: Clock) -> None:
+    def __init__(
+        self,
+        client: TossClient,
+        clock: Clock,
+        *,
+        country: str = "KR",
+        markets: tuple[str, ...] = KR_MARKETS,
+        security_types: tuple[str, ...] = ("STOCK",),
+        tz: ZoneInfo = KST,
+    ) -> None:
+        """country=US 이면 미장(NASDAQ·NYSE·AMEX 의 주식·ETF, 랭킹 marketCountry=US, 일봉 날짜는 뉴욕 기준)."""
         self.client = client
         self.clock = clock
+        self.country = country
+        self.markets = markets
+        self.security_types = security_types
+        self.tz = tz
         self._info: dict[str, dict[str, Any]] = {}
         self._universe: dict[str, dict[str, Any]] = {}
         self._universe_at = 0.0
@@ -342,11 +372,19 @@ class TossMarketProvider:
         return {s: self._info[s] for s in symbols if s in self._info}
 
     async def universe(self) -> dict[str, dict[str, Any]]:
-        """국내 보통주 전체 목록 (하루 1회 캐시)."""
+        """전체 종목 목록 (하루 1회 캐시). 국장: 보통주, 미장: 보통주·ETF."""
         if not self._universe or time.monotonic() - self._universe_at > 20 * 3600:
             uni: dict[str, dict[str, Any]] = {}
-            for m in KR_MARKETS:
-                for it in await self.client.stocks_all(m):
+            for m in self.markets:
+                if self.country == "KR":
+                    rows = await self.client.stocks_all(m)
+                else:  # 유형 필터 없이 한 번에 받아 주식·ETF 만 남긴다 (STOCK_ALL 1/s 한도 → 호출 수 최소화)
+                    rows = [
+                        it
+                        for it in await self.client.stocks_all(m, None)
+                        if str(it.get("securityType") or "STOCK") in self.security_types
+                    ]
+                for it in rows:
                     if it.get("isCommonShare", True):
                         uni[str(it["symbol"])] = {**it, "market": m}
             if uni:
@@ -361,11 +399,14 @@ class TossMarketProvider:
         info = (await self.info([symbol])).get(symbol, {})
         shares = _num(info.get("sharesOutstanding"))
         bars: dict[date, Bar] = {}
-        before: datetime | None = datetime.combine(end + timedelta(days=1), datetime.min.time(), KST)
+        # 현지 자정(미장은 뉴욕 자정)을 KST 로 표기해 보낸다 (문서 예시 형식 +09:00)
+        before: datetime | None = datetime.combine(
+            end + timedelta(days=1), datetime.min.time(), self.tz
+        ).astimezone(KST)
         for _ in range(20):  # 200봉 × 20 = 약 16년치 상한
             rows, next_before = await self.client.candles(symbol, "1d", 200, before)
             for c in rows:
-                d = datetime.fromisoformat(c["timestamp"]).astimezone(KST).date()
+                d = datetime.fromisoformat(c["timestamp"]).astimezone(self.tz).date()
                 if start <= d <= end:
                     close = _num(c.get("closePrice"))
                     bars[d] = Bar(
@@ -383,7 +424,8 @@ class TossMarketProvider:
                         market=str(info.get("market", "")),
                     )
             oldest = min(
-                (datetime.fromisoformat(c["timestamp"]).astimezone(KST).date() for c in rows), default=None
+                (datetime.fromisoformat(c["timestamp"]).astimezone(self.tz).date() for c in rows),
+                default=None,
             )
             if not next_before or oldest is None or oldest <= start:
                 break
@@ -405,6 +447,8 @@ class TossMarketProvider:
         self, sort_by: str, market: str, limit: int, min_market_cap: float = 0.0
     ) -> list[dict[str, Any]]:
         if sort_by in ("foreigner_net_buy", "institution_net_buy"):
+            if self.country != "KR":
+                raise ValueError("투자자별 순매수 랭킹은 국내 주식만 있어요")
             return await self._screen_investor(sort_by.split("_")[0], market, limit)
         type_, duration = {
             "trading_value": ("MARKET_TRADING_AMOUNT", "1d"),
@@ -415,9 +459,12 @@ class TossMarketProvider:
             "change_1mo": ("TOP_GAINERS", "1mo"),
             "market_cap": ("MARKET_TRADING_AMOUNT", "1d"),
         }.get(sort_by, ("MARKET_TRADING_AMOUNT", "1d"))
-        rows = await self.client.rankings(type_, duration, 100)
+        if self.country == "KR":
+            rows = await self.client.rankings(type_, duration, 100)
+        else:
+            rows = await self.client.rankings(type_, duration, 100, market_country=self.country)
         uni = await self.universe()
-        rows = [r for r in rows if str(r["symbol"]) in uni]  # 국내 보통주만
+        rows = [r for r in rows if str(r["symbol"]) in uni]  # 유니버스(국내 보통주 / 미국 주식·ETF)만
         info = await self.info([str(r["symbol"]) for r in rows])
         out = []
         for r in rows:
@@ -431,6 +478,21 @@ class TossMarketProvider:
             if mcap < min_market_cap:
                 continue
             rate = px.get("changeRate")
+            if self.country != "KR":  # 달러: 거래대금 백만 달러, 시가총액 십억 달러
+                out.append(
+                    {
+                        "symbol": sym,
+                        "name": uni.get(sym, {}).get("name", ""),
+                        "english_name": info.get(sym, {}).get("englishName"),
+                        "market": mk,
+                        "type": uni.get(sym, {}).get("securityType", "STOCK"),
+                        "price": last,
+                        "change_pct": round(_num(rate) * 100, 2) if rate is not None else None,
+                        "trading_value_musd": round(_num(r.get("tradingAmount")) / 1e6, 1),
+                        "market_cap_busd": round(mcap / 1e9, 2) if mcap else None,
+                    }
+                )
+                continue
             out.append(
                 {
                     "symbol": sym,
@@ -443,7 +505,8 @@ class TossMarketProvider:
                 }
             )
         if sort_by == "market_cap":
-            out.sort(key=lambda x: -(x["market_cap_eok"] or 0))
+            key = "market_cap_eok" if self.country == "KR" else "market_cap_busd"
+            out.sort(key=lambda x: -(x[key] or 0))
         return out[: max(1, min(30, limit))]
 
     async def _screen_investor(self, who: str, market: str, limit: int) -> list[dict[str, Any]]:
@@ -468,9 +531,44 @@ class TossMarketProvider:
             )
         return out[: max(1, min(30, limit))]
 
+    async def find(self, q: str, limit: int = 20) -> list[dict[str, Any]]:
+        """종목 고르기용 검색 (메모 카드, D-52): 코드·티커 앞자리 또는 이름(한글·영문) 일부, 대소문자 무시.
+
+        정렬: 코드 일치 → 코드 앞자리 → 이름 앞부분 → 이름 일부 (같으면 짧은 코드·코드순).
+        """
+        q = q.strip()
+        if not q:
+            return []
+        uni = await self.universe()
+        qu, ql = q.upper(), q.casefold()
+        ranked: list[tuple[int, int, str, dict[str, Any]]] = []
+        for sym, v in uni.items():
+            su = sym.upper()
+            names = [str(v.get("name") or "").casefold()]
+            eng = v.get("englishName") or (self._info.get(sym) or {}).get("englishName")
+            if eng:
+                names.append(str(eng).casefold())
+            if su == qu:
+                rank = 0
+            elif su.startswith(qu):
+                rank = 1
+            elif any(n.startswith(ql) for n in names):
+                rank = 2
+            elif any(ql in n for n in names):
+                rank = 3
+            else:
+                continue
+            ranked.append((rank, len(sym), sym, v))
+        ranked.sort(key=lambda x: x[:3])
+        return [
+            {"symbol": str(v["symbol"]), "name": str(v.get("name", "")), "market": str(v.get("market", ""))}
+            for _rank, _len, _sym, v in ranked[: max(1, limit)]
+        ]
+
     async def search(self, q: str, limit: int = 50) -> list[dict[str, Any]]:
         uni = await self.universe()
-        hits = [v for k, v in uni.items() if not q or q in k or q in str(v.get("name", ""))]
+        qu = q.upper()
+        hits = [v for k, v in uni.items() if not q or q in k or qu in k or q in str(v.get("name", ""))]
         return [
             {"symbol": v["symbol"], "name": v.get("name", ""), "market": v.get("market", "")}
             for v in hits[:limit]

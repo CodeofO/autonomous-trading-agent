@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import math
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any, Protocol
@@ -77,7 +78,14 @@ class PaperBroker(BrokerInterface):
         trading_mode: str = "paper",
         persist: bool = True,
         quotes: QuoteSource | None = None,
+        round_price: Callable[[float], float] | None = None,
+        keep_closed_orders: int | None = None,
     ) -> None:
+        """`round_price`: 체결가 반올림 (기본 소수 둘째 자리. 미장은 MarketSpec.round_price — $0.01/$0.0001).
+
+        `keep_closed_orders`: 저장할 때 끝난 주문(체결·취소·거부)을 최근 N건만 남긴다(B7, None = 모두).
+        미체결 주문은 항상 남는다. 주문 전체 기록은 DB orders 표에 있다(이 JSON 은 계좌 상태용).
+        """
         if trading_mode != "paper":
             raise LiveOrderBlockedError("PaperBroker 는 TRADING_MODE=paper 에서만 생성할 수 있습니다.")
         self.db = db
@@ -88,6 +96,8 @@ class PaperBroker(BrokerInterface):
         self.persist = persist
         self.trading_mode = trading_mode
         self.quotes = quotes
+        self.round_price = round_price or (lambda px: round(px, 2))
+        self.keep_closed_orders = keep_closed_orders
         self.state: dict[str, Any] = self._load() if persist else {}
         if not self.state:
             self.state = self._fresh(initial_cash)
@@ -113,9 +123,32 @@ class PaperBroker(BrokerInterface):
             row = s.get(PaperAccountState, 1)
             return dict(row.state) if row else {}
 
+    def prune_closed_orders(self) -> int:
+        """끝난 주문을 최근 `keep_closed_orders` 건만 남기고 지운다(만든 순서 기준). 지운 건수.
+
+        끝난 주문은 계좌 계산(예약 현금·매도 가능 수량·체결 처리)에 쓰이지 않는다. 같은 주문 번호 재요청(멱등)은
+        주문 직후에만 일어나므로 최근 N건이면 충분하다.
+        """
+        if self.keep_closed_orders is None:
+            return 0
+        keep = max(1, self.keep_closed_orders)
+        orders = self.state.get("orders", {})
+        closed = [oid for oid, o in orders.items() if o["status"] in TERMINAL]
+        drop = closed[: max(0, len(closed) - keep)]
+        if not drop:
+            return 0
+        gone = set(drop)
+        for oid in drop:
+            del orders[oid]
+        ids = self.state.get("client_ids", {})
+        for cid in [cid for cid, oid in ids.items() if oid in gone]:
+            del ids[cid]
+        return len(drop)
+
     def _save(self) -> None:
         if not self.persist:
             return
+        self.prune_closed_orders()
         with self.db.session() as s:
             row = s.get(PaperAccountState, 1)
             if row is None:
@@ -147,10 +180,10 @@ class PaperBroker(BrokerInterface):
             return {}
 
     async def get_quote(self, symbol: str) -> Quote | None:
-        b = self.store.last_bar(symbol)
         px = (await self._live_prices([symbol])).get(symbol)
-        if px:
-            return Quote(symbol, px, self.clock.now().astimezone(KST).date(), b.name if b else "")
+        if px:  # 이름 = 마지막 일봉의 이름 (캐시)
+            return Quote(symbol, px, self.cal.local_date(self.clock.now()), self.store.name_of(symbol))
+        b = self.store.last_bar(symbol)
         return Quote(symbol, b.close, b.day, b.name) if b else None
 
     async def get_candles(self, symbol: str, n: int = 120) -> list[object]:
@@ -169,26 +202,29 @@ class PaperBroker(BrokerInterface):
         )
 
     async def get_positions(self) -> list[Position]:
-        out = []
         live = await self._live_prices([s for s, p in self.state["positions"].items() if p["qty"] > 0])
-        today = self.clock.now().astimezone(KST).date()
-        for sym, p in self.state["positions"].items():
-            if p["qty"] <= 0:
-                continue
-            b = self.store.last_bar(sym)
+        today = self.cal.local_date(self.clock.now())
+        held = [(sym, p) for sym, p in self.state["positions"].items() if p["qty"] > 0]
+        # 종목마다 일봉을 따로 읽지 않는다(B1): 현재가가 있으면 이름만(캐시), 없으면 마지막 일봉을 한 번에
+        names = self.store.names(sym for sym, _ in held if sym in live)
+        bars = self.store.last_bars(sym for sym, _ in held if sym not in live)
+        out = []
+        for sym, p in held:
+            opened = date.fromisoformat(p["opened_day"]) if p.get("opened_day") else None
             if sym in live:
                 out.append(
                     Position(
                         symbol=sym,
-                        name=(b.name if b else p.get("name", "")),
+                        name=names[sym] if sym in names else p.get("name", ""),
                         quantity=int(p["qty"]),
                         avg_price=float(p["avg_price"]),
                         last_price=live[sym],
                         price_day=today,
-                        opened_day=date.fromisoformat(p["opened_day"]) if p.get("opened_day") else None,
+                        opened_day=opened,
                     )
                 )
                 continue
+            b = bars.get(sym)
             out.append(
                 Position(
                     symbol=sym,
@@ -197,13 +233,12 @@ class PaperBroker(BrokerInterface):
                     avg_price=float(p["avg_price"]),
                     last_price=float(b.close if b else p["avg_price"]),
                     price_day=b.day if b else None,
-                    opened_day=date.fromisoformat(p["opened_day"]) if p.get("opened_day") else None,
+                    opened_day=opened,
                 )
             )
         return sorted(out, key=lambda x: -x.market_value)
 
-    async def get_balance(self) -> Balance:
-        positions = await self.get_positions()
+    def _balance(self, positions: list[Position]) -> Balance:
         pv = sum(p.market_value for p in positions)
         st = self.state
         return Balance(
@@ -216,6 +251,13 @@ class PaperBroker(BrokerInterface):
             fees_paid=st["fees_paid"],
             taxes_paid=st["taxes_paid"],
         )
+
+    async def get_balance(self) -> Balance:
+        return self._balance(await self.get_positions())
+
+    async def account(self) -> tuple[Balance, list[Position]]:
+        positions = await self.get_positions()
+        return self._balance(positions), positions
 
     def open_orders(self) -> list[dict[str, Any]]:
         return [
@@ -261,8 +303,31 @@ class PaperBroker(BrokerInterface):
 
     def _reject(self, req: OrderRequest, reason: str) -> OrderResult:
         oid = self._new_order(req, OrderStatus.REJECTED, reject_reason=reason)
+        res = self._result(oid, [OrderStatus.REJECTED])  # 저장(오래된 끝난 주문 정리) 전에 결과를 만든다
         self._save()
-        return self._result(oid, [OrderStatus.REJECTED])
+        return res
+
+    async def _precheck(self, req: OrderRequest, basis: str | None) -> tuple[str | None, float]:
+        """접수 전 확인 → (거부 사유 또는 None, 매수 예약금). 확인 순서가 거부 사유의 우선순위다."""
+        if basis is None:
+            return "order-hours-closed", 0.0
+        if req.quantity <= 0:
+            return "invalid-quantity", 0.0
+        if req.order_type == OrderType.LIMIT and (req.limit_price is None or req.limit_price <= 0):
+            return "invalid-limit-price", 0.0
+        if req.side != OrderSide.BUY:
+            held = int(self.state["positions"].get(req.symbol, {}).get("qty", 0))
+            if req.quantity > held - self._pending_qty(req.symbol, OrderSide.SELL):
+                return "insufficient-sellable-quantity", 0.0
+            return None, 0.0
+        q = await self.get_quote(req.symbol)
+        if q is None:
+            return "no-reference-price", 0.0
+        ref = req.limit_price if req.order_type == OrderType.LIMIT and req.limit_price else q.price
+        reserved = ref * req.quantity * (1 + BUY_RESERVE_BUFFER) * (1 + self.costs.commission_rate)
+        if reserved > self.state["cash"] - self._reserved():
+            return "insufficient-buying-power", 0.0
+        return None, reserved
 
     async def place_order(self, req: OrderRequest) -> OrderResult:
         self._guard()
@@ -271,44 +336,30 @@ class PaperBroker(BrokerInterface):
             return self._result(existing)
         now = self.clock.now()
         basis = self.cal.fill_basis(now)
-        if basis is None:
-            return self._reject(req, "order-hours-closed")
-        if req.quantity <= 0:
-            return self._reject(req, "invalid-quantity")
-        if req.order_type == OrderType.LIMIT and (req.limit_price is None or req.limit_price <= 0):
-            return self._reject(req, "invalid-limit-price")
-        reserved = 0.0
-        if req.side == OrderSide.BUY:
-            q = await self.get_quote(req.symbol)
-            if q is None:
-                return self._reject(req, "no-reference-price")
-            ref = req.limit_price if req.order_type == OrderType.LIMIT and req.limit_price else q.price
-            reserved = ref * req.quantity * (1 + BUY_RESERVE_BUFFER) * (1 + self.costs.commission_rate)
-            if reserved > self.state["cash"] - self._reserved():
-                return self._reject(req, "insufficient-buying-power")
-        else:
-            held = int(self.state["positions"].get(req.symbol, {}).get("qty", 0))
-            if req.quantity > held - self._pending_qty(req.symbol, OrderSide.SELL):
-                return self._reject(req, "insufficient-sellable-quantity")
+        reason, reserved = await self._precheck(req, basis)
+        if reason is not None:
+            return self._reject(req, reason)
+        assert basis is not None
         if self.realtime and basis == "CLOSE":
             basis = "NOW"  # 장중: 현재가 즉시 체결
         oid = self._new_order(
             req,
             OrderStatus.SUBMITTED,
             fill_basis=basis,
-            trade_day=now.astimezone(KST).date().isoformat(),
+            trade_day=self.cal.local_date(now).isoformat(),
             reserved=reserved,
         )
+        fills: list[FillInfo] = []
         if basis == "NOW":
             o = self.state["orders"][oid]
             px = (await self._live_prices([req.symbol])).get(req.symbol)
             fills = self._fill_now(o, px, now) if px else []
-            self._save()
-            if fills:
-                return self._result(oid, [OrderStatus.SUBMITTED, OrderStatus.FILLED], fills)
-            return self._result(oid, [OrderStatus.SUBMITTED])
-        self._save()
-        return self._result(oid, [OrderStatus.SUBMITTED])
+        if fills:
+            res = self._result(oid, [OrderStatus.SUBMITTED, OrderStatus.FILLED], fills)
+        else:
+            res = self._result(oid, [OrderStatus.SUBMITTED])
+        self._save()  # 결과를 먼저 만든다 (저장 때 오래된 끝난 주문을 정리하므로)
+        return res
 
     async def cancel_order(self, broker_order_id: str) -> OrderResult:
         self._guard()
@@ -320,8 +371,9 @@ class PaperBroker(BrokerInterface):
         o["status"] = OrderStatus.CANCELED.value
         o["reserved"] = 0.0
         o["reject_reason"] = "canceled-by-user"
+        res = self._result(broker_order_id, [OrderStatus.CANCELED])
         self._save()
-        return self._result(broker_order_id, [OrderStatus.CANCELED])
+        return res
 
     async def get_order_status(self, broker_order_id: str) -> OrderResult:
         return self._result(broker_order_id)
@@ -354,7 +406,7 @@ class PaperBroker(BrokerInterface):
             if (o["side"] == "BUY" and px > limit) or (o["side"] == "SELL" and px < limit):
                 return []
         slip = self.costs.slippage_bps / 10_000
-        fill_px = round(px * (1 + slip) if o["side"] == "BUY" else px * (1 - slip), 2)
+        fill_px = self.round_price(px * (1 + slip) if o["side"] == "BUY" else px * (1 - slip))
         qty = o["quantity"] - o["filled_qty"]
         if o["side"] == "BUY":
             qty = min(
@@ -370,7 +422,7 @@ class PaperBroker(BrokerInterface):
 
     async def _settle_realtime(self) -> list[OrderResult]:
         now = self.clock.now()
-        today = now.astimezone(KST).date()
+        today = self.cal.local_date(now)
         session = self.cal.session(today)
         opened = [(oid, o) for oid, o in self.state["orders"].items() if o["status"] not in TERMINAL]
         if not opened:
@@ -431,7 +483,7 @@ class PaperBroker(BrokerInterface):
             o["reject_reason"] = "limit-not-reached" if raw is None else "no-volume"
             return self._result(oid, [OrderStatus.CANCELED])
         slip = self.costs.slippage_bps / 10_000
-        px = round(raw * (1 + slip) if o["side"] == "BUY" else raw * (1 - slip), 2)
+        px = self.round_price(raw * (1 + slip) if o["side"] == "BUY" else raw * (1 - slip))
         qty = min(remaining, cap)
         if o["side"] == "BUY":
             affordable = math.floor(self.state["cash"] / (px * (1 + self.costs.commission_rate)))
@@ -440,9 +492,13 @@ class PaperBroker(BrokerInterface):
             o["status"] = OrderStatus.CANCELED.value
             o["reject_reason"] = "insufficient-cash-at-fill"
             return self._result(oid, [OrderStatus.CANCELED])
-        when = datetime.combine(bar.day, datetime.min.time(), KST).replace(
-            hour=9 if o["fill_basis"] == "OPEN" else 15, minute=0 if o["fill_basis"] == "OPEN" else 30
-        )
+        sess = self.cal.session(bar.day)
+        if sess is not None:  # 시가 체결 = 장 시작, 종가 체결 = 장 마감 (국장 09:00 / 15:30 KST)
+            when = sess.open if o["fill_basis"] == "OPEN" else sess.close
+        else:
+            when = datetime.combine(bar.day, datetime.min.time(), KST).replace(
+                hour=9 if o["fill_basis"] == "OPEN" else 15, minute=0 if o["fill_basis"] == "OPEN" else 30
+            )
         fills.append(self._apply_fill(o, qty, px, when))
         if o["filled_qty"] >= o["quantity"]:
             o["status"] = OrderStatus.FILLED.value
@@ -463,7 +519,7 @@ class PaperBroker(BrokerInterface):
             new_qty = pos["qty"] + qty
             pos["avg_price"] = (pos["avg_price"] * pos["qty"] + notional + fee) / new_qty
             pos["qty"] = new_qty
-            pos["opened_day"] = pos["opened_day"] or when.date().isoformat()
+            pos["opened_day"] = pos["opened_day"] or self.cal.local_date(when).isoformat()
             st["cash"] -= notional + fee
         else:
             st["realized_pnl"] += (px - pos["avg_price"]) * qty - fee - tax

@@ -13,18 +13,36 @@ from app.container import Container
 router = APIRouter()
 
 
-@router.websocket("/ws/events")
-async def events_ws(ws: WebSocket) -> None:
+async def _stack(ws: WebSocket) -> Container | None:
+    """토큰 확인 후 시장 스택. 안 되면 닫고 None (4401 로그인 필요 / 4404 없는 시장)."""
     c: Container = ws.app.state.container
     # 브라우저 WebSocket 은 헤더를 못 붙이므로 쿼리 토큰 사용 (로컬 전용, 로그에 남기지 않음)
     token = ws.query_params.get("token", "")
     if c.settings.auth_enabled and verify_token(c.secret_key, token) is None:
         await ws.close(code=4401)
+        return None
+    # ?market=US → 미장 스택의 이벤트 (D-48). 기본은 국장
+    market = ws.query_params.get("market", "KR").upper()
+    if market == "KR":
+        return c
+    us: Container | None = (getattr(ws.app.state, "containers", None) or {}).get(market)
+    if us is None:
+        await ws.close(code=4404)
+    return us
+
+
+@router.websocket("/ws/events")
+async def events_ws(ws: WebSocket) -> None:
+    c = await _stack(ws)
+    if c is None:
         return
     await ws.accept()
     q = c.hub.subscribe()
     await ws.send_json(
-        {"channel": "hello", "data": {"engine_status": c.engine.status, "agent_running": c.runner.running}}
+        {
+            "channel": "hello",
+            "data": {"engine_status": c.engine.status, "agent_running": c.runner.running, "market": c.code},
+        }
     )
 
     async def pump() -> None:

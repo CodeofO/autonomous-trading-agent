@@ -1,0 +1,483 @@
+/* ---------- 한눈에 보기 ('전체') — pages/Overview.tsx ----------
+   시장 색(--mkt-kr · --mkt-us)은 등락 색(빨강·파랑)과 겹치지 않게 styles.css :root 에 둔다 */
+.overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+.ov-markets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+  gap: 16px;
+}
+/* 아주 넓은 화면: 왼쪽에 총자산·시장·시간표, 오른쪽에 소식 */
+@media (min-width: 1440px) {
+  .overview {
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 400px);
+    align-items: start;
+  }
+  .ov-total,
+  .ov-markets,
+  .ov-timeline {
+    grid-column: 1;
+  }
+  .ov-feed {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+  }
+}
+
+/* 자리 표시 (넓은 화면에서도 보인다) */
+.ov-skel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0;
+}
+.ov-skel i {
+  display: block;
+  height: 14px;
+  border-radius: 7px;
+  background: linear-gradient(90deg, var(--panel-2) 30%, var(--border) 50%, var(--panel-2) 70%) 0 0 / 300%
+    100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+.ov-skel i:first-child {
+  height: 26px;
+  width: 60%;
+}
+.ov-skel i:nth-child(3n) {
+  width: 80%;
+}
+
+/* 총자산 */
+.ov-total {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px 32px;
+}
+.ov-total-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ov-label {
+  color: var(--text-dim);
+  font-size: 13px;
+}
+.ov-total-value {
+  font-size: 30px;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+.ov-total-pnl {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.ov-fx {
+  font-size: 12px;
+}
+.ov-split {
+  flex: 1 1 280px;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ov-split-bar {
+  display: flex;
+  gap: 2px;
+  height: 12px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--panel-2);
+}
+.ov-split-bar i {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  transition: width 0.4s ease;
+}
+.ov-split-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  font-size: 13px;
+}
+.ov-split-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.ov-split-bar i.mkt-kr,
+.sw.mkt-kr,
+.ov-tl-bar.mkt-kr {
+  background: var(--mkt-kr);
+}
+.ov-split-bar i.mkt-us,
+.sw.mkt-us,
+.ov-tl-bar.mkt-us {
+  background: var(--mkt-us);
+}
+
+/* 시장 카드 */
+.ov-market {
+  --mkt-c: var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-top: 3px solid var(--mkt-c);
+}
+.ov-market.mkt-kr {
+  --mkt-c: var(--mkt-kr);
+}
+.ov-market.mkt-us {
+  --mkt-c: var(--mkt-us);
+}
+.ov-market-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+.ov-market-head h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 auto 0 0;
+}
+.ov-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.ov-state.open {
+  color: var(--ok);
+  font-weight: 700;
+}
+.ov-eq {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+.ov-eq b {
+  font-size: 24px;
+  font-variant-numeric: tabular-nums;
+}
+.ov-figs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.ov-empty {
+  margin: 4px 0;
+}
+.ov-pos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ov-pos li {
+  display: grid;
+  grid-template-columns: minmax(0, 8em) minmax(36px, 1fr) 3.6em 4.8em;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+a.ov-pos-name {
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ov-bar {
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--panel-2);
+}
+.ov-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--mkt-c);
+}
+.ov-pos-w,
+.ov-pos-p {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.ov-pos-w {
+  color: var(--text-dim);
+}
+.ov-manager {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  font-size: 13px;
+}
+.ov-manager .pill {
+  margin-left: 0;
+}
+a.ov-last {
+  display: block;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--panel-2);
+  color: var(--text);
+}
+a.ov-last:hover {
+  text-decoration: none;
+  background: var(--accent-soft);
+}
+.ov-last p {
+  margin: 2px 0 0;
+  font-size: 13px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.ov-last-none {
+  margin: 0;
+  font-size: 13px;
+}
+.ov-actions {
+  margin-top: auto;
+}
+.ov-actions a.btn {
+  color: var(--text);
+}
+.ov-actions a.btn:hover {
+  text-decoration: none;
+}
+
+/* 오늘 장 시간 */
+.ov-tl {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0 12px;
+  padding-top: 12px; /* '지금' 글자 자리 */
+}
+.ov-tl-names,
+.ov-tl-lanes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ov-tl-lanes {
+  position: relative;
+  padding-bottom: 18px;
+}
+.ov-tl-name {
+  height: 30px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.ov-tl-name small {
+  font-weight: 500;
+  font-size: 11px;
+}
+/* 3시간마다 눈금선 (12.5%) */
+.ov-tl-track {
+  position: relative;
+  height: 30px;
+  border-radius: 8px;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 calc(12.5% - 1px), var(--grid) calc(12.5% - 1px) 12.5%),
+    var(--panel-2);
+}
+.ov-tl-bar {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  min-width: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.ov-tl-bar.done {
+  opacity: 0.4;
+}
+.ov-tl-bar.next {
+  background: transparent;
+  border: 1.5px dashed var(--mkt-c, var(--text-dim));
+  color: var(--text);
+}
+.ov-tl-bar.mkt-kr.next {
+  --mkt-c: var(--mkt-kr);
+}
+.ov-tl-bar.mkt-us.next {
+  --mkt-c: var(--mkt-us);
+}
+.ov-tl-bar.open {
+  box-shadow:
+    0 0 0 2px var(--panel),
+    0 0 0 4px var(--ok);
+}
+.ov-tl-axis {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 14px;
+  font-size: 10.5px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.ov-tl-axis span {
+  position: absolute;
+  transform: translateX(-50%);
+}
+.ov-tl-axis span:first-child {
+  transform: none;
+}
+.ov-tl-now {
+  position: absolute;
+  top: -6px;
+  bottom: 16px;
+  left: var(--now, 0%);
+  width: 2px;
+  margin-left: -1px;
+  background: var(--danger);
+  border-radius: 1px;
+  pointer-events: none;
+  transition: left 0.6s ease;
+}
+.ov-tl-now b {
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  color: var(--danger);
+  white-space: nowrap;
+}
+
+/* 두 시장 소식 */
+.ov-feed-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ov-feed-list li + li {
+  border-top: 1px solid var(--border);
+}
+a.ov-feed-item {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 8px;
+  padding: 9px 4px;
+  color: var(--text);
+  border-radius: 8px;
+}
+a.ov-feed-item:hover {
+  text-decoration: none;
+  background: var(--panel-2);
+}
+.ov-feed-icon {
+  line-height: 20px;
+}
+.ov-feed-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  font-size: 13px;
+}
+.ov-feed-text b {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.ov-feed-body {
+  color: var(--text-dim);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.ov-feed-item time {
+  font-size: 11.5px;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .overview,
+  .ov-markets {
+    gap: 12px;
+  }
+  .ov-total-value {
+    font-size: 26px;
+  }
+  .ov-split {
+    max-width: none;
+  }
+  .ov-eq b {
+    font-size: 21px;
+  }
+  .ov-pos li {
+    grid-template-columns: minmax(0, 1fr) 56px 3.4em 4.6em;
+  }
+  a.ov-pos-name,
+  a.ov-last,
+  a.ov-feed-item {
+    -webkit-user-select: none;
+    user-select: none;
+    touch-action: manipulation;
+  }
+  a.ov-feed-item {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    padding: 10px 2px;
+  }
+  .ov-feed-icon {
+    display: none;
+  }
+  .ov-actions .btn {
+    flex: 1;
+    text-align: center;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ov-skel i {
+    animation: none;
+  }
+  .ov-split-bar i,
+  .ov-tl-now {
+    transition: none;
+  }
+}

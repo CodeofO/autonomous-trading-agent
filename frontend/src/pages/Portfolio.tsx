@@ -1,74 +1,56 @@
+import { memo, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { get, post } from "../api/client";
-import type { Decision, FillRow, Order, Position } from "../api/types";
-import {
-  ACTION_KO,
-  BASIS_KO,
-  fmtDateTime,
-  fmtNum,
-  fmtPct,
-  fmtWon,
-  signClass,
-  STATUS_KO,
-} from "../utils/format";
+import type { Currency, Decision, FillRow, Order } from "../api/types";
+import { HoldingsTable } from "../components/HoldingsTable";
+import { SkeletonCards } from "../components/Skeleton";
+import { usePortfolio } from "../hooks";
+import { errorText } from "../api/client";
+import { invalidateNames, useApi, useCurrency } from "../market";
+import { toast } from "../ui/toast";
+import { ACTION_KO, BASIS_KO, fmtDateTime, fmtNum, money, price, STATUS_KO } from "../utils/format";
 
-export function HoldingsTable({ positions }: { positions: Position[] }) {
-  if (positions.length === 0)
-    return <p className="muted empty">보유 종목이 없어요. 매니저가 기회를 찾는 중이에요 👀</p>;
-  return (
-    <table className="table">
-      <thead>
-        <tr>
-          <th>종목</th>
-          <th className="r">수량</th>
-          <th className="r">평단</th>
-          <th className="r">현재가</th>
-          <th className="r">평가금액</th>
-          <th className="r">수익률</th>
-          <th className="r">비중</th>
-        </tr>
-      </thead>
-      <tbody>
-        {positions.map((p) => (
-          <tr key={p.symbol}>
-            <td>
-              <Link to={`/stock/${p.symbol}`}>{p.name || p.symbol}</Link>{" "}
-              <small className="muted">{p.symbol}</small>
-            </td>
-            <td className="r">{fmtNum(p.quantity)}</td>
-            <td className="r">{fmtNum(p.avg_price)}</td>
-            <td className="r">{fmtNum(p.last_price)}</td>
-            <td className="r">{fmtWon(p.market_value)}</td>
-            <td className={`r ${signClass(p.pnl_pct)}`}>{fmtPct(p.pnl_pct)}</td>
-            <td className="r">{p.weight_pct.toFixed(1)}%</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
+const OPEN_STATUSES = new Set(["PENDING", "SUBMITTED", "PARTIALLY_FILLED"]);
 
 export function Portfolio() {
   const qc = useQueryClient();
-  const pf = useQuery({
-    queryKey: ["portfolio"],
-    queryFn: () => get<{ positions: Position[] }>("/api/portfolio"),
+  const api = useApi();
+  const cur = useCurrency();
+  const pf = usePortfolio();
+  const orders = useQuery({
+    queryKey: api.key("orders"),
+    queryFn: () => api.get<Order[]>("/api/orders?limit=300"),
   });
-  const orders = useQuery({ queryKey: ["orders"], queryFn: () => get<Order[]>("/api/orders?limit=300") });
-  const fills = useQuery({ queryKey: ["fills"], queryFn: () => get<FillRow[]>("/api/fills?limit=200") });
+  const fills = useQuery({
+    queryKey: api.key("fills"),
+    queryFn: () => api.get<FillRow[]>("/api/fills?limit=200"),
+  });
   const decisions = useQuery({
-    queryKey: ["decisions"],
-    queryFn: () => get<Decision[]>("/api/agent/decisions?limit=100"),
+    queryKey: api.key("decisions"),
+    queryFn: () => api.get<Decision[]>("/api/agent/decisions?limit=100"),
   });
   const cancel = useMutation({
-    mutationFn: (id: number) => post(`/api/orders/${id}/cancel`),
-    onSuccess: () => qc.invalidateQueries(),
+    mutationFn: (id: number) => api.post(`/api/orders/${id}/cancel`),
+    // 취소한 주문·주문 가능 현금·한눈에 보기만 다시 (나머지는 이벤트가 알려 준다)
+    onSuccess: (_d, id) => {
+      void invalidateNames(qc, ["orders", "portfolio", "decisions", "overview"], api.market);
+      toast(`주문 #${id} 을(를) 취소했어요`);
+    },
+    // 표의 줄마다 오류를 보여 줄 자리가 없다 — 토스트로
+    onError: (e) => toast.error(`주문을 취소하지 못했어요: ${errorText(e)}`),
   });
-  const open = (orders.data ?? []).filter((o) =>
-    ["PENDING", "SUBMITTED", "PARTIALLY_FILLED"].includes(o.status),
-  );
-  const closed = (orders.data ?? []).filter((o) => !open.includes(o));
+  const { mutate: cancelOrder } = cancel; // 늘 같은 함수 — 주문 줄(memo)이 다시 그려지지 않게
+  // 미체결/지난 주문을 한 번에 나눈다
+  const [open, closed] = useMemo(() => {
+    const o: Order[] = [];
+    const c: Order[] = [];
+    for (const x of orders.data ?? []) (OPEN_STATUSES.has(x.status) ? o : c).push(x);
+    return [o, c.slice(0, 100)];
+  }, [orders.data]);
+
+  // 표 다섯 개가 따로 도착하며 아래 표를 밀어내지 않게, 처음에는 모두 받을 때까지 자리 표시 한 번만
+  if (pf.isPending || orders.isPending || fills.isPending || decisions.isPending)
+    return <SkeletonCards heights={[180, 140, 220, 220, 260]} label="포트폴리오 불러오는 중" />;
 
   return (
     <div className="stack">
@@ -80,10 +62,11 @@ export function Portfolio() {
       <section className="card">
         <h2>미체결 주문 ({open.length})</h2>
         <p className="muted">
-          토스 실시세 모드는 현재가로 즉시(지정가는 도달 시) 체결되고 15:20 미체결분은 취소돼요. 가상 시장
-          모드는 다음 공식 일봉으로 확정돼요.
+          {cur === "USD"
+            ? "미장은 달러 모의계좌예요. 정규장(한국 시각 밤) 현재가로 즉시(지정가는 도달 시) 체결되고, 장 마감 전 미체결분은 취소돼요."
+            : "토스 실시세 모드는 현재가로 즉시(지정가는 도달 시) 체결되고 15:20 미체결분은 취소돼요. 가상 시장 모드는 다음 공식 일봉으로 확정돼요."}
         </p>
-        <OrderTable orders={open} onCancel={(id) => cancel.mutate(id)} />
+        <OrderTable orders={open} currency={cur} onCancel={cancelOrder} />
       </section>
 
       <section className="card">
@@ -102,27 +85,14 @@ export function Portfolio() {
                 <th className="r">수수료+세금</th>
               </tr>
             </thead>
-            <tbody>
-              {fills.data?.map((f) => (
-                <tr key={f.id}>
-                  <td>{fmtDateTime(f.filled_at)}</td>
-                  <td>
-                    <Link to={`/stock/${f.symbol}`}>{f.name || f.symbol}</Link>
-                  </td>
-                  <td className={f.side === "BUY" ? "up" : "down"}>{ACTION_KO[f.side]}</td>
-                  <td className="r">{fmtNum(f.quantity)}</td>
-                  <td className="r">{fmtNum(f.price, 2)}</td>
-                  <td className="r">{fmtWon(f.fee + f.tax)}</td>
-                </tr>
-              ))}
-            </tbody>
+            <tbody>{fills.data?.map((f) => <FillTr key={f.id} f={f} currency={cur} />)}</tbody>
           </table>
         )}
       </section>
 
       <section className="card">
         <h2>지난 주문</h2>
-        <OrderTable orders={closed.slice(0, 100)} />
+        <OrderTable orders={closed} currency={cur} />
       </section>
 
       <section className="card">
@@ -138,29 +108,93 @@ export function Portfolio() {
               <th>결과</th>
             </tr>
           </thead>
-          <tbody>
-            {decisions.data?.map((d) => (
-              <tr key={d.id}>
-                <td>{fmtDateTime(d.created_at)}</td>
-                <td>
-                  <Link to={`/stock/${d.symbol}`}>{d.name || d.symbol}</Link>
-                </td>
-                <td>
-                  <span className={`action-badge ${d.action.toLowerCase()}`}>{ACTION_KO[d.action]}</span>
-                </td>
-                <td>{Math.round(d.confidence * 100)}%</td>
-                <td className="wrap">{d.rationale}</td>
-                <td className="wrap muted">{d.outcome}</td>
-              </tr>
-            ))}
-          </tbody>
+          <tbody>{decisions.data?.map((d) => <DecisionTr key={d.id} d={d} />)}</tbody>
         </table>
       </section>
     </div>
   );
 }
 
-function OrderTable({ orders, onCancel }: { orders: Order[]; onCancel?: (id: number) => void }) {
+// 표의 줄은 memo — 다시 받아도 바뀌지 않은 줄(같은 객체, React Query 가 유지)은 다시 그리지 않는다
+const FillTr = memo(function FillTr({ f, currency }: { f: FillRow; currency: Currency }) {
+  return (
+    <tr>
+      <td>{fmtDateTime(f.filled_at)}</td>
+      <td>
+        <Link to={`/stock/${f.symbol}`}>{f.name || f.symbol}</Link>
+      </td>
+      <td className={f.side === "BUY" ? "up" : "down"}>{ACTION_KO[f.side]}</td>
+      <td className="r">{fmtNum(f.quantity)}</td>
+      <td className="r">{price(f.price, currency, 2)}</td>
+      <td className="r">{money(f.fee + f.tax, currency)}</td>
+    </tr>
+  );
+});
+
+const DecisionTr = memo(function DecisionTr({ d }: { d: Decision }) {
+  return (
+    <tr>
+      <td>{fmtDateTime(d.created_at)}</td>
+      <td>
+        <Link to={`/stock/${d.symbol}`}>{d.name || d.symbol}</Link>
+      </td>
+      <td>
+        <span className={`action-badge ${d.action.toLowerCase()}`}>{ACTION_KO[d.action]}</span>
+      </td>
+      <td>{Math.round(d.confidence * 100)}%</td>
+      <td className="wrap">{d.rationale}</td>
+      <td className="wrap muted">{d.outcome}</td>
+    </tr>
+  );
+});
+
+const OrderTr = memo(function OrderTr({
+  o,
+  currency,
+  onCancel,
+}: {
+  o: Order;
+  currency: Currency;
+  onCancel?: (id: number) => void;
+}) {
+  return (
+    <tr>
+      <td>{fmtDateTime(o.created_at)}</td>
+      <td>
+        <Link to={`/stock/${o.symbol}`}>{o.name || o.symbol}</Link>
+      </td>
+      <td className={o.side === "BUY" ? "up" : "down"}>{ACTION_KO[o.side]}</td>
+      <td className="r">{fmtNum(o.quantity)}</td>
+      <td>
+        {o.trade_day} {BASIS_KO[o.fill_basis] ?? ""}
+      </td>
+      <td>
+        <span className={`pill ${o.status.toLowerCase()}`}>{STATUS_KO[o.status] ?? o.status}</span>
+      </td>
+      <td className="r">
+        {o.filled_qty > 0 ? `${fmtNum(o.filled_qty)} @ ${price(o.avg_fill_price, currency)}` : "—"}
+      </td>
+      <td className="wrap muted">{o.reject_reason ?? o.reason}</td>
+      {onCancel && (
+        <td>
+          <button className="btn tiny" onClick={() => onCancel(o.id)}>
+            취소
+          </button>
+        </td>
+      )}
+    </tr>
+  );
+});
+
+function OrderTable({
+  orders,
+  currency,
+  onCancel,
+}: {
+  orders: Order[];
+  currency: Currency;
+  onCancel?: (id: number) => void;
+}) {
   if (orders.length === 0) return <p className="muted empty">없음</p>;
   return (
     <table className="table">
@@ -179,31 +213,7 @@ function OrderTable({ orders, onCancel }: { orders: Order[]; onCancel?: (id: num
       </thead>
       <tbody>
         {orders.map((o) => (
-          <tr key={o.id}>
-            <td>{fmtDateTime(o.created_at)}</td>
-            <td>
-              <Link to={`/stock/${o.symbol}`}>{o.name || o.symbol}</Link>
-            </td>
-            <td className={o.side === "BUY" ? "up" : "down"}>{ACTION_KO[o.side]}</td>
-            <td className="r">{fmtNum(o.quantity)}</td>
-            <td>
-              {o.trade_day} {BASIS_KO[o.fill_basis] ?? ""}
-            </td>
-            <td>
-              <span className={`pill ${o.status.toLowerCase()}`}>{STATUS_KO[o.status] ?? o.status}</span>
-            </td>
-            <td className="r">
-              {o.filled_qty > 0 ? `${fmtNum(o.filled_qty)} @ ${fmtNum(o.avg_fill_price, 0)}` : "—"}
-            </td>
-            <td className="wrap muted">{o.reject_reason ?? o.reason}</td>
-            {onCancel && (
-              <td>
-                <button className="btn tiny" onClick={() => onCancel(o.id)}>
-                  취소
-                </button>
-              </td>
-            )}
-          </tr>
+          <OrderTr key={o.id} o={o} currency={currency} onCancel={onCancel} />
         ))}
       </tbody>
     </table>

@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PushStatus } from "../api/types";
-import { PushSettings } from "../pages/Settings";
+import { PushSettings } from "../pages/settings/AlertsSection";
 import { setDeviceId } from "../push";
 import { mockFetch, renderWithProviders } from "./utils";
 

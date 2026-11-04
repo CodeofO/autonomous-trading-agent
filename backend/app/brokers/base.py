@@ -131,6 +131,10 @@ class BrokerInterface(ABC):
     @abstractmethod
     async def get_positions(self) -> list[Position]: ...
 
+    async def account(self) -> tuple[Balance, list[Position]]:
+        """잔고와 보유 종목을 함께 — 보유 종목 평가(현재가·일봉 조회)를 한 번만 한다. 기본: 각각 조회."""
+        return await self.get_balance(), await self.get_positions()
+
     @abstractmethod
     async def place_order(self, req: OrderRequest) -> OrderResult: ...
 

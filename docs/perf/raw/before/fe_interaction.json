@@ -1,0 +1,716 @@
+{
+  "label": "before",
+  "generated_at": "2026-11-04T14:27:35.448Z",
+  "git": {
+    "head": "80b1f74",
+    "branch": "main",
+    "frontend_uncommitted_paths": 48
+  },
+  "base_url": "http://localhost:15173",
+  "node": "v25.8.0",
+  "chromium": "156.0.8078.4",
+  "runs": 3,
+  "scroll_step_px": 40,
+  "room_scroll": {
+    "desktop": {
+      "median": {
+        "scroll_height": 1922,
+        "step_px": 40,
+        "chat_rows": 14,
+        "dom_elements": 469,
+        "duration_ms": 1175,
+        "frames": 69,
+        "frames_over_50ms": 0,
+        "frames_over_33ms": 0,
+        "frame_p50_ms": 16.7,
+        "frame_p95_ms": 16.7,
+        "frame_max_ms": 16.8,
+        "avg_fps": 58.7,
+        "react_commits": 4,
+        "long_tasks": 0,
+        "long_task_ms": 0
+      },
+      "scroller": "chat-scroll",
+      "all_runs": [
+        {
+          "ok": true,
+          "scroller": "chat-scroll",
+          "scroll_height": 1922,
+          "step_px": 40,
+          "chat_rows": 14,
+          "dom_elements": 469,
+          "duration_ms": 1169.6,
+          "frames": 69,
+          "frames_over_50ms": 0,
+          "frames_over_33ms": 0,
+          "frame_p50_ms": 16.7,
+          "frame_p95_ms": 16.7,
+          "frame_max_ms": 16.8,
+          "avg_fps": 59,
+          "react_commits": 4,
+          "long_tasks": 0,
+          "long_task_ms": 0
+        },
+        {
+          "ok": true,
+          "scroller": "chat-scroll",
+          "scroll_height": 1922,
+          "step_px": 40,
+          "chat_rows": 14,
+          "dom_elements": 469,
+          "duration_ms": 1175,
+          "frames": 69,
+          "frames_over_50ms": 0,
+          "frames_over_33ms": 0,
+          "frame_p50_ms": 16.7,
+          "frame_p95_ms": 16.7,
+          "frame_max_ms": 16.7,
+          "avg_fps": 58.7,
+          "react_commits": 4,
+          "long_tasks": 0,
+          "long_task_ms": 0
+        },
+        {
+          "ok": true,
+          "scroller": "chat-scroll",
+          "scroll_height": 1922,
+          "step_px": 40,
+          "chat_rows": 14,
+          "dom_elements": 469,
+          "duration_ms": 1177.8,
+          "frames": 69,
+          "frames_over_50ms": 0,
+          "frames_over_33ms": 0,
+          "frame_p50_ms": 16.7,
+          "frame_p95_ms": 16.7,
+          "frame_max_ms": 16.8,
+          "avg_fps": 58.6,
+          "react_commits": 4,
+          "long_tasks": 0,
+          "long_task_ms": 0
+        }
+      ]
+    },
+    "mobile_cpu4x": {
+      "median": {
+        "scroll_height": 2525,
+        "step_px": 40,
+        "chat_rows": 14,
+        "dom_elements": 469,
+        "duration_ms": 1808.6,
+        "frames": 107,
+        "frames_over_50ms": 0,
+        "frames_over_33ms": 0,
+        "frame_p50_ms": 16.7,
+        "frame_p95_ms": 16.7,
+        "frame_max_ms": 16.8,
+        "avg_fps": 59.2,
+        "react_commits": 4,
+        "long_tasks": 0,
+        "long_task_ms": 0
+      },
+      "scroller": "chat-scroll",
+      "all_runs": [
+        {
+          "ok": true,
+          "scroller": "chat-scroll",
+          "scroll_height": 2525,
+          "step_px": 40,
+          "chat_rows": 14,
+          "dom_elements": 469,
+          "duration_ms": 1801.2,
+          "frames": 107,
+          "frames_over_50ms": 0,
+          "frames_over_33ms": 0,
+          "frame_p50_ms": 16.7,
+          "frame_p95_ms": 16.7,
+          "frame_max_ms": 16.8,
+          "avg_fps": 59.4,
+          "react_commits": 4,
+          "long_tasks": 0,
+          "long_task_ms": 0
+        },
+        {
+          "ok": true,
+          "scroller": "chat-scroll",
+          "scroll_height": 2525,
+          "step_px": 40,
+          "chat_rows": 14,
+          "dom_elements": 469,
+          "duration_ms": 1808.8,
+          "frames": 107,
+          "frames_over_50ms": 0,
+          "frames_over_33ms": 0,
+          "frame_p50_ms": 16.7,
+          "frame_p95_ms": 16.7,
+          "frame_max_ms": 16.8,
+          "avg_fps": 59.2,
+          "react_commits": 4,
+          "long_tasks": 0,
+          "long_task_ms": 0
+        },
+        {
+          "ok": true,
+          "scroller": "chat-scroll",
+          "scroll_height": 2525,
+          "step_px": 40,
+          "chat_rows": 14,
+          "dom_elements": 469,
+          "duration_ms": 1808.6,
+          "frames": 107,
+          "frames_over_50ms": 0,
+          "frames_over_33ms": 0,
+          "frame_p50_ms": 16.7,
+          "frame_p95_ms": 16.7,
+          "frame_max_ms": 16.7,
+          "avg_fps": 59.2,
+          "react_commits": 4,
+          "long_tasks": 0,
+          "long_task_ms": 0
+        }
+      ]
+    }
+  },
+  "dashboard_chat_scroll": {
+    "desktop": {
+      "median": {
+        "scroll_height": 15086,
+        "step_px": 40,
+        "chat_rows": 55,
+        "dom_elements": 1843,
+        "duration_ms": 12354,
+        "frames": 739,
+        "frames_over_50ms": 0,
+        "frames_over_33ms": 0,
+        "frame_p50_ms": 16.7,
+        "frame_p95_ms": 16.8,
+        "frame_max_ms": 33.3,
+        "avg_fps": 59.8,
+        "react_commits": 22,
+        "long_tasks": 0,
+        "long_task_ms": 0
+      },
+      "scroller": "chat-scroll",
+      "all_runs": [
+        {
+          "ok": true,
+          "scroller": "chat-scroll",
+          "scroll_height": 15086,
+          "step_px": 40,
+          "chat_rows": 55,
+          "dom_elements": 1843,
+          "duration_ms": 12335.9,
+          "frames": 739,
+          "frames_over_50ms": 0,
+          "frames_over_33ms": 0,
+          "frame_p50_ms": 16.7,
+          "frame_p95_ms": 16.7,
+          "frame_max_ms": 16.8,
+          "avg_fps": 59.9,
+          "react_commits": 24,
+          "long_tasks": 0,
+          "long_task_ms": 0
+        },
+        {
+          "ok": true,
+          "scroller": "chat-scroll",
+          "scroll_height": 15086,
+          "step_px": 40,
+          "chat_rows": 55,
+          "dom_elements": 1843,
+          "duration_ms": 12354,
+          "frames": 739,
+          "frames_over_50ms": 0,
+          "frames_over_33ms": 0,
+          "frame_p50_ms": 16.7,
+          "frame_p95_ms": 16.8,
+          "frame_max_ms": 33.3,
+          "avg_fps": 59.8,
+          "react_commits": 21,
+          "long_tasks": 0,
+          "long_task_ms": 0
+        },
+        {
+          "ok": true,
+          "scroller": "chat-scroll",
+          "scroll_height": 15086,
+          "step_px": 40,
+          "chat_rows": 55,
+          "dom_elements": 1843,
+          "duration_ms": 12359.7,
+          "frames": 739,
+          "frames_over_50ms": 0,
+          "frames_over_33ms": 0,
+          "frame_p50_ms": 16.7,
+          "frame_p95_ms": 16.8,
+          "frame_max_ms": 33.3,
+          "avg_fps": 59.8,
+          "react_commits": 22,
+          "long_tasks": 0,
+          "long_task_ms": 0
+        }
+      ]
+    },
+    "mobile_cpu4x": {
+      "median": {
+        "scroll_height": 23558,
+        "step_px": 40,
+        "chat_rows": 55,
+        "dom_elements": 1843,
+        "duration_ms": 19414.5,
+        "frames": 1157,
+        "frames_over_50ms": 0,
+        "frames_over_33ms": 1,
+        "frame_p50_ms": 16.7,
+        "frame_p95_ms": 16.7,
+        "frame_max_ms": 33.4,
+        "avg_fps": 59.6,
+        "react_commits": 35,
+        "long_tasks": 0,
+        "long_task_ms": 0
+      },
+      "scroller": "chat-scroll",
+      "all_runs": [
+        {
+          "ok": true,
+          "scroller": "chat-scroll",
+          "scroll_height": 23558,
+          "step_px": 40,
+          "chat_rows": 55,
+          "dom_elements": 1843,
+          "duration_ms": 19436,
+          "frames": 1157,
+          "frames_over_50ms": 0,
+          "frames_over_33ms": 1,
+          "frame_p50_ms": 16.7,
+          "frame_p95_ms": 16.7,
+          "frame_max_ms": 33.4,
+          "avg_fps": 59.5,
+          "react_commits": 35,
+          "long_tasks": 0,
+          "long_task_ms": 0
+        },
+        {
+          "ok": true,
+          "scroller": "chat-scroll",
+          "scroll_height": 23558,
+          "step_px": 40,
+          "chat_rows": 55,
+          "dom_elements": 1843,
+          "duration_ms": 19414.5,
+          "frames": 1157,
+          "frames_over_50ms": 0,
+          "frames_over_33ms": 0,
+          "frame_p50_ms": 16.7,
+          "frame_p95_ms": 16.7,
+          "frame_max_ms": 33.4,
+          "avg_fps": 59.6,
+          "react_commits": 34,
+          "long_tasks": 0,
+          "long_task_ms": 0
+        },
+        {
+          "ok": true,
+          "scroller": "chat-scroll",
+          "scroll_height": 23558,
+          "step_px": 40,
+          "chat_rows": 55,
+          "dom_elements": 1843,
+          "duration_ms": 19404.3,
+          "frames": 1157,
+          "frames_over_50ms": 0,
+          "frames_over_33ms": 1,
+          "frame_p50_ms": 16.7,
+          "frame_p95_ms": 16.8,
+          "frame_max_ms": 33.4,
+          "avg_fps": 59.6,
+          "react_commits": 39,
+          "long_tasks": 0,
+          "long_task_ms": 0
+        }
+      ]
+    }
+  },
+  "market_switch": {
+    "desktop": {
+      "cold_kr_to_us": {
+        "ui_ms": 65.4,
+        "content_ms": 80.1,
+        "click_event_duration_ms": 80,
+        "click_processing_ms": 0.2,
+        "view_transition_ms": 330.8,
+        "commits": 5,
+        "api_requests": 2
+      },
+      "cold_us_to_all": {
+        "ui_ms": 29.6,
+        "content_ms": 179.8,
+        "click_event_duration_ms": 40,
+        "click_processing_ms": 0.4,
+        "view_transition_ms": 293,
+        "commits": 3,
+        "api_requests": 1
+      },
+      "warm_all_to_kr": {
+        "ui_ms": 49.2,
+        "content_ms": 49.2,
+        "click_event_duration_ms": 40,
+        "click_processing_ms": 0.2,
+        "view_transition_ms": 318.3,
+        "commits": 5,
+        "api_requests": 3
+      },
+      "warm_kr_to_us": {
+        "ui_ms": 31.2,
+        "content_ms": 31.2,
+        "click_event_duration_ms": 32,
+        "click_processing_ms": 0.1,
+        "view_transition_ms": 295.1,
+        "commits": 6,
+        "api_requests": 3
+      },
+      "warm_us_to_all": {
+        "ui_ms": 32.8,
+        "content_ms": 32.8,
+        "click_event_duration_ms": 32,
+        "click_processing_ms": 0.2,
+        "view_transition_ms": 296,
+        "commits": 2,
+        "api_requests": 1
+      },
+      "all_runs": [
+        {
+          "cold_kr_to_us": {
+            "ui_ms": 65.3,
+            "content_ms": 65.3,
+            "click_event_duration_ms": 72,
+            "click_processing_ms": 0.2,
+            "view_transition_ms": 330.8,
+            "commits": 5,
+            "api_requests": 2
+          },
+          "cold_us_to_all": {
+            "ui_ms": 29.6,
+            "content_ms": 229,
+            "click_event_duration_ms": 40,
+            "click_processing_ms": 0.4,
+            "view_transition_ms": 295.7,
+            "commits": 3,
+            "api_requests": 1
+          },
+          "warm_all_to_kr": {
+            "ui_ms": 49.2,
+            "content_ms": 49.2,
+            "click_event_duration_ms": 40,
+            "click_processing_ms": 0.1,
+            "view_transition_ms": 318.3,
+            "commits": 5,
+            "api_requests": 3
+          },
+          "warm_kr_to_us": {
+            "ui_ms": 30,
+            "content_ms": 30,
+            "click_event_duration_ms": 32,
+            "click_processing_ms": 0.2,
+            "view_transition_ms": 294.9,
+            "commits": 6,
+            "api_requests": 3
+          },
+          "warm_us_to_all": {
+            "ui_ms": 31.4,
+            "content_ms": 31.4,
+            "click_event_duration_ms": 32,
+            "click_processing_ms": 0.2,
+            "view_transition_ms": 296,
+            "commits": 2,
+            "api_requests": 1
+          }
+        },
+        {
+          "cold_kr_to_us": {
+            "ui_ms": 65.6,
+            "content_ms": 82.3,
+            "click_event_duration_ms": 80,
+            "click_processing_ms": 0.3,
+            "view_transition_ms": 332.2,
+            "commits": 5,
+            "api_requests": 2
+          },
+          "cold_us_to_all": {
+            "ui_ms": 31,
+            "content_ms": 179.8,
+            "click_event_duration_ms": 48,
+            "click_processing_ms": 0.1,
+            "view_transition_ms": 280.7,
+            "commits": 3,
+            "api_requests": 1
+          },
+          "warm_all_to_kr": {
+            "ui_ms": 68.4,
+            "content_ms": 68.5,
+            "click_event_duration_ms": 40,
+            "click_processing_ms": 0.2,
+            "view_transition_ms": 330.8,
+            "commits": 5,
+            "api_requests": 3
+          },
+          "warm_kr_to_us": {
+            "ui_ms": 31.2,
+            "content_ms": 31.2,
+            "click_event_duration_ms": 32,
+            "click_processing_ms": 0.1,
+            "view_transition_ms": 295.1,
+            "commits": 6,
+            "api_requests": 3
+          },
+          "warm_us_to_all": {
+            "ui_ms": 32.8,
+            "content_ms": 32.8,
+            "click_event_duration_ms": 32,
+            "click_processing_ms": 0.1,
+            "view_transition_ms": 299.5,
+            "commits": 2,
+            "api_requests": 1
+          }
+        },
+        {
+          "cold_kr_to_us": {
+            "ui_ms": 65.4,
+            "content_ms": 80.1,
+            "click_event_duration_ms": 80,
+            "click_processing_ms": 0.2,
+            "view_transition_ms": 313.4,
+            "commits": 5,
+            "api_requests": 2
+          },
+          "cold_us_to_all": {
+            "ui_ms": 26.5,
+            "content_ms": 159.5,
+            "click_event_duration_ms": 40,
+            "click_processing_ms": 0.4,
+            "view_transition_ms": 293,
+            "commits": 3,
+            "api_requests": 1
+          },
+          "warm_all_to_kr": {
+            "ui_ms": 44.7,
+            "content_ms": 44.8,
+            "click_event_duration_ms": 40,
+            "click_processing_ms": 0.2,
+            "view_transition_ms": 313.7,
+            "commits": 5,
+            "api_requests": 3
+          },
+          "warm_kr_to_us": {
+            "ui_ms": 31.7,
+            "content_ms": 31.7,
+            "click_event_duration_ms": 32,
+            "click_processing_ms": 0,
+            "view_transition_ms": 297.6,
+            "commits": 4,
+            "api_requests": 3
+          },
+          "warm_us_to_all": {
+            "ui_ms": 34.3,
+            "content_ms": 34.3,
+            "click_event_duration_ms": 32,
+            "click_processing_ms": 0.2,
+            "view_transition_ms": 295.7,
+            "commits": 2,
+            "api_requests": 1
+          }
+        }
+      ]
+    },
+    "mobile_cpu4x": {
+      "cold_kr_to_us": {
+        "ui_ms": 97,
+        "content_ms": 97.8,
+        "click_event_duration_ms": 64,
+        "click_processing_ms": 0.7,
+        "view_transition_ms": 361.8,
+        "commits": 5,
+        "api_requests": 2
+      },
+      "cold_us_to_all": {
+        "ui_ms": 64.4,
+        "content_ms": 133,
+        "click_event_duration_ms": 24,
+        "click_processing_ms": 0.1,
+        "view_transition_ms": 314.5,
+        "commits": 3,
+        "api_requests": 1
+      },
+      "warm_all_to_kr": {
+        "ui_ms": 99.7,
+        "content_ms": 100.1,
+        "click_event_duration_ms": 16,
+        "click_processing_ms": 0.1,
+        "view_transition_ms": 382.3,
+        "commits": 5,
+        "api_requests": 3
+      },
+      "warm_kr_to_us": {
+        "ui_ms": 48.8,
+        "content_ms": 48.8,
+        "click_event_duration_ms": 24,
+        "click_processing_ms": 0.1,
+        "view_transition_ms": 330.7,
+        "commits": 5,
+        "api_requests": 3
+      },
+      "warm_us_to_all": {
+        "ui_ms": 49.1,
+        "content_ms": 49.1,
+        "click_event_duration_ms": 24,
+        "click_processing_ms": 0.1,
+        "view_transition_ms": 299.1,
+        "commits": 2,
+        "api_requests": 1
+      },
+      "all_runs": [
+        {
+          "cold_kr_to_us": {
+            "ui_ms": 106.8,
+            "content_ms": 106.8,
+            "click_event_duration_ms": 64,
+            "click_processing_ms": 0.7,
+            "view_transition_ms": 363.8,
+            "commits": 5,
+            "api_requests": 3
+          },
+          "cold_us_to_all": {
+            "ui_ms": 64.4,
+            "content_ms": 133,
+            "click_event_duration_ms": 16,
+            "click_processing_ms": 0.1,
+            "view_transition_ms": 330.4,
+            "commits": 3,
+            "api_requests": 1
+          },
+          "warm_all_to_kr": {
+            "ui_ms": 98.8,
+            "content_ms": 98.9,
+            "click_event_duration_ms": 16,
+            "click_processing_ms": 0.1,
+            "view_transition_ms": 382.3,
+            "commits": 5,
+            "api_requests": 3
+          },
+          "warm_kr_to_us": {
+            "ui_ms": 48.7,
+            "content_ms": 48.7,
+            "click_event_duration_ms": 24,
+            "click_processing_ms": 0,
+            "view_transition_ms": 330.7,
+            "commits": 5,
+            "api_requests": 3
+          },
+          "warm_us_to_all": {
+            "ui_ms": 49.1,
+            "content_ms": 49.2,
+            "click_event_duration_ms": 24,
+            "click_processing_ms": 0.1,
+            "view_transition_ms": 314.6,
+            "commits": 1,
+            "api_requests": 1
+          }
+        },
+        {
+          "cold_kr_to_us": {
+            "ui_ms": 97,
+            "content_ms": 97.8,
+            "click_event_duration_ms": 64,
+            "click_processing_ms": 1.1,
+            "view_transition_ms": 361.8,
+            "commits": 3,
+            "api_requests": 2
+          },
+          "cold_us_to_all": {
+            "ui_ms": 66.4,
+            "content_ms": 181,
+            "click_event_duration_ms": 24,
+            "click_processing_ms": 0.1,
+            "view_transition_ms": 314.5,
+            "commits": 3,
+            "api_requests": 1
+          },
+          "warm_all_to_kr": {
+            "ui_ms": 127.2,
+            "content_ms": 127.2,
+            "click_event_duration_ms": 16,
+            "click_processing_ms": 0.1,
+            "view_transition_ms": 398.7,
+            "commits": 6,
+            "api_requests": 3
+          },
+          "warm_kr_to_us": {
+            "ui_ms": 74,
+            "content_ms": 74,
+            "click_event_duration_ms": 24,
+            "click_processing_ms": 0.8,
+            "view_transition_ms": 349.2,
+            "commits": 5,
+            "api_requests": 3
+          },
+          "warm_us_to_all": {
+            "ui_ms": 48.9,
+            "content_ms": 48.9,
+            "click_event_duration_ms": 24,
+            "click_processing_ms": 0.1,
+            "view_transition_ms": 298.3,
+            "commits": 3,
+            "api_requests": 5
+          }
+        },
+        {
+          "cold_kr_to_us": {
+            "ui_ms": 84,
+            "content_ms": 84.1,
+            "click_event_duration_ms": 64,
+            "click_processing_ms": 0.5,
+            "view_transition_ms": 346.6,
+            "commits": 5,
+            "api_requests": 2
+          },
+          "cold_us_to_all": {
+            "ui_ms": 46.6,
+            "content_ms": 79,
+            "click_event_duration_ms": 32,
+            "click_processing_ms": 0.1,
+            "view_transition_ms": 312.9,
+            "commits": 3,
+            "api_requests": 1
+          },
+          "warm_all_to_kr": {
+            "ui_ms": 99.7,
+            "content_ms": 100.1,
+            "click_event_duration_ms": 16,
+            "click_processing_ms": 0,
+            "view_transition_ms": 366.3,
+            "commits": 4,
+            "api_requests": 3
+          },
+          "warm_kr_to_us": {
+            "ui_ms": 48.8,
+            "content_ms": 48.8,
+            "click_event_duration_ms": 32,
+            "click_processing_ms": 0.1,
+            "view_transition_ms": 330.5,
+            "commits": 5,
+            "api_requests": 3
+          },
+          "warm_us_to_all": {
+            "ui_ms": 49.1,
+            "content_ms": 49.1,
+            "click_event_duration_ms": 24,
+            "click_processing_ms": 0,
+            "view_transition_ms": 299.1,
+            "commits": 2,
+            "api_requests": 1
+          }
+        }
+      ]
+    }
+  }
+}

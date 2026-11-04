@@ -1,0 +1,818 @@
+{
+  "label": "before",
+  "generated_at": "2026-11-04T14:40:43.088Z",
+  "git": {
+    "head": "80b1f74",
+    "branch": "main",
+    "frontend_uncommitted_paths": 48
+  },
+  "loc": {
+    "totals": {
+      "app": {
+        "files": 41,
+        "lines": 9668,
+        "nonblank": 9068
+      },
+      "test": {
+        "files": 21,
+        "lines": 4958,
+        "nonblank": 4564
+      },
+      "css": {
+        "files": 4,
+        "lines": 4667,
+        "nonblank": 4603
+      }
+    },
+    "top20_files": [
+      {
+        "file": "src/styles.css",
+        "kind": "css",
+        "lines": 3560
+      },
+      {
+        "file": "src/pages/Settings.tsx",
+        "kind": "app",
+        "lines": 1385
+      },
+      {
+        "file": "src/pages/Memo.tsx",
+        "kind": "app",
+        "lines": 782
+      },
+      {
+        "file": "src/pages/Costs.tsx",
+        "kind": "app",
+        "lines": 685
+      },
+      {
+        "file": "src/api/types.ts",
+        "kind": "app",
+        "lines": 642
+      },
+      {
+        "file": "src/pages/overview.css",
+        "kind": "css",
+        "lines": 483
+      },
+      {
+        "file": "src/components/chat/chat-session.css",
+        "kind": "css",
+        "lines": 479
+      },
+      {
+        "file": "src/pages/Overview.tsx",
+        "kind": "app",
+        "lines": 470
+      },
+      {
+        "file": "src/__tests__/llmProfile.test.tsx",
+        "kind": "test",
+        "lines": 468
+      },
+      {
+        "file": "src/pages/Agent.tsx",
+        "kind": "app",
+        "lines": 452
+      },
+      {
+        "file": "src/__tests__/memo.test.tsx",
+        "kind": "test",
+        "lines": 444
+      },
+      {
+        "file": "src/__tests__/market.test.tsx",
+        "kind": "test",
+        "lines": 388
+      },
+      {
+        "file": "src/components/chat/SessionBlock.tsx",
+        "kind": "app",
+        "lines": 364
+      },
+      {
+        "file": "src/components/Layout.tsx",
+        "kind": "app",
+        "lines": 349
+      },
+      {
+        "file": "src/pages/Stock.tsx",
+        "kind": "app",
+        "lines": 330
+      },
+      {
+        "file": "src/__tests__/session.test.tsx",
+        "kind": "test",
+        "lines": 326
+      },
+      {
+        "file": "src/pages/ScheduleSettings.tsx",
+        "kind": "app",
+        "lines": 315
+      },
+      {
+        "file": "src/__tests__/costs.test.tsx",
+        "kind": "test",
+        "lines": 304
+      },
+      {
+        "file": "src/components/chat/ChatMessage.tsx",
+        "kind": "app",
+        "lines": 300
+      },
+      {
+        "file": "src/__tests__/openrouterModels.test.tsx",
+        "kind": "test",
+        "lines": 292
+      }
+    ],
+    "e2e_files": 2
+  },
+  "components": {
+    "count": 90,
+    "over_150_lines": 9,
+    "largest": [
+      {
+        "name": "AgentPage",
+        "file": "src/pages/Agent.tsx",
+        "line": 28,
+        "lines": 269
+      },
+      {
+        "name": "ScheduleEditor",
+        "file": "src/pages/ScheduleSettings.tsx",
+        "line": 83,
+        "lines": 233
+      },
+      {
+        "name": "TestEndpointSettings",
+        "file": "src/pages/Settings.tsx",
+        "line": 376,
+        "lines": 232
+      },
+      {
+        "name": "PushSettings",
+        "file": "src/pages/Settings.tsx",
+        "line": 870,
+        "lines": 225
+      },
+      {
+        "name": "PaidModelPicker",
+        "file": "src/pages/Settings.tsx",
+        "line": 645,
+        "lines": 208
+      },
+      {
+        "name": "MemoCardItem",
+        "file": "src/pages/Memo.tsx",
+        "line": 533,
+        "lines": 198
+      },
+      {
+        "name": "Backtest",
+        "file": "src/pages/Backtest.tsx",
+        "line": 11,
+        "lines": 167
+      },
+      {
+        "name": "Stock",
+        "file": "src/pages/Stock.tsx",
+        "line": 170,
+        "lines": 161
+      },
+      {
+        "name": "ChatFeed",
+        "file": "src/components/chat/ChatFeed.tsx",
+        "line": 31,
+        "lines": 156
+      },
+      {
+        "name": "ModelPanel",
+        "file": "src/pages/Costs.tsx",
+        "line": 367,
+        "lines": 149
+      },
+      {
+        "name": "Layout",
+        "file": "src/components/Layout.tsx",
+        "line": 72,
+        "lines": 147
+      },
+      {
+        "name": "StockPicker",
+        "file": "src/pages/Memo.tsx",
+        "line": 343,
+        "lines": 139
+      },
+      {
+        "name": "AddCard",
+        "file": "src/pages/Memo.tsx",
+        "line": 197,
+        "lines": 135
+      },
+      {
+        "name": "Dashboard",
+        "file": "src/pages/Dashboard.tsx",
+        "line": 13,
+        "lines": 128
+      },
+      {
+        "name": "MarketCard",
+        "file": "src/pages/Overview.tsx",
+        "line": 146,
+        "lines": 127
+      }
+    ]
+  },
+  "hooks": {
+    "useQuery": 32,
+    "useQueries": 0,
+    "useMutation": 33,
+    "useEffect": 18,
+    "useLayoutEffect": 2,
+    "useState": 70,
+    "useMemo": 12,
+    "useCallback": 4,
+    "react_memo": 0,
+    "react_lazy": 0,
+    "invalidateQueries": 15,
+    "invalidateQueries_all": 9,
+    "setInterval": 4,
+    "websocket": 1
+  },
+  "react_query": {
+    "client_defaults": "{ queries: { retry: 1, staleTime: 2000 } }",
+    "use_query_calls": 32,
+    "polling_queries": 6,
+    "queries": [
+      {
+        "at": "src/auth.tsx:26",
+        "queryKey": "[\"auth-status\"]",
+        "endpoint": "/api/auth/status",
+        "refetchInterval": null,
+        "staleTime": "Infinity",
+        "enabled": null
+      },
+      {
+        "at": "src/hooks.ts:10",
+        "queryKey": "api.key(\"system\")",
+        "endpoint": "/api/system",
+        "refetchInterval": "opts.refetchInterval ?? 5000",
+        "staleTime": null,
+        "enabled": "opts.enabled ?? true"
+      },
+      {
+        "at": "src/hooks.ts:20",
+        "queryKey": "api.key(\"portfolio\")",
+        "endpoint": "/api/portfolio",
+        "refetchInterval": "10000",
+        "staleTime": null,
+        "enabled": null
+      },
+      {
+        "at": "src/hooks.ts:29",
+        "queryKey": "[\"market-indicators\"]",
+        "endpoint": "/api/market/indicators",
+        "refetchInterval": "60_000",
+        "staleTime": "55_000",
+        "enabled": null
+      },
+      {
+        "at": "src/hooks.ts:40",
+        "queryKey": "[\"llm-costs\", months]",
+        "endpoint": "/api/llm/costs",
+        "refetchInterval": null,
+        "staleTime": "60_000",
+        "enabled": null
+      },
+      {
+        "at": "src/hooks.ts:49",
+        "queryKey": "[\"llm-profile\"]",
+        "endpoint": "/api/llm/profile",
+        "refetchInterval": null,
+        "staleTime": null,
+        "enabled": null
+      },
+      {
+        "at": "src/market.ts:62",
+        "queryKey": "MARKETS_KEY",
+        "endpoint": "/api/markets",
+        "refetchInterval": "60_000",
+        "staleTime": "20_000",
+        "enabled": null
+      },
+      {
+        "at": "src/pages/Agent.tsx:32",
+        "queryKey": "api.key(\"agent-structure\")",
+        "endpoint": "/api/agent/structure",
+        "refetchInterval": "5000",
+        "staleTime": null,
+        "enabled": null
+      },
+      {
+        "at": "src/pages/Backtest.tsx:15",
+        "queryKey": "api.key(\"strategies\")",
+        "endpoint": "/api/strategies",
+        "refetchInterval": null,
+        "staleTime": null,
+        "enabled": null
+      },
+      {
+        "at": "src/pages/Backtest.tsx:19",
+        "queryKey": "api.key(\"universe\")",
+        "endpoint": "/api/market/universe",
+        "refetchInterval": null,
+        "staleTime": null,
+        "enabled": null
+      },
+      {
+        "at": "src/pages/Backtest.tsx:24",
+        "queryKey": "api.key(\"watchlist\")",
+        "endpoint": "/api/watchlist",
+        "refetchInterval": null,
+        "staleTime": null,
+        "enabled": "us"
+      },
+      {
+        "at": "src/pages/Dashboard.tsx:21",
+        "queryKey": "api.key(\"equity\")",
+        "endpoint": "/api/equity",
+        "refetchInterval": null,
+        "staleTime": null,
+        "enabled": null
+      },
+      {
+        "at": "src/pages/Login.tsx:9",
+        "queryKey": "[\"auth-status\"]",
+        "endpoint": "/api/auth/status",
+        "refetchInterval": null,
+        "staleTime": null,
+        "enabled": null
+      },
+      {
+        "at": "src/pages/Memo.tsx:55",
+        "queryKey": "m.cardsKey",
+        "endpoint": null,
+        "refetchInterval": null,
+        "staleTime": null,
+        "enabled": null
+      },
+      {
+        "at": "src/pages/Memo.tsx:361",
+        "queryKey": "[m.market, \"market-search\", term]",
+        "endpoint": null,
+        "refetchInterval": null,
+        "staleTime": "60_000",
+        "enabled": "term.length > 0"
+      },
+      {
+        "at": "src/pages/Overview.tsx:31",
+        "queryKey": "OVERVIEW_KEY",
+        "endpoint": "/api/overview",
+        "refetchInterval": "30_000",
+        "staleTime": null,
+        "enabled": null
+      },
+      {
+        "at": "src/pages/Portfolio.tsx:60",
+        "queryKey": "api.key(\"orders\")",
+        "endpoint": "/api/orders",
+        "refetchInterval": null,
+        "staleTime": null,
+        "enabled": null
+      },
+      {
+        "at": "src/pages/Portfolio.tsx:64",
+        "queryKey": "api.key(\"fills\")",
+        "endpoint": "/api/fills",
+        "refetchInterval": null,
+        "staleTime": null,
+        "enabled": null
+      },
+      {
+        "at": "src/pages/Portfolio.tsx:68",
+        "queryKey": "api.key(\"decisions\")",
+        "endpoint": "/api/agent/decisions",
+        "refetchInterval": null,
+        "staleTime": null,
+        "enabled": null
+      },
+      {
+        "at": "src/pages/ScheduleSettings.tsx:30",
+        "queryKey": "scheduleKey(\"KR\")",
+        "endpoint": null,
+        "refetchInterval": null,
+        "staleTime": null,
+        "enabled": null
+      },
+      {
+        "at": "src/pages/ScheduleSettings.tsx:36",
+        "queryKey": "scheduleKey(\"US\")",
+        "endpoint": null,
+        "refetchInterval": null,
+        "staleTime": null,
+        "enabled": null
+      },
+      {
+        "at": "src/pages/Settings.tsx:247",
+        "queryKey": "US_PROFILE_KEY",
+        "endpoint": null,
+        "refetchInterval": null,
+        "staleTime": null,
+        "enabled": null
+      },
+      {
+        "at": "src/pages/Settings.tsx:381",
+        "queryKey": "[\"llm-test-endpoint\"]",
+        "endpoint": null,
+        "refetchInterval": null,
+        "staleTime": null,
+        "enabled": null
+      },
+      {
+        "at": "src/pages/Settings.tsx:872",
+        "queryKey": "[\"push\"]",
+        "endpoint": "/api/push",
+        "refetchInterval": null,
+        "staleTime": null,
+        "enabled": null
+      },
+      {
+        "at": "src/pages/Settings.tsx:1099",
+        "queryKey": "api.key(\"agent-settings\")",
+        "endpoint": "/api/agent/settings",
+        "refetchInterval": null,
+        "staleTime": null,
+        "enabled": null
+      },
+      {
+        "at": "src/pages/Settings.tsx:1207",
+        "queryKey": "api.key(\"risk\")",
+        "endpoint": "/api/risk",
+        "refetchInterval": null,
+        "staleTime": null,
+        "enabled": null
+      },
+      {
+        "at": "src/pages/Settings.tsx:1277",
+        "queryKey": "api.key(\"strategies\")",
+        "endpoint": "/api/strategies",
+        "refetchInterval": null,
+        "staleTime": null,
+        "enabled": null
+      },
+      {
+        "at": "src/pages/Settings.tsx:1336",
+        "queryKey": "api.key(\"watchlist\")",
+        "endpoint": "/api/watchlist",
+        "refetchInterval": null,
+        "staleTime": null,
+        "enabled": null
+      },
+      {
+        "at": "src/pages/Stock.tsx:175",
+        "queryKey": "api.key(\"candles\", symbol)",
+        "endpoint": "/api/market/",
+        "refetchInterval": null,
+        "staleTime": null,
+        "enabled": null
+      },
+      {
+        "at": "src/pages/Stock.tsx:180",
+        "queryKey": "api.key(\"research\", symbol)",
+        "endpoint": "/api/market/",
+        "refetchInterval": null,
+        "staleTime": null,
+        "enabled": null
+      },
+      {
+        "at": "src/pages/Stock.tsx:184",
+        "queryKey": "api.key(\"decisions\", symbol)",
+        "endpoint": "/api/agent/decisions",
+        "refetchInterval": null,
+        "staleTime": null,
+        "enabled": null
+      },
+      {
+        "at": "src/pages/TradingRoom.tsx:19",
+        "queryKey": "api.key(\"runs\")",
+        "endpoint": "/api/agent/runs",
+        "refetchInterval": null,
+        "staleTime": null,
+        "enabled": null
+      }
+    ]
+  },
+  "casts": {
+    "app": {
+      "as_casts": 25,
+      "as_const": 5,
+      "as_unknown_as": 1,
+      "any": 0,
+      "non_null_assertions": 3,
+      "ts_ignore": 0,
+      "eslint_disable": 0
+    },
+    "tests": {
+      "as_casts": 34,
+      "as_const": 7,
+      "as_unknown_as": 3,
+      "any": 0,
+      "non_null_assertions": 8,
+      "ts_ignore": 0,
+      "eslint_disable": 0
+    }
+  },
+  "inline_styles": {
+    "total": 12,
+    "by_file": {
+      "src/components/Layout.tsx": {
+        "object_literal": 1,
+        "expression": 0
+      },
+      "src/components/MarketSwitch.tsx": {
+        "object_literal": 1,
+        "expression": 0
+      },
+      "src/components/charts.tsx": {
+        "object_literal": 1,
+        "expression": 0
+      },
+      "src/components/chat/ChatFeed.tsx": {
+        "object_literal": 0,
+        "expression": 1
+      },
+      "src/components/chat/ChatMessage.tsx": {
+        "object_literal": 1,
+        "expression": 0
+      },
+      "src/pages/Costs.tsx": {
+        "object_literal": 2,
+        "expression": 0
+      },
+      "src/pages/Overview.tsx": {
+        "object_literal": 5,
+        "expression": 0
+      }
+    }
+  },
+  "index_keys": 10,
+  "date_now_in_tsx": 7,
+  "duplicates": {
+    "names_defined_in_multiple_files": [
+      {
+        "name": "STATUS_KO",
+        "at": [
+          "src/components/Layout.tsx:54",
+          "src/utils/format.ts:188"
+        ]
+      },
+      {
+        "name": "won",
+        "at": [
+          "src/components/charts.tsx:27",
+          "src/utils/format.ts:1"
+        ]
+      },
+      {
+        "name": "LEAD_EMOJI",
+        "at": [
+          "src/components/chat/ChatFeed.tsx:190",
+          "src/components/chat/SessionBlock.tsx:20"
+        ]
+      },
+      {
+        "name": "fmtTokens",
+        "at": [
+          "src/components/chat/ChatFeed.tsx:192",
+          "src/utils/format.ts:170"
+        ]
+      },
+      {
+        "name": "is404",
+        "at": [
+          "src/market.ts:58",
+          "src/pages/ScheduleSettings.tsx:21"
+        ]
+      },
+      {
+        "name": "fmtUsd",
+        "at": [
+          "src/utils/format.ts:144",
+          "src/utils/llm.ts:80"
+        ]
+      },
+      {
+        "name": "pad",
+        "at": [
+          "src/utils/memo.ts:90",
+          "src/utils/schedule.ts:21"
+        ]
+      }
+    ],
+    "format_helpers_outside_utils": [
+      {
+        "name": "won",
+        "at": "src/components/charts.tsx:27"
+      },
+      {
+        "name": "priceFormatter",
+        "at": "src/components/charts.tsx:31"
+      },
+      {
+        "name": "pricePrecision",
+        "at": "src/components/charts.tsx:33"
+      },
+      {
+        "name": "fmtTokens",
+        "at": "src/components/chat/ChatFeed.tsx:192"
+      },
+      {
+        "name": "fmtElapsed",
+        "at": "src/components/chat/ChatFeed.tsx:196"
+      },
+      {
+        "name": "fmtMs",
+        "at": "src/components/chat/ChatMessage.tsx:135"
+      },
+      {
+        "name": "fmtDuration",
+        "at": "src/components/chat/sessions.ts:217"
+      },
+      {
+        "name": "pct",
+        "at": "src/pages/Agent.tsx:25"
+      }
+    ],
+    "duplicated_6_line_windows": 25,
+    "window_examples": [
+      [
+        "src/components/chat/SessionBlock.tsx:284",
+        "src/components/chat/SessionBlock.tsx:336"
+      ],
+      [
+        "src/pages/Dashboard.tsx:88",
+        "src/pages/TradingRoom.tsx:45"
+      ],
+      [
+        "src/pages/Memo.tsx:6",
+        "src/utils/memo.ts:4"
+      ],
+      [
+        "src/pages/ScheduleSettings.tsx:184",
+        "src/pages/ScheduleSettings.tsx:201"
+      ],
+      [
+        "src/pages/Settings.tsx:134",
+        "src/pages/Settings.tsx:258"
+      ],
+      [
+        "src/pages/Stock.tsx:75",
+        "src/pages/Stock.tsx:121"
+      ]
+    ]
+  },
+  "css": {
+    "src/components/chat/chat-activity.css": {
+      "bytes": 3096,
+      "lines": 146,
+      "style_rules": 28,
+      "selectors": 28,
+      "declarations": 76,
+      "media_queries": 2,
+      "keyframes": 0,
+      "supports": 0,
+      "other_at_rules": 0,
+      "important": 0,
+      "max_nesting": 2,
+      "custom_properties_defined": 5,
+      "infinite_animations": 0,
+      "media_queries_distinct": 2
+    },
+    "src/components/chat/chat-session.css": {
+      "bytes": 8948,
+      "lines": 480,
+      "style_rules": 84,
+      "selectors": 87,
+      "declarations": 275,
+      "media_queries": 3,
+      "keyframes": 0,
+      "supports": 0,
+      "other_at_rules": 0,
+      "important": 0,
+      "max_nesting": 2,
+      "custom_properties_defined": 6,
+      "infinite_animations": 0,
+      "media_queries_distinct": 3
+    },
+    "src/pages/overview.css": {
+      "bytes": 8764,
+      "lines": 484,
+      "style_rules": 86,
+      "selectors": 98,
+      "declarations": 273,
+      "media_queries": 3,
+      "keyframes": 0,
+      "supports": 0,
+      "other_at_rules": 0,
+      "important": 0,
+      "max_nesting": 2,
+      "custom_properties_defined": 1,
+      "infinite_animations": 1,
+      "media_queries_distinct": 3
+    },
+    "src/styles.css": {
+      "bytes": 67500,
+      "lines": 3561,
+      "style_rules": 632,
+      "selectors": 719,
+      "declarations": 1950,
+      "media_queries": 17,
+      "keyframes": 12,
+      "supports": 0,
+      "other_at_rules": 0,
+      "important": 0,
+      "max_nesting": 2,
+      "custom_properties_defined": 30,
+      "infinite_animations": 9,
+      "media_queries_distinct": 5
+    }
+  },
+  "css_total": {
+    "bytes": 88308,
+    "style_rules": 830,
+    "media_queries": 25,
+    "important": 0,
+    "infinite_animations": 10
+  },
+  "eslint": {
+    "errors": 0,
+    "warnings": 4,
+    "files_linted": 68,
+    "by_rule": {
+      "react-refresh/only-export-components": 4
+    },
+    "wall_s": 1.23
+  },
+  "prettier": {
+    "unformatted_files": 0,
+    "files": []
+  },
+  "tsc": {
+    "errors": 0,
+    "ok": true,
+    "wall_s": 2.33
+  },
+  "vitest": {
+    "ok": true,
+    "test_files": 19,
+    "suites": 77,
+    "tests_total": 205,
+    "tests_passed": 205,
+    "tests_failed": 0,
+    "wall_s": 2.94,
+    "sum_file_ms": 7731,
+    "slowest_files": [
+      {
+        "file": "src/__tests__/memo.test.tsx",
+        "tests": 18,
+        "ms": 1544
+      },
+      {
+        "file": "src/__tests__/schedule.test.tsx",
+        "tests": 11,
+        "ms": 1256
+      },
+      {
+        "file": "src/__tests__/costs.test.tsx",
+        "tests": 16,
+        "ms": 861
+      },
+      {
+        "file": "src/__tests__/llmProfile.test.tsx",
+        "tests": 23,
+        "ms": 657
+      },
+      {
+        "file": "src/__tests__/openrouterModels.test.tsx",
+        "tests": 12,
+        "ms": 403
+      },
+      {
+        "file": "src/__tests__/agent.test.tsx",
+        "tests": 7,
+        "ms": 373
+      },
+      {
+        "file": "src/__tests__/llmTestEndpoint.test.tsx",
+        "tests": 10,
+        "ms": 367
+      },
+      {
+        "file": "src/__tests__/pushSettings.test.tsx",
+        "tests": 11,
+        "ms": 343
+      }
+    ]
+  }
+}

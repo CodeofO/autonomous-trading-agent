@@ -13,7 +13,9 @@ from datetime import timedelta
 from typing import Any
 
 from app.core.clock import Clock
+from app.core.market import MarketSpec
 from app.market.store import PriceStore
+from app.research.google import GoogleSearchError
 from app.research.service import ResearchService
 from app.strategies.indicators import pct_change, rsi, sma, volatility
 
@@ -235,10 +237,147 @@ TOSS_TOOL_SPECS: list[dict[str, Any]] = [
 ]
 
 
-def openai_tools(toss: bool = False) -> list[dict[str, Any]]:
+# 구글 웹·뉴스 검색 (D-49) — GEMINI_API_KEY 가 있을 때만 노출. 호출마다 요금이 들어 세션당 횟수를 제한한다
+WEB_TOOL = "search_web"
+WEB_TOOL_SPEC: dict[str, Any] = {
+    "name": WEB_TOOL,
+    "description": "구글 웹·뉴스 검색(최근 N일, 구글 검색 결과를 요약한 답과 출처). 미국 종목·해외 뉴스·글로벌 이슈 확인에 "
+    "가장 좋다(국내 기사는 search_news 가 먼저). 호출마다 요금이 드니 꼭 필요할 때만 쓴다 — 세션당 최대 {limit}회.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "검색어 (영어 키워드가 해외 뉴스에 잘 맞는다. 예: NVDA earnings)",
+            },
+            "days": {"type": "integer", "minimum": 1, "maximum": 7, "default": 1, "description": "최근 며칠"},
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10,
+                "default": 6,
+                "description": "요약 항목 수",
+            },
+        },
+        "required": ["query"],
+    },
+}
+
+
+def _web_spec(limit: int) -> dict[str, Any]:
+    return {**WEB_TOOL_SPEC, "description": WEB_TOOL_SPEC["description"].format(limit=limit)}
+
+
+# 국내 전용 도구 (D-48): 미장 스택에는 노출하지 않는다 — DART(국내 공시·재무), 국내 수급(투자자·프로그램·공매도·신용)
+KR_ONLY_TOOLS: frozenset[str] = frozenset({"get_financials", "get_disclosures", "get_supply_demand"})
+
+
+def _us_spec(spec: dict[str, Any]) -> dict[str, Any]:
+    """미장용 도구 설명으로 바꾼다. 새 도구는 여기 없으면 그대로(국장과 같은 설명) 쓰인다."""
+    name = spec["name"]
+    if name == "get_portfolio":
+        return {
+            **spec,
+            "description": "현재 미장 모의계좌(달러) 현황: 현금, 총자산, 보유종목(평단·수익률·비중·보유일), 미체결 주문, "
+            "리스크 한도(금액은 USD), 지금 주문하면 언제 어떤 가격으로 체결되는지.",
+        }
+    if name == "screen_stocks":
+        return {
+            "name": name,
+            "description": "미국 주식·ETF 스크리닝(토스 실시간 랭킹 상위 100, NASDAQ·NYSE·AMEX). "
+            "거래대금은 백만 달러, 시가총액은 십억 달러.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "sort_by": {
+                        "type": "string",
+                        "enum": [
+                            "market_cap",
+                            "trading_value",
+                            "volume",
+                            "change_1d",
+                            "losers_1d",
+                            "change_1w",
+                            "change_1mo",
+                        ],
+                        "default": "trading_value",
+                    },
+                    "market": {"type": "string", "enum": ["ALL", "NASDAQ", "NYSE", "AMEX"], "default": "ALL"},
+                    "min_market_cap_busd": {
+                        "type": "number",
+                        "description": "최소 시가총액(십억 달러)",
+                        "default": 0,
+                    },
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 30, "default": 15},
+                },
+            },
+        }
+    if name == "get_price_history":
+        return {
+            **spec,
+            "description": "미국 종목(티커)의 일봉(정규장 OHLC, 달러) 요약과 기술 지표(이동평균, RSI, 수익률, 변동성, 52주 고저).",
+        }
+    if name == "get_market_overview":
+        return {
+            "name": name,
+            "description": "미국 시장 전체 상황(토스): 나스닥100·S&P500·다우 ETF(QQQ·SPY·DIA) 현재가와 기간 수익률, "
+            "미국 상승률 상위 섹터, 미국 급등·급락 상위 종목, 원/달러 환율.",
+            "parameters": {"type": "object", "properties": {}},
+        }
+    if name == "get_stock_status":
+        return {
+            **spec,
+            "description": "미국 종목 상태(토스): 호가 5단계·스프레드·잔량 불균형, 최근 체결 흐름, 상장 정보. "
+            "미국 주식은 가격제한폭(상·하한가)이 없다.",
+        }
+    if name == "explore_sector":
+        return {
+            **spec,
+            "description": "미국 섹터 탐색(토스): 섹터 이름으로 찾아 기간별 등락률과 미국 구성 종목(시가총액·거래대금, 달러)을 본다. "
+            "query 를 비우면 미국 상승률 상위 섹터를 보여준다.",
+        }
+    if name == "search_news":
+        return {
+            **spec,
+            "description": "뉴스 검색(네이버, 한국어 기사, 최신순). 미국 종목은 한글 종목명(예: 엔비디아)이나 '뉴욕증시' 같은 "
+            "키워드로 검색.",
+        }
+    if name == TERMINAL_TOOL:
+        dec = {
+            **DECISION_SCHEMA,
+            "properties": {
+                **DECISION_SCHEMA["properties"],
+                "symbol": {"type": "string", "description": "미국 티커 (예: AAPL, NVDA)"},
+                "quantity": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "주문 수량(정수 주, 소수점 주문 없음)",
+                },
+                "limit_price": {"type": "number", "description": "지정가(달러)"},
+            },
+        }
+        params = spec["parameters"]
+        return {
+            **spec,
+            "parameters": {
+                **params,
+                "properties": {**params["properties"], "decisions": {"type": "array", "items": dec}},
+            },
+        }
+    return spec
+
+
+def openai_tools(toss: bool = False, market: str = "KR", web_limit: int = 0) -> list[dict[str, Any]]:
+    """LLM 에 넘길 도구 목록. market=US 이면 국내 전용 도구를 빼고 미장 설명으로 바꾼다 (D-48).
+
+    web_limit: 구글 검색(search_web) 세션당 한도. 0 이면(키 없음) 도구를 넣지 않는다 (D-49, 국장·미장 공통).
+    """
+    web = [_web_spec(web_limit)] if web_limit > 0 else []
     specs = (
-        TOOL_SPECS[:-1] + (TOSS_TOOL_SPECS if toss else []) + TOOL_SPECS[-1:]
+        TOOL_SPECS[:-1] + web + (TOSS_TOOL_SPECS if toss else []) + TOOL_SPECS[-1:]
     )  # submit_decisions 는 마지막
+    if market != "KR":
+        specs = [_us_spec(sp) for sp in specs if sp["name"] not in KR_ONLY_TOOLS]
     return [{"type": "function", "function": spec} for spec in specs]
 
 
@@ -253,6 +392,7 @@ def tool_label(name: str, args: dict[str, Any], names: Callable[[str], str]) -> 
         "get_financials": f"🧾 {who} 재무제표 분석",
         "get_disclosures": f"📑 {who} 공시 확인",
         "search_news": f"📰 뉴스 검색: “{args.get('query', '')}”",
+        "search_web": f"🔎 구글 검색: “{args.get('query', '')}”",
         "submit_decisions": "✅ 최종 판단 제출",
         "get_market_overview": "🌐 시장 전체 흐름 확인 (지수·수급·섹터·환율)",
         "get_supply_demand": f"🧲 {who} 수급 확인 (외국인·기관·공매도)",
@@ -271,7 +411,9 @@ class ToolBox:
         *,
         screener: ScreenerFn | None = None,
         quote: QuoteFn | None = None,
+        market: MarketSpec | None = None,
     ) -> None:
+        self.market = market  # 미장이면 달러 단위·뉴욕 거래일·marketCountry=US (D-48)
         self.portfolio = portfolio
         self.store = store
         self.research = research
@@ -281,12 +423,35 @@ class ToolBox:
         self.toss: Any = None  # TossMarketProvider (컨테이너에서 연결)
         self.trades: Callable[[int], dict[str, Any]] | None = None  # 매매 원장 (컨테이너에서 연결)
 
-    async def call(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
+    @property
+    def us(self) -> bool:
+        return self.market is not None and self.market.code == "US"
+
+    @property
+    def web_limit(self) -> int:
+        """구글 검색 세션당 한도. 키가 없으면 0 (도구를 LLM 에 주지 않는다)."""
+        google = self.research.google
+        return google.max_per_session if google is not None else 0
+
+    @property
+    def country(self) -> str:
+        return self.market.ranking_country if self.market else "KR"
+
+    def _today(self) -> Any:
+        return self.market.local_date(self.clock.now()) if self.market else self.clock.now().date()
+
+    async def call(self, name: str, args: dict[str, Any], run_id: int | None = None) -> dict[str, Any]:
+        """run_id: 판단 세션 번호 — 세션당 한도가 있는 도구(search_web)가 쓴다. LLM 이 준 값은 무시한다."""
         fn = getattr(self, f"t_{name}", None)
         if fn is None or name == TERMINAL_TOOL:
             return {"error": f"알 수 없는 도구: {name}"}
+        if self.us and name in KR_ONLY_TOOLS:
+            return {"error": f"{name} 은 국내 주식 전용이라 미국 주식에는 쓸 수 없어요"}
+        kwargs = {k: v for k, v in args.items() if not k.startswith("_")}
+        if name == WEB_TOOL:
+            kwargs["run_id"] = run_id
         try:
-            result: dict[str, Any] = await fn(**{k: v for k, v in args.items() if not k.startswith("_")})
+            result: dict[str, Any] = await fn(**kwargs)
             return result
         except TypeError as e:
             return {"error": f"인자 오류: {e}"}
@@ -314,12 +479,16 @@ class ToolBox:
         min_market_cap_eok: float = 0,
         descending: bool = True,
         limit: int = 15,
+        min_market_cap_busd: float = 0,
     ) -> dict[str, Any]:
         if self.screener is not None:
-            ranked = await self.screener(sort_by, market, int(limit), float(min_market_cap_eok) * EOK)
+            floor = float(min_market_cap_busd) * 1e9 if self.us else float(min_market_cap_eok) * EOK
+            ranked = await self.screener(sort_by, market, int(limit), floor)
             return {
                 "as_of": self.clock.now().isoformat(),
-                "source": "토스증권 실시간 랭킹(시장 전체)",
+                "source": "토스증권 실시간 랭킹(미국 시장 전체, 달러)"
+                if self.us
+                else "토스증권 실시간 랭킹(시장 전체)",
                 "count": len(ranked),
                 "results": ranked,
             }
@@ -356,7 +525,7 @@ class ToolBox:
         return {"as_of": day.isoformat(), "count": len(rows), "results": rows[: max(1, min(30, int(limit)))]}
 
     async def t_get_price_history(self, symbol: str, days: int = 120) -> dict[str, Any]:
-        latest = self.clock.now().date() if self.quote is not None else self.store.latest_day()
+        latest = self._today() if self.quote is not None else self.store.latest_day()
         if latest is None:
             return {"error": "저장된 시세가 없습니다"}
         days = max(20, min(250, int(days)))
@@ -382,6 +551,23 @@ class ToolBox:
                     if len(closes) >= 2 and bars[-1].day == latest
                     else _pct(q.price / closes[-1] - 1),
                 }
+        us = self.us
+
+        def ma(v: float | None) -> float | None:
+            return None if not v else (round(v, 2) if us else round(v))
+
+        size = (
+            {
+                "currency": "USD",
+                "avg_trading_value_20d_musd": round(sum(vals20) / len(vals20) / 1e6, 1) if vals20 else None,
+                "market_cap_busd": round(bars[-1].market_cap / 1e9, 2) if bars[-1].market_cap else None,
+            }
+            if us
+            else {
+                "avg_trading_value_20d_eok": _eok(sum(vals20) / len(vals20)) if vals20 else None,
+                "market_cap_eok": _eok(bars[-1].market_cap),
+            }
+        )
         return {
             **live,
             "symbol": symbol,
@@ -395,13 +581,12 @@ class ToolBox:
                 "volume": bars[-1].volume,
             },
             "returns_pct": {f"{n}d": _pct(pct_change(closes, n)) for n in (1, 5, 20, 60, 120)},
-            "ma": {f"ma{n}": (round(v) if (v := sma(closes, n)) else None) for n in (5, 20, 60, 120)},
+            "ma": {f"ma{n}": ma(sma(closes, n)) for n in (5, 20, 60, 120)},
             "rsi14": round(r, 1) if (r := rsi(closes, 14)) is not None else None,
             "volatility_20d_annual_pct": _pct(v20 * math.sqrt(250) if v20 is not None else None),
             "high_52w": max(b.high for b in bars[-250:]),
             "low_52w": min(b.low for b in bars[-250:]),
-            "avg_trading_value_20d_eok": _eok(sum(vals20) / len(vals20)) if vals20 else None,
-            "market_cap_eok": _eok(bars[-1].market_cap),
+            **size,
             "closes_sampled": [[b.day.isoformat(), b.close] for b in sampled],
         }
 
@@ -499,6 +684,8 @@ class ToolBox:
         return {s: str(uni.get(s, {}).get("name", "")) for s in symbols}
 
     async def t_get_market_overview(self) -> dict[str, Any]:
+        if self.us:
+            return await self._us_market_overview()
         tc = self._need_toss().client
         out: dict[str, Any] = {"as_of": self.clock.now().isoformat()}
         idx = {}
@@ -559,6 +746,64 @@ class ToolBox:
             for who, grp in inv_rank.items()
             if who in ("foreigner", "institution") and isinstance(grp, dict)
         }
+        return out
+
+    async def _us_market_overview(self) -> dict[str, Any]:
+        """미국 시장 개요: 지수 대용 ETF(QQQ·SPY·DIA) + 미국 섹터·급등락 + 원/달러. 일부 실패해도 나머지는 돌려준다."""
+        tc = self._need_toss().client
+        out: dict[str, Any] = {"as_of": self.clock.now().isoformat(), "currency": "USD"}
+        etfs = {"QQQ": "나스닥100 ETF", "SPY": "S&P500 ETF", "DIA": "다우존스 ETF"}
+        idx: dict[str, Any] = {}
+        try:
+            px = await tc.prices(list(etfs))
+        except Exception as e:
+            px, out["etf_error"] = {}, f"{type(e).__name__}"
+        for sym, label in etfs.items():
+            try:
+                rows, _ = await tc.candles(sym, "1d", 61)
+            except Exception:
+                rows = []
+            closes = [_f(c.get("closePrice")) for c in reversed(rows)]
+            last = px.get(sym, (None, None))[0]
+            if last is None and not closes:
+                continue
+            idx[sym] = {
+                "name": label,
+                "last": last,
+                "returns_pct": {f"{n}d": _pct(pct_change(closes, n)) for n in (1, 5, 20, 60)},
+            }
+        out["index_etfs"] = idx
+        for key, fn in (
+            ("top_sectors_1d", lambda: tc.sector_rankings("TOP_GAINERS", "1d", market_country="US")),
+            ("top_sectors_1w", lambda: tc.sector_rankings("TOP_GAINERS", "1w", market_country="US")),
+        ):
+            try:
+                out[key] = [
+                    {"name": r["name"], "change_pct": _pct(_f(r.get("changeRate")))} for r in (await fn())[:8]
+                ]
+            except Exception as e:
+                out[key] = {"error": type(e).__name__}
+        uni: dict[str, Any] = {}
+        try:
+            uni = await self._need_toss().universe()
+        except Exception as e:
+            log.warning("미국 종목 목록 조회 실패: %s", e)
+        for key, type_ in (("top_gainers_1d", "TOP_GAINERS"), ("top_losers_1d", "TOP_LOSERS")):
+            try:
+                rows = await tc.rankings(type_, "1d", 30, market_country="US")
+                out[key] = [
+                    f"{uni.get(str(r['symbol']), {}).get('name') or r['symbol']}({r['symbol']}) "
+                    f"{_pct(_f((r.get('price') or {}).get('changeRate')))}%"
+                    for r in rows
+                    if not uni or str(r["symbol"]) in uni
+                ][:10]
+            except Exception as e:
+                out[key] = {"error": type(e).__name__}
+        try:
+            fx = await tc.exchange_rate()
+            out["usd_krw"] = {"rate": _f(fx.get("rate")), "direction": fx.get("rateChangeType")}
+        except Exception as e:
+            out["usd_krw"] = {"error": type(e).__name__}
         return out
 
     async def t_get_supply_demand(self, symbol: str, days: int = 10) -> dict[str, Any]:
@@ -626,6 +871,27 @@ class ToolBox:
         trades = await tc.trades(symbol, 30)
         tvol = sum(_f(t.get("volume")) for t in trades)
         vwap = sum(_f(t.get("price")) * _f(t.get("volume")) for t in trades) / tvol if tvol else None
+        if self.us:  # 미국: 가격제한폭 없음, 국내 유의사항(VI·투자경고) 해당 없음
+            return {
+                "symbol": symbol,
+                "name": info.get("name"),
+                "english_name": info.get("englishName"),
+                "market": info.get("market"),
+                "security_type": info.get("securityType"),
+                "currency": "USD",
+                "list_date": info.get("listDate"),
+                "status": info.get("status"),
+                "price_limits": None,
+                "note": "미국 주식은 상·하한가가 없다",
+                "orderbook_top5": {"asks": asks, "bids": bids},
+                "spread_pct": _pct((best_ask - best_bid) / best_bid, 3) if best_ask and best_bid else None,
+                "bid_ask_volume_ratio": round(bid_vol / ask_vol, 2) if ask_vol else None,
+                "recent_trades": {
+                    "count": len(trades),
+                    "vwap": round(vwap, 4) if vwap else None,
+                    "volume": tvol,
+                },
+            }
         lim = await tc.price_limits(symbol)
         km = info.get("koreanMarketDetail") or {}
         return {
@@ -656,7 +922,7 @@ class ToolBox:
                         "name": r["name"],
                         "change_pct": _pct(_f(r.get("changeRate"))),
                     }
-                    for r in (await tc.sector_rankings("TOP_GAINERS", "1d"))[:10]
+                    for r in (await self._sector_rankings("1d"))[:10]
                 ],
                 "top_1w": [
                     {
@@ -664,7 +930,7 @@ class ToolBox:
                         "name": r["name"],
                         "change_pct": _pct(_f(r.get("changeRate"))),
                     }
-                    for r in (await tc.sector_rankings("TOP_GAINERS", "1w"))[:10]
+                    for r in (await self._sector_rankings("1w"))[:10]
                 ],
             }
         sectors = await tc.sectors()
@@ -679,8 +945,12 @@ class ToolBox:
                 "examples": [s["name"] for s in sectors if s.get("depth") == 0][:20],
             }
         top = sorted(matches, key=lambda s: (s.get("depth", 9), len(str(s.get("name", "")))))[0]
-        detail = await tc.sector(str(top["sectorId"]))
-        stocks = await tc.sector_stocks(str(top["sectorId"]))
+        if self.us:
+            detail = await tc.sector(str(top["sectorId"]), market_country="US")
+            stocks = await tc.sector_stocks(str(top["sectorId"]), market_country="US")
+        else:
+            detail = await tc.sector(str(top["sectorId"]))
+            stocks = await tc.sector_stocks(str(top["sectorId"]))
         stocks.sort(key=lambda s: -_f(s.get("marketCapitalization")))
         perf = {
             p.get("duration"): _pct(_f(p.get("changeRate"))) if p.get("changeRate") is not None else None
@@ -698,11 +968,51 @@ class ToolBox:
                 {
                     "symbol": s["symbol"],
                     "name": s.get("name"),
+                    "market_cap_busd": round(_f(s.get("marketCapitalization")) / 1e9, 2),
+                    "trading_value_musd": round(_f(s.get("tradingAmount")) / 1e6, 1),
+                }
+                if self.us
+                else {
+                    "symbol": s["symbol"],
+                    "name": s.get("name"),
                     "market_cap_eok": _eok(_f(s.get("marketCapitalization"))),
                     "trading_value_eok": _eok(_f(s.get("tradingAmount"))),
                 }
                 for s in stocks[:15]
             ],
+        }
+
+    async def _sector_rankings(self, duration: str) -> list[dict[str, Any]]:
+        tc = self._need_toss().client
+        if self.us:
+            return list(await tc.sector_rankings("TOP_GAINERS", duration, market_country="US"))
+        return list(await tc.sector_rankings("TOP_GAINERS", duration))
+
+    async def t_search_web(
+        self, query: str, days: int = 1, limit: int = 6, run_id: int | None = None
+    ) -> dict[str, Any]:
+        """구글 검색 (D-49). 결과(요약 답·출처)는 매니저에게만 — 화면 칩에는 검색어와 건수만 보인다."""
+        google = self.research.google
+        if google is None:
+            return {"error": "구글 검색을 쓸 수 없어요 (GEMINI_API_KEY 없음)"}
+        q = str(query).strip()[:200]
+        if not q:
+            return {"error": "검색어가 비었어요"}
+        try:
+            res = await self.research.web_search(
+                q, days=max(1, min(7, int(days))), limit=max(1, min(10, int(limit))), run_id=run_id
+            )
+        except GoogleSearchError as e:
+            return {"error": str(e)}
+        sources = res.get("sources") or []
+        return {
+            "query": q,
+            "days": res.get("days"),
+            "answer": res.get("answer", ""),
+            "sources": [{"title": x.get("title", ""), "uri": x.get("uri", "")} for x in sources],
+            "count": len(sources),
+            "grounded": bool(res.get("grounded")),
+            "remaining_this_session": google.remaining(run_id),
         }
 
     async def t_search_news(self, query: str, limit: int = 8) -> dict[str, Any]:

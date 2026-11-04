@@ -5,7 +5,7 @@ import type { LlmCosts, LlmModelOption, LlmProfileName, LlmProfiles } from "../a
 import { Layout } from "../components/Layout";
 import { AgentPage } from "../pages/Agent";
 import { Costs } from "../pages/Costs";
-import { LlmProfileSettings } from "../pages/Settings";
+import { LlmProfileSettings } from "../pages/settings/LlmSection";
 import { fmtUsd, llmChipText, modelOptionText } from "../utils/llm";
 import { apiError, mockFetch, renderWithProviders, SYSTEM } from "./utils";
 
@@ -205,7 +205,13 @@ const MODELS: LlmModelOption[] = [
   opt("gemini-pro", "Gemini Pro", "google"),
   opt("claude-big", "Claude Big", "anthropic", { tier: "최상위", input: 5, output: 25 }),
   opt("claude-small", "Claude Small", "anthropic", { tier: "경량", input: 1, output: 5 }),
-  opt("my-model", "my-model (.env)", "env", { tier: "", input: null, output: null, available: false, reason: null }),
+  opt("my-model", "my-model (.env)", "env", {
+    tier: "",
+    input: null,
+    output: null,
+    available: false,
+    reason: null,
+  }),
 ];
 
 const withModels = (active: LlmProfileName = "paid", models = MODELS): LlmProfiles => {
@@ -362,11 +368,11 @@ function renderLayout(llm: typeof SYSTEM.llm | Record<string, unknown>) {
 }
 
 describe("상단 바 LLM 칩", () => {
-  it("유료면 '유료 · 모델' 이고 설정 화면으로 가는 링크", async () => {
+  it("유료면 '유료 · 모델' 이고 설정의 LLM 모델 화면으로 가는 링크", async () => {
     renderLayout({ configured: true, model: "paid-model-mini", profile: "paid", tool_mode: "auto" });
     const chip = await screen.findByTestId("llm-chip");
     expect(chip).toHaveTextContent("유료 · paid-model-mini");
-    expect(chip).toHaveAttribute("href", "/settings");
+    expect(chip).toHaveAttribute("href", "/settings/llm");
     expect(chip).toHaveClass("chip", "ok");
   });
 
