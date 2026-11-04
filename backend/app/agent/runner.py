@@ -158,7 +158,7 @@ class AgentRunner:
         return str(self.settings.get("agent_policy").get("text") or default)
 
     def _account(self) -> str:
-        return US_ACCOUNT_DESC if self.us else ACCOUNT_DESC[self.live]
+        return (US_ACCOUNT_DESC if self.us else ACCOUNT_DESC)[self.live]
 
     def _market_notes(self) -> str:
         """미장 안내(정규장 한국 시각 등). 국장은 빈 문자열."""

@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Route, Routes } from "react-router-dom";
 import { KillSwitch } from "../components/KillSwitch";
@@ -57,7 +57,10 @@ describe("레이아웃", () => {
     await waitFor(() => expect(screen.getByTestId("engine-status")).toHaveTextContent("실행 중"));
     expect(screen.getByText(/투자 권유가 아닙니다/)).toBeInTheDocument();
     expect(screen.getByTestId("kst-clock")).toHaveTextContent("KST");
-    expect(screen.getByText("토스 실시세 연결")).toBeInTheDocument();
+    // 토스 시세가 정상이면 칩을 두지 않는다 (문제가 있을 때만 경고 칩·배너)
+    expect(screen.queryByText("토스 시세 연결 안 됨")).not.toBeInTheDocument();
+    // 설정은 오른쪽 위 ⚙️
+    expect(screen.getByRole("link", { name: "설정" })).toHaveAttribute("href", "/settings");
   });
 
   it("실거래 모드면 빨간 LIVE 배지로 바뀐다", async () => {
@@ -75,7 +78,7 @@ describe("레이아웃", () => {
     expect(screen.queryByRole("status", { name: "모의투자 모드" })).not.toBeInTheDocument();
   });
 
-  it("메뉴는 전체 이름으로 읽히고, 모바일 탭바용 짧은 이름도 함께 둔다", async () => {
+  it("넓은 화면 메뉴는 두 묶음이고, 설정·LLM 비용은 사이드바에 두지 않는다", async () => {
     mockFetch({});
     renderWithProviders(
       <Routes>
@@ -84,18 +87,16 @@ describe("레이아웃", () => {
         </Route>
       </Routes>,
     );
-    const room = screen.getByRole("link", { name: "트레이딩 룸" });
-    expect(room).toHaveAttribute("href", "/room");
-    expect(room.querySelector(".nav-short")).toHaveTextContent("채팅");
-    expect(
-      screen.getByRole("link", { name: "포트폴리오·주문" }).querySelector(".nav-short"),
-    ).toHaveTextContent("자산");
-    // 하단 탭바는 7칸 + 넓은 화면 사이드바에만 있는 '메모 카드'·'LLM 비용'
-    const links = screen.getAllByRole("link");
-    expect(links.filter((a) => !a.classList.contains("desktop-only"))).toHaveLength(7);
-    expect(
-      links.filter((a) => a.classList.contains("desktop-only")).map((a) => a.getAttribute("href")),
-    ).toEqual(["/memo", "/costs"]);
+    const nav = screen.getByRole("navigation", { name: "메뉴" });
+    const group = (name: string) =>
+      within(within(nav).getByRole("group", { name }))
+        .getAllByRole("link")
+        .map((a) => a.getAttribute("href"));
+    expect(group("매일 보기")).toEqual(["/", "/room", "/portfolio", "/news"]);
+    expect(group("매니저·분석")).toEqual(["/agent", "/backtest", "/logs"]);
+    expect(within(nav).getByRole("link", { name: "홈" })).toHaveAttribute("aria-current", "page");
+    expect(within(nav).queryByRole("link", { name: "설정" })).not.toBeInTheDocument();
+    expect(within(nav).queryByRole("link", { name: /LLM 비용/ })).not.toBeInTheDocument();
     expect(screen.getByRole("status", { name: /연결/ })).toBeInTheDocument(); // 모바일 상단 연결 점
   });
 

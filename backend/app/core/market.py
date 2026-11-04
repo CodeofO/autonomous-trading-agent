@@ -51,12 +51,16 @@ class MarketSpec:
     sell_tax_rate: float
     slippage_bps: float
     max_volume_participation: float
-    paper_only: bool  # 실거래 브로커를 쓰지 않음 (US 는 항상 모의투자)
+    live: bool  # 토스증권 실계좌로 주문 (KR: TRADING_MODE, US: US_TRADING_MODE — 사용자가 .env 에서 켠다)
     default_watchlist: tuple[tuple[str, str], ...] = field(default=())
 
     # ------------------------------------------------------------ 시간
     def calendar(self) -> MarketCalendar:
-        return UsMarketCalendar() if self.code == "US" else MarketCalendar()
+        # 미장 실거래는 장 시작 전 주문을 보내지 않는다: 토스 미장은 데이·프리마켓이 따로 있어
+        # 장전에 낸 주문이 어느 세션에서 체결되는지 명세에 없다 (D-55)
+        if self.code == "US":
+            return UsMarketCalendar(pre_open=not self.live)
+        return MarketCalendar()
 
     def local_date(self, t: datetime) -> date:
         return t.astimezone(self.tz).date()
@@ -111,7 +115,7 @@ def spec_for(code: str, settings: Settings) -> MarketSpec:
             sell_tax_rate=0.0,  # 국내 증권거래세 없음. SEC·FINRA TAF 수수료는 반영하지 않음 (D-48)
             slippage_bps=settings.paper_us_slippage_bps,
             max_volume_participation=settings.paper_max_volume_participation,
-            paper_only=True,
+            live=settings.us_is_live,
             default_watchlist=US_DEFAULT_WATCHLIST,
         )
     return MarketSpec(
@@ -130,5 +134,5 @@ def spec_for(code: str, settings: Settings) -> MarketSpec:
         sell_tax_rate=settings.paper_sell_tax_rate,
         slippage_bps=settings.paper_slippage_bps,
         max_volume_participation=settings.paper_max_volume_participation,
-        paper_only=False,
+        live=settings.is_live,
     )

@@ -6,6 +6,7 @@ import { EventsProvider } from "./events";
 import { MarketProvider } from "./components/MarketProvider";
 import { useMarket } from "./market";
 import { Layout } from "./components/Layout";
+import { ManagerTabs } from "./components/ManagerTabs";
 import { Toaster } from "./components/Toaster";
 import { prefetchOverviewWhenIdle } from "./utils/overview";
 import {
@@ -16,6 +17,7 @@ import {
   LoginPage,
   LogsPage,
   MemoRoute,
+  NewsRoomRoute,
   OverviewPage,
   PortfolioPage,
   prefetchPagesWhenIdle,
@@ -61,8 +63,26 @@ function AppRoutes() {
       <Route element={<Layout />}>
         <Route index element={<Home />} />
         <Route path="room" element={<TradingRoomPage />} />
-        <Route path="agent" element={<AgentRoute />} />
-        <Route path="memo" element={<MemoRoute />} />
+        <Route path="news" element={<NewsRoomRoute />} />
+        {/* 메뉴의 '매니저' 하나 — 구조·기억 / 메모 카드를 위 탭으로 오간다 */}
+        <Route
+          path="agent"
+          element={
+            <>
+              <ManagerTabs />
+              <AgentRoute />
+            </>
+          }
+        />
+        <Route
+          path="memo"
+          element={
+            <>
+              <ManagerTabs />
+              <MemoRoute />
+            </>
+          }
+        />
         <Route path="portfolio" element={<PortfolioPage />} />
         <Route path="stock/:symbol" element={<StockPage />} />
         <Route path="backtest" element={<BacktestPage />} />

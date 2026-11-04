@@ -34,10 +34,10 @@ export const SECTION_META: readonly SectionMeta[] = [
   {
     key: "schedule",
     icon: "⏰",
-    title: "판단 일정",
-    desc: "판단 세션 시간대 · 주기 · 다음 실행",
+    title: "판단 일정·장외 주문",
+    desc: "판단 세션 시간대 · 주기 · 프리마켓·애프터마켓 주문 켜기",
     scope: "both",
-    keywords: "판단 주기 일정 스케줄 시간",
+    keywords: "판단 주기 일정 스케줄 시간 장외 프리마켓 애프터마켓 데이마켓 시간외 nxt",
   },
   {
     key: "risk",

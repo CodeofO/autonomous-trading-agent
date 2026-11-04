@@ -86,10 +86,15 @@ describe("설정 — 넓은 화면 (왼쪽 목록 + 오른쪽 내용)", () => {
     setMobile(false);
     renderSettings("/settings");
     const nav = screen.getByRole("navigation", { name: "설정 주제" });
-    // 공통 · 시장별 · 바로 가기 묶음
+    // 공통 · 시장별 두 묶음 — 메뉴에 있는 화면(뉴스 룸·메모 카드)을 다시 두지 않고, LLM 비용만 설정 안에
     expect(within(nav).getByRole("region", { name: "앱 공통" })).toBeInTheDocument();
-    expect(within(nav).getByRole("link", { name: /LLM 비용 예상/ })).toHaveAttribute("href", "/costs");
-    expect(within(nav).getByRole("link", { name: /^메모 카드/ })).toHaveAttribute("href", "/memo");
+    expect(within(nav).queryByRole("region", { name: "바로 가기" })).not.toBeInTheDocument();
+    expect(
+      within(within(nav).getByRole("region", { name: "앱 공통" })).getByRole("link", {
+        name: /LLM 비용 예상/,
+      }),
+    ).toHaveAttribute("href", "/costs");
+    expect(within(nav).queryByRole("link", { name: /뉴스 룸/ })).not.toBeInTheDocument();
     const pane = screen.getByTestId("settings-pane");
     expect(within(pane).getByRole("heading", { level: 2, name: /LLM 모델/ })).toBeInTheDocument();
     expect(within(nav).getByRole("link", { name: /LLM 모델/ })).toHaveAttribute("aria-current", "page");

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { Route, Routes } from "react-router-dom";
 import type { LlmCosts, LlmModelCost, LlmProvider, LlmUsageMonth } from "../api/types";
 import { Layout } from "../components/Layout";
-import { navIndex } from "../mobile";
+import { isActive, SETTINGS } from "../components/nav";
 import { Costs } from "../pages/Costs";
 import { Settings } from "../pages/Settings";
 import { extremes, sortModels, tokenStack } from "../utils/costs";
@@ -272,28 +272,19 @@ describe("12개 모델 비교표", () => {
 });
 
 describe("메뉴·설정 링크", () => {
-  const MOBILE_TABS = ["/", "/room", "/agent", "/portfolio", "/backtest", "/settings", "/logs"];
-
-  it("사이드바에는 'LLM 비용'이 있고, 하단 탭바(휴대폰)는 7칸 그대로", () => {
+  it("LLM 비용은 설정에 속한다: 사이드바에는 없고, LLM 비용 화면에서는 오른쪽 위 ⚙️ 설정이 켜져 보인다", () => {
     mockFetch({});
     renderWithProviders(
       <Routes>
         <Route element={<Layout />}>
-          <Route index element={<div>홈 본문</div>} />
+          <Route path="costs" element={<div>비용 본문</div>} />
         </Route>
       </Routes>,
+      { route: "/costs" },
     );
-    const link = screen.getByRole("link", { name: "LLM 비용" });
-    expect(link).toHaveAttribute("href", "/costs");
-    expect(link).toHaveClass("desktop-only");
-    const nav = link.closest("nav")!;
-    const tabs = Array.from(nav.querySelectorAll("a")).filter((a) => !a.classList.contains("desktop-only"));
-    expect(tabs.map((a) => a.getAttribute("href"))).toEqual(MOBILE_TABS);
-  });
-
-  it("휴대폰에서 LLM 비용 화면은 '설정' 탭 아래로 본다", () => {
-    expect(navIndex("/costs", MOBILE_TABS)).toBe(5);
-    expect(navIndex("/logs", MOBILE_TABS)).toBe(6);
+    expect(screen.queryByRole("link", { name: "LLM 비용" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "설정" })).toHaveAttribute("aria-current", "page");
+    expect(isActive(SETTINGS, "/costs")).toBe(true);
   });
 
   it("설정 화면에 LLM 비용 예상 링크가 있다", () => {

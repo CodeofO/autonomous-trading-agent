@@ -210,8 +210,9 @@ describe("데이터가 도착할 때 화면이 밀리지 않게", () => {
       </Routes>,
     );
     const top = container.querySelector(".topbar")!;
-    expect(top.querySelectorAll(".top-skel")).toHaveLength(4);
-    expect(top.querySelectorAll(".top-skel[aria-hidden]")).toHaveLength(4);
+    // LLM 칩 · 엔진 상태 · 킬 스위치 (토스 시세 칩은 문제가 있을 때만 나와 자리를 잡지 않는다)
+    expect(top.querySelectorAll(".top-skel")).toHaveLength(3);
+    expect(top.querySelectorAll(".top-skel[aria-hidden]")).toHaveLength(3);
     expect(screen.queryByRole("button", { name: "킬 스위치" })).not.toBeInTheDocument();
     await act(async () => resolve(SYSTEM));
     await waitFor(() => expect(screen.getByTestId("engine-status")).toHaveTextContent("실행 중"));

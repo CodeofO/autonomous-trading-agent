@@ -12,7 +12,7 @@ from app.agent import memo
 from app.agent.activity import TOOL_GROUPS
 from app.agent.prompts import DEFAULT_PERSONA, DEFAULT_POLICY, US_DEFAULT_POLICY
 from app.agent.tools import openai_tools
-from app.api.routes.common import C, U, _iso, _paper_only, _since, _spawn, chat_dict
+from app.api.routes.common import C, U, _is_live, _is_us, _iso, _since, _spawn, chat_dict
 from app.container import Container, market_profile
 from app.db.models import AgentDecision, AgentRun, ChatMessage
 
@@ -118,8 +118,8 @@ def agent_progress(c: C, _: U) -> dict[str, Any]:
 def agent_structure(c: C, _: U) -> dict[str, Any]:
     """에이전트 구성(도구·데이터 출처·스케줄·리스크 규칙)을 실제 설정값 그대로 돌려준다."""
     s = c.settings
-    us = _paper_only(c)
-    account = "토스 실계좌" if s.is_live and not us else "모의계좌"
+    us, live = _is_us(c), _is_live(c)
+    account = "토스 실계좌" if live else "모의계좌"
     ready = {
         "토스증권": c.engine.toss_ok,
         "DART": c.research.sources["financials"] == "DART",
@@ -205,8 +205,10 @@ def agent_structure(c: C, _: U) -> dict[str, Any]:
             "currency": c.market.currency if c.market else "KRW",
         },
         "market": c.code,
-        "trading_mode": "paper" if us else s.trading_mode,
-        "live_daily_buy_limit": s.live_daily_buy_limit if s.is_live and not us else None,
+        "trading_mode": "live" if live else "paper",
+        "live_daily_buy_limit": (
+            (s.us_live_daily_buy_limit if us else s.live_daily_buy_limit) if live else None
+        ),
         "engine_status": c.engine.status,
         "agent_running": c.runner.running,
     }
@@ -231,7 +233,7 @@ def get_agent_settings(c: C, _: U) -> dict[str, Any]:
         "name": p["name"],
         "emoji": p["emoji"],
         "policy": c.runner.policy(),
-        "default_policy": US_DEFAULT_POLICY if _paper_only(c) else DEFAULT_POLICY,
+        "default_policy": US_DEFAULT_POLICY if _is_us(c) else DEFAULT_POLICY,
         "default_persona": DEFAULT_PERSONA,
     }
 

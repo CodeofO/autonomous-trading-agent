@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Query
 from sqlalchemy import select
 
-from app.api.routes.common import C, U, _iso, _paper_only, _since
+from app.api.routes.common import C, U, _is_live, _is_us, _iso, _since
 from app.container import Container, market_profile
 from app.db.models import EquitySnapshot
 
@@ -16,8 +16,12 @@ router = APIRouter()
 
 DISCLAIMER = "모의투자(PAPER) 모드입니다. 에이전트의 판단과 예시 전략은 투자 권유가 아닙니다."
 US_DISCLAIMER = (
-    "미장 모의투자(PAPER, 달러 가상계좌)입니다 — 실거래 설정과 관계없이 미국 주식은 주문이 나가지 않습니다. "
+    "미장 모의투자(PAPER, 달러 가상계좌)입니다 — 미국 주식 실제 주문은 나가지 않습니다. "
     "에이전트의 판단은 투자 권유가 아닙니다."
+)
+US_LIVE_DISCLAIMER = (
+    "미장 실거래(LIVE) 모드: 토스증권 실계좌로 미국 주식 실제 주문이 나갑니다(달러). 에이전트의 판단은 "
+    "투자 권유가 아니며, 손실을 포함한 모든 결과는 사용자 책임입니다."
 )
 LIVE_DISCLAIMER = (
     "실거래(LIVE) 모드: 토스증권 실계좌로 실제 주문이 나갑니다. 에이전트의 판단은 투자 권유가 아니며, "
@@ -32,14 +36,17 @@ def _interval(c: Container) -> int:
 @router.get("/system")
 def system(c: C, _: U) -> dict[str, Any]:
     s = c.settings
-    us = _paper_only(c)
+    us, live = _is_us(c), _is_live(c)
     kv = c.llm_kv or c.kv
+    disclaimer = (
+        (US_LIVE_DISCLAIMER if live else US_DISCLAIMER) if us else LIVE_DISCLAIMER if live else DISCLAIMER
+    )
     return {
         "market": c.code,
         "currency": c.market.currency if c.market else "KRW",
         "timezone": str(c.cal.tz),
-        "paper_only": us,
-        "trading_mode": "paper" if us else s.trading_mode,
+        "paper_only": not live,  # 지금 이 시장이 모의계좌인지 (실거래는 .env 에서 시장마다 따로 켠다)
+        "trading_mode": "live" if live else "paper",
         "data_source": "toss",
         "toss_ok": c.engine.toss_ok,
         "toss_issue": c.kv.get("toss_health").get("reason") if not c.engine.toss_ok else None,
@@ -58,7 +65,7 @@ def system(c: C, _: U) -> dict[str, Any]:
         "latest_price_day": (d.isoformat() if (d := c.store.latest_day()) else None),
         "next_runs": c.scheduler.next_runs(),
         "persona": c.runner.persona(),
-        "disclaimer": US_DISCLAIMER if us else LIVE_DISCLAIMER if s.is_live else DISCLAIMER,
+        "disclaimer": disclaimer,
     }
 
 

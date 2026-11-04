@@ -1,5 +1,12 @@
 import { ApiError, get } from "../api/client";
-import type { LlmProfiles, LlmTestEndpoint, MarketCode, PushStatus, ScheduleInfo } from "../api/types";
+import type {
+  ExtendedHoursInfo,
+  LlmProfiles,
+  LlmTestEndpoint,
+  MarketCode,
+  PushStatus,
+  ScheduleInfo,
+} from "../api/types";
 import { SCHEDULE_API } from "../utils/schedule";
 
 /*
@@ -38,4 +45,16 @@ export const scheduleQuery = (m: MarketCode) => ({
   queryKey: scheduleKey(m),
   queryFn: () => get<ScheduleInfo>(SCHEDULE_API[m]),
   retry: m === "KR" ? (n: number, e: unknown) => !is404(e) && n < 1 : false,
+});
+
+/** 장외 주문 설정 (D-57) — 시장마다 따로 */
+export const EXTENDED_API: Record<MarketCode, string> = {
+  KR: "/api/extended-hours",
+  US: "/api/us/extended-hours",
+};
+export const extendedHoursKey = (m: MarketCode) => ["extended-hours", m];
+export const extendedHoursQuery = (m: MarketCode) => ({
+  queryKey: extendedHoursKey(m),
+  queryFn: () => get<ExtendedHoursInfo>(EXTENDED_API[m]),
+  retry: false,
 });

@@ -13,7 +13,7 @@ from app.agent.runner import AgentRunner
 from app.brokers.base import BrokerInterface
 from app.core.clock import KST, Clock
 from app.core.market import MarketSpec
-from app.core.market_calendar import MarketCalendar, Session
+from app.core.market_calendar import EXT_LABEL, MarketCalendar, Session
 from app.db.models import EquitySnapshot, Order, StrategyConfig, WatchlistItem
 from app.db.session import Database
 from app.engine.events import RISK, SYSTEM, EventHub
@@ -124,6 +124,17 @@ class TradingEngine:
     def order_window(self) -> str:
         now = self.clock.now()
         basis = self.cal.fill_basis(now)
+        if basis == "EXT" and (ext := self.cal.extended_at(now)) is not None:
+            name, end = EXT_LABEL[ext.name], f"{ext.end.astimezone(KST):%H:%M}"
+            if self.broker.is_live:
+                return (
+                    f"지금은 장외 {name}(설정에서 켬) — 주문하면 토스증권 실계좌로 실제 주문이 나가요 "
+                    f"(장외 시세로 체결, {end} KST 까지)"
+                )
+            return (
+                f"지금은 장외 {name}(설정에서 켬) — 주문하면 장외 시세가 갱신될 때 현재가로 체결, "
+                f"{end} KST 까지 미체결분은 취소 (장외는 거래가 적어 체결이 안 될 수 있음)"
+            )
         if basis and self.broker.is_live:
             return "지금 주문하면 토스증권 실계좌로 실제 주문이 나가요 (시장가는 바로 체결, 미체결은 당일 장 마감까지 유효)"
         if self.market is not None and self.market.code == "US":
@@ -151,6 +162,11 @@ class TradingEngine:
             )
         n = self.cal.next_session(now)
         pre = n.open - self.cal.pre_open_window
+        if not self.cal.pre_open_window:  # 실거래: 장 시작 전 주문을 보내지 않는다 (D-55)
+            return (
+                f"지금은 주문 불가. 다음 접수: 미국 {n.day} 정규장 — {hm(n.open)} KST 부터 "
+                "(실거래는 장 시작 전 주문을 보내지 않음)"
+            )
         return (
             f"지금은 주문 불가. 다음 접수: 미국 {n.day} 장 — {pre.astimezone(KST):%m/%d %H:%M} KST 부터 "
             f"(장 시작 {hm(n.open)} KST 현재가 체결)"
@@ -263,11 +279,15 @@ class TradingEngine:
             return
         now = self.clock.now()
         s = self._session_window(now)
-        if s is None or not await self.toss_health():
+        # 설정에서 켠 장외 세션(D-57)도 감시한다 — 끝난 뒤 몇 분은 미체결 만료 정리
+        ext = None if s is not None else self.cal.extended_at(now, slack=INTRADAY_AFTER)
+        if (s is None and ext is None) or not await self.toss_health():
             return
         if await self.orders.settle():
             await self.snapshot_equity()
         await self.check_exits()
+        if s is None:
+            return
         # 장중 10분마다 + 마감 뒤 첫 감시 때 한 번(그날 마감 자산)
         if now.minute % 10 == 0 or (now >= s.close and not self._has_close_snapshot(s)):
             await self.snapshot_equity()

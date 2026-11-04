@@ -1,0 +1,471 @@
+"""뉴스 룸 (D-56) — 세계의 흐름과 대한민국 주요 뉴스를 섹션별로 모아 한 판으로 저장한다.
+
+- 기사: 네이버 뉴스 검색(`NaverNewsClient`, NAVER API HUB/개발자센터, 키는 `.env`). 섹션마다 검색어 몇 개를 최신순으로
+  받아 지난 24시간 기사만 남기고, 같은 사건을 다룬 기사(제목 단어가 많이 겹침)를 하나로 묶는다. 여러 매체가 다룬
+  기사일수록 위로 올린다(묶인 기사 수 → 최신순). 앞 섹션에 나온 사건은 뒤 섹션에서 뺀다.
+- 요약(선택): 지금 활성 LLM 프로필(국장 매니저와 같은 것)로 '오늘의 흐름' 한 줄과 섹션별 2~3문장. LLM 이 없거나
+  실패하면 요약 없이 기사 목록만 저장한다. 화면에서 끌 수 있다(kv `news_room.summary`).
+- 구글 검색(Gemini 그라운딩)은 쓰지 않는다: 약관상 그라운딩 결과는 Search Suggestions 와 함께 '질문한 사용자'에게만
+  보여 줘야 하고, 캐시·수정·다른 내용과 섞기가 금지라 미리 모아 저장해 두는 뉴스 룸과 맞지 않는다.
+- 일정: 매일 07:00·12:00·17:00(한국 시각, 주말·휴장일 포함). 국장 1분 분배기(`Scheduler.daily`)가 `sched_fired`
+  기록으로 한 번만 돌린다. 서버가 꺼져 있어 놓친 경우 켜진 뒤 가장 최근 슬롯 하나만 따라잡는다.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import email.utils
+import logging
+import re
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from datetime import UTC, datetime, time, timedelta
+from typing import Any
+from urllib.parse import urlsplit
+
+from sqlalchemy import delete, select
+
+from app.agent.costs import record_usage
+from app.agent.llm import LLMClient, extract_json
+from app.core.clock import KST, Clock
+from app.db.models import NewsEdition
+from app.db.session import Database
+from app.engine.settings_store import SettingsStore
+from app.research.naver import NaverNewsClient
+
+log = logging.getLogger(__name__)
+
+SLOTS: tuple[time, ...] = (time(7, 0), time(12, 0), time(17, 0))  # 한국 시각, 매일
+KV = "news_room"  # {summary: bool, last_error, last_attempt}
+KEEP_DAYS = 14  # 이보다 오래된 판은 지운다
+PER_QUERY = 20  # 검색어 하나당 받는 기사 수 (네이버 display 최대 100)
+PER_SECTION = 8  # 섹션마다 보여 주는 기사 수
+MAX_AGE = timedelta(hours=24)  # 이보다 오래된 기사는 뺀다
+SAME_STORY = 0.45  # 제목 단어 자카드 유사도가 이 이상이면 같은 사건으로 묶는다
+MANUAL_COOLDOWN = timedelta(seconds=60)  # 수동 새로고침 최소 간격 (유료 LLM 연타 방지)
+SUMMARY_MAX = 400  # 섹션 요약 최대 글자
+HEADLINE_MAX = 120
+
+
+@dataclass(frozen=True)
+class Section:
+    key: str
+    title: str
+    icon: str
+    queries: tuple[str, ...]
+
+
+SECTIONS: tuple[Section, ...] = (
+    Section("world", "세계·국제", "🌍", ("국제 정세", "외신", "정상회담")),
+    Section("global_econ", "미국·글로벌 경제", "🌐", ("뉴욕증시", "연준 금리", "국제유가", "달러 환율")),
+    Section("kr_market", "국내 경제·증시", "📈", ("코스피", "코스닥", "한국은행", "원달러 환율")),
+    Section("kr_issues", "국내 주요 이슈", "🇰🇷", ("속보", "대통령실", "국회")),
+)
+
+_BRACKETS = re.compile(r"\[[^\]]*\]|【[^】]*】|<[^>]*>")
+_WORD = re.compile(r"[0-9A-Za-z가-힣]+")
+
+
+class NewsRoomBusyError(RuntimeError):
+    pass
+
+
+class NewsRoomUnavailableError(RuntimeError):
+    pass
+
+
+# ====================================================================== 기사 고르기
+def tokens(title: str) -> frozenset[str]:
+    """같은 사건 판단용 제목 단어 ([속보]·[단독] 같은 머리표는 뺀다)."""
+    return frozenset(w for w in _WORD.findall(_BRACKETS.sub(" ", title).lower()) if len(w) >= 2)
+
+
+def similar(a: frozenset[str], b: frozenset[str]) -> bool:
+    if not a or not b:
+        return False
+    return len(a & b) / len(a | b) >= SAME_STORY
+
+
+def published_at(raw: str) -> datetime | None:
+    """네이버 pubDate (RFC 822, 예: 'Thu, 05 Nov 2026 07:10:00 +0900')."""
+    try:
+        t = email.utils.parsedate_to_datetime(raw)
+    except (TypeError, ValueError, IndexError):
+        return None
+    return t if t.tzinfo else t.replace(tzinfo=KST)
+
+
+def domain(link: str) -> str:
+    host = (urlsplit(link).hostname or "").lower()
+    return host.removeprefix("www.")
+
+
+@dataclass
+class _Story:
+    item: dict[str, Any]
+    words: frozenset[str]
+    at: datetime | None
+    related: int = 1
+    domains: set[str] = field(default_factory=set)
+
+
+def pick_stories(
+    articles: list[dict[str, Any]],
+    now: datetime,
+    *,
+    taken: list[frozenset[str]] | None = None,
+    limit: int = PER_SECTION,
+) -> list[dict[str, Any]]:
+    """기사 목록 → 섹션에 보일 기사. 같은 사건은 하나로(가장 최근 기사), 많이 다뤄진 사건 → 최신 순.
+
+    taken: 앞 섹션에서 이미 고른 사건의 제목 단어 — 겹치면 뺀다. 고른 것을 여기에 더한다.
+    """
+    taken = taken if taken is not None else []
+    seen_links: set[str] = set()
+    rows: list[tuple[dict[str, Any], frozenset[str], datetime | None]] = []
+    for a in articles:
+        link, title = str(a.get("link") or ""), str(a.get("title") or "").strip()
+        if not title or not link or link in seen_links:
+            continue
+        seen_links.add(link)
+        at = published_at(str(a.get("pubDate") or ""))
+        if at is not None and (now - at > MAX_AGE or at - now > timedelta(hours=1)):
+            continue
+        rows.append((a, tokens(title), at))
+    # 최신 기사가 그 사건의 대표가 되도록 최신순으로 묶는다 (시각 없는 기사는 맨 뒤)
+    rows.sort(key=lambda r: r[2] or datetime.min.replace(tzinfo=UTC), reverse=True)
+    stories: list[_Story] = []
+    for a, words, at in rows:
+        if any(similar(words, t) for t in taken):
+            continue
+        hit = next((s for s in stories if similar(words, s.words)), None)
+        d = domain(str(a.get("link") or ""))
+        if hit is not None:
+            hit.related += 1
+            hit.domains.add(d)
+            continue
+        stories.append(_Story(a, words, at, domains={d}))
+    oldest = datetime.min.replace(tzinfo=UTC)
+    stories.sort(key=lambda s: (len(s.domains), s.related, s.at or oldest), reverse=True)
+    out: list[dict[str, Any]] = []
+    for s in stories[:limit]:
+        taken.append(s.words)
+        link = str(s.item.get("link") or "")
+        out.append(
+            {
+                "title": str(s.item.get("title") or "")[:200],
+                "description": str(s.item.get("description") or "")[:300],
+                "link": link,
+                "domain": domain(link),
+                "published_at": s.at.isoformat() if s.at else None,
+                "related": s.related,
+            }
+        )
+    return out
+
+
+# ====================================================================== 요약 (LLM, 선택)
+SUMMARY_SYSTEM = (
+    "너는 한국어 뉴스 데스크 편집자다. 주어진 기사 제목과 요약문만 근거로 쓴다. 기사에 없는 사실·숫자·전망을 "
+    "지어내지 말고, 투자 권유나 매수·매도 의견은 쓰지 않는다. 반드시 JSON 객체 하나만 답한다."
+)
+SUMMARY_PROMPT = (
+    "아래는 {when} 기준 섹션별 주요 기사다.\n"
+    '다음 형식의 JSON 으로 답하라: {{"headline": "세계와 한국의 오늘 흐름 한 문장(80자 이내)", '
+    '"sections": {{{keys}}}}}\n'
+    "섹션 요약은 각각 2~3문장, 200자 이내, 핵심 사건 위주로. 기사가 없는 섹션은 빈 문자열.\n\n{body}"
+)
+
+
+def summary_prompt(sections: list[dict[str, Any]], when: datetime) -> str:
+    keys = ", ".join(f'"{s["key"]}": "{s["title"]} 요약"' for s in sections)
+    parts: list[str] = []
+    for s in sections:
+        parts.append(f"## {s['key']} — {s['title']}")
+        for i, it in enumerate(s["items"], 1):
+            desc = it["description"][:160]
+            parts.append(f"{i}. {it['title']}" + (f" — {desc}" if desc else ""))
+        if not s["items"]:
+            parts.append("(기사 없음)")
+    return SUMMARY_PROMPT.format(when=f"{when:%Y-%m-%d %H:%M} KST", keys=keys, body="\n".join(parts))
+
+
+def parse_summary(text: str, keys: list[str]) -> tuple[str | None, dict[str, str]]:
+    data = extract_json(text or "")
+    if data is None:
+        raise ValueError("요약 응답이 JSON 이 아니에요")
+    head = data.get("headline")
+    headline = str(head).strip()[:HEADLINE_MAX] if isinstance(head, str) and head.strip() else None
+    raw = data.get("sections")
+    secs = raw if isinstance(raw, dict) else {}
+    out = {
+        k: str(secs[k]).strip()[:SUMMARY_MAX]
+        for k in keys
+        if isinstance(secs.get(k), str) and secs[k].strip()
+    }
+    if headline is None and not out:
+        raise ValueError("요약 응답에 내용이 없어요")
+    return headline, out
+
+
+# ====================================================================== 일정
+def slot_label(t: time) -> str:
+    return f"{t:%H:%M}"
+
+
+def next_slot(now: datetime) -> datetime:
+    """지금 이후 첫 갱신 시각 (한국 시각)."""
+    local = now.astimezone(KST)
+    for d in (local.date(), local.date() + timedelta(days=1)):
+        for t in SLOTS:
+            at = datetime.combine(d, t, KST)
+            if at > local:
+                return at
+    raise AssertionError("unreachable")  # pragma: no cover
+
+
+# ====================================================================== 서비스
+class NewsRoom:
+    def __init__(
+        self,
+        db: Database,
+        clock: Clock,
+        kv: SettingsStore,
+        *,
+        news: NaverNewsClient | None,
+        llm: Callable[[], LLMClient | None] = lambda: None,
+        audit: Callable[..., Any] | None = None,
+        sections: tuple[Section, ...] = SECTIONS,
+    ) -> None:
+        self.db = db
+        self.clock = clock
+        self.kv = kv
+        self.news = news
+        self.llm = llm  # 지금 활성 LLM (프로필을 바꾸면 매니저와 함께 바뀐다)
+        self.audit = audit
+        self.sections = sections
+        self._lock = asyncio.Lock()
+        self._tasks: set[asyncio.Task[Any]] = set()
+
+    # ------------------------------------------------------------ 상태
+    @property
+    def available(self) -> bool:
+        return self.news is not None
+
+    @property
+    def unavailable_reason(self) -> str | None:
+        if self.news is None:
+            return "NAVER_CLIENT_ID / NAVER_CLIENT_SECRET 미설정 — .env 에 네이버 뉴스 검색 키를 넣고 재시작하세요"
+        return self.news.auth_error
+
+    @property
+    def refreshing(self) -> bool:
+        """모으는 중 (수동 새로고침은 작업을 띄운 순간부터 — 잠금을 잡기 전에도 화면이 '모으는 중'을 보게)."""
+        return self._lock.locked() or any(not t.done() for t in self._tasks)
+
+    def settings(self) -> dict[str, Any]:
+        return {"summary": bool(self.kv.get(KV).get("summary", True))}
+
+    def set_summary(self, on: bool) -> dict[str, Any]:
+        self.kv.set(KV, {**self.kv.get(KV), "summary": bool(on)})
+        return self.settings()
+
+    def latest(self) -> NewsEdition | None:
+        with self.db.session() as s:
+            row = s.scalar(select(NewsEdition).order_by(NewsEdition.created_at.desc(), NewsEdition.id.desc()))
+            if row is not None:
+                s.expunge(row)
+            return row
+
+    def view(self, *, auto: bool) -> dict[str, Any]:
+        """`GET /api/news-room` 응답."""
+        now = self.clock.now()
+        row = self.latest()
+        state = self.kv.get(KV)
+        llm = self.llm()
+        edition = None
+        if row is not None:
+            edition = {
+                "id": row.id,
+                "created_at": _iso(row.created_at),
+                "trigger": row.trigger,
+                **row.payload,
+            }
+        return {
+            "edition": edition,
+            "updated_at": edition["created_at"] if edition else None,
+            "next_update_at": next_slot(now).isoformat(),
+            "schedule": [slot_label(t) for t in SLOTS],
+            "timezone": "Asia/Seoul",
+            "auto": auto and self.available,
+            "available": self.available,
+            "reason": self.unavailable_reason,
+            "refreshing": self.refreshing,
+            "last_error": state.get("last_error"),
+            "last_attempt": state.get("last_attempt"),
+            "settings": self.settings(),
+            "llm": {"configured": llm is not None, "model": llm.model if llm else None},
+            "sections": [{"key": s.key, "title": s.title, "icon": s.icon} for s in self.sections],
+        }
+
+    # ------------------------------------------------------------ 갱신
+    async def scheduled(self, slot: datetime) -> dict[str, Any] | None:
+        """분배기가 부르는 07·12·17시 작업. 그 슬롯 뒤에 이미 만든 판(수동 새로고침)이 있으면 건너뛴다."""
+        row = self.latest()
+        if row is not None and row.created_at >= slot:
+            log.info(
+                "뉴스 룸 %s 갱신 건너뜀 — 이미 %s 에 만든 판이 있음",
+                slot_label(slot.timetz()),
+                row.created_at,
+            )
+            return None
+        if self.refreshing:
+            log.info("뉴스 룸 %s 갱신 건너뜀 — 다른 갱신 진행 중", slot_label(slot.timetz()))
+            return None
+        return await self.refresh("schedule", slot=slot)
+
+    def start_manual(self) -> None:
+        """수동 새로고침을 백그라운드로 시작한다 (LLM 요약은 수십 초 걸릴 수 있다). 화면은 refreshing 으로 기다린다."""
+        if not self.available:
+            raise NewsRoomUnavailableError(self.unavailable_reason or "뉴스 검색 키가 없어요")
+        if self.refreshing:
+            raise NewsRoomBusyError("이미 뉴스를 모으고 있어요")
+        row = self.latest()
+        now = self.clock.now()
+        if row is not None and now - row.created_at < MANUAL_COOLDOWN:
+            wait = int((MANUAL_COOLDOWN - (now - row.created_at)).total_seconds()) + 1
+            raise NewsRoomBusyError(f"방금 갱신했어요. {wait}초 뒤에 다시 눌러 주세요")
+        t = asyncio.create_task(self._manual())
+        self._tasks.add(t)
+        t.add_done_callback(self._tasks.discard)
+
+    async def _manual(self) -> None:
+        try:
+            await self.refresh("manual")
+        except Exception:  # 오류는 kv last_error 에 남겼다
+            log.exception("뉴스 룸 수동 갱신 실패")
+
+    async def refresh(self, trigger: str, *, slot: datetime | None = None) -> dict[str, Any]:
+        """기사를 모아(+요약) 한 판을 저장하고 돌려준다. 기사를 하나도 못 받으면 이전 판을 그대로 두고 예외."""
+        if self.news is None:
+            raise NewsRoomUnavailableError(self.unavailable_reason or "뉴스 검색 키가 없어요")
+        async with self._lock:
+            started = self.clock.now()
+            try:
+                payload = await self._build(trigger, started, slot)
+            except Exception as e:
+                msg = str(e)[:300] or type(e).__name__
+                self._status(started, msg)
+                if self.audit is not None:
+                    self.audit("NEWS", f"뉴스 룸 갱신 실패: {msg}", None)
+                raise
+            with self.db.session() as s:
+                row = NewsEdition(created_at=self.clock.now(), trigger=trigger, payload=payload)
+                s.add(row)
+                s.flush()
+                edition = {"id": row.id, "created_at": _iso(row.created_at), "trigger": trigger, **payload}
+                s.execute(
+                    delete(NewsEdition).where(NewsEdition.created_at < started - timedelta(days=KEEP_DAYS))
+                )
+            self._status(started, None)
+            stats = payload["stats"]
+            when = f"{slot:%H:%M} " if slot else "수동 "
+            log.info(
+                "뉴스 룸 %s갱신: 기사 %d건(섹션 %d), 요약 %s",
+                when,
+                stats["articles"],
+                len(payload["sections"]),
+                payload.get("summary_model") or "없음",
+            )
+            if self.audit is not None:
+                self.audit(
+                    "NEWS",
+                    f"뉴스 룸 {when}갱신 — 기사 {stats['articles']}건"
+                    + (f", 요약 {payload['summary_model']}" if payload.get("summary_model") else ""),
+                    None,
+                    edition_id=edition["id"],
+                )
+            return edition
+
+    def _status(self, at: datetime, error: str | None) -> None:
+        self.kv.set(KV, {**self.kv.get(KV), "last_attempt": at.isoformat(), "last_error": error})
+
+    async def _build(self, trigger: str, now: datetime, slot: datetime | None) -> dict[str, Any]:
+        assert self.news is not None
+        news = self.news
+        jobs = [(s.key, q) for s in self.sections for q in s.queries]
+
+        async def fetch(q: str) -> list[dict[str, Any]] | Exception:
+            try:
+                return await news.search(q, display=PER_QUERY, sort="date")
+            except Exception as e:  # 검색어 하나가 실패해도 나머지로 판을 만든다
+                return e
+
+        results = await asyncio.gather(*(fetch(q) for _k, q in jobs))
+        by_section: dict[str, list[dict[str, Any]]] = {s.key: [] for s in self.sections}
+        errors: dict[str, list[str]] = {s.key: [] for s in self.sections}
+        failed: list[str] = []
+        for (key, q), res in zip(jobs, results, strict=True):
+            if isinstance(res, Exception):
+                failed.append(str(res)[:200])
+                errors[key].append(f"'{q}' 검색 실패")
+            else:
+                by_section[key].extend(res)
+        if len(failed) == len(jobs):
+            raise RuntimeError(f"뉴스를 하나도 받지 못했어요: {failed[0]}")
+        taken: list[frozenset[str]] = []
+        sections: list[dict[str, Any]] = [
+            {
+                "key": s.key,
+                "title": s.title,
+                "icon": s.icon,
+                "summary": None,
+                "items": pick_stories(by_section[s.key], now, taken=taken),
+                "errors": errors[s.key],
+            }
+            for s in self.sections
+        ]
+        total = sum(len(s["items"]) for s in sections)
+        if total == 0:
+            raise RuntimeError("지난 24시간 안의 기사를 찾지 못했어요")
+        headline, model, summary_error = await self._summarize(sections, now)
+        return {
+            "trigger": trigger,
+            "slot": slot_label(slot.astimezone(KST).time()) if slot else None,
+            "headline": headline,
+            "summary_model": model,
+            "summary_error": summary_error,
+            "sections": sections,
+            "sources": {"news": "NAVER"},
+            "stats": {"queries": len(jobs), "failed_queries": len(failed), "articles": total},
+        }
+
+    async def _summarize(
+        self, sections: list[dict[str, Any]], now: datetime
+    ) -> tuple[str | None, str | None, str | None]:
+        """(headline, 모델, 오류). 끔·LLM 없음이면 (None, None, None). 실패해도 예외를 내지 않는다."""
+        if not self.settings()["summary"]:
+            return None, None, None
+        llm = self.llm()
+        if llm is None:
+            return None, None, None
+        try:
+            res = await llm.chat(
+                [
+                    {"role": "system", "content": SUMMARY_SYSTEM},
+                    {"role": "user", "content": summary_prompt(sections, now.astimezone(KST))},
+                ]
+            )
+            record_usage(self.db, self.clock.now(), "newsroom", None, llm.model, res.usage)
+            headline, by_key = parse_summary(res.content, [s["key"] for s in sections])
+        except Exception as e:
+            log.warning("뉴스 룸 요약 실패(%s): %s", llm.model, str(e)[:200])
+            return None, None, f"요약 실패 — 기사 목록만 보여 줘요 ({str(e)[:120]})"
+        for s in sections:
+            s["summary"] = by_key.get(s["key"]) or None
+        return headline, llm.model, None
+
+
+def _iso(t: datetime) -> str:
+    """한국 시각 ISO (다음 갱신 시각과 같은 표기)."""
+    return (t if t.tzinfo else t.replace(tzinfo=UTC)).astimezone(KST).isoformat()

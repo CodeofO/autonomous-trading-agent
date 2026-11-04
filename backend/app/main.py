@@ -49,7 +49,8 @@ def _build_containers(settings: Settings, overrides: dict[str, Any]) -> dict[str
     container = build_container(settings, create_schema=in_memory, **overrides)
     containers: dict[str, Container] = {"KR": container}
     if settings.us_market_enabled:
-        # 미장 모의투자 스택 (D-48): 별도 DB·계좌·엔진·에이전트·스케줄러, 토스 클라이언트는 국장과 같은 인스턴스
+        # 미장 스택 (D-48): 별도 DB·계좌·엔진·에이전트·스케줄러, 토스 클라이언트는 국장과 같은 인스턴스.
+        # 거래 모드는 US_TRADING_MODE (D-55). trading_client 는 테스트용 가짜 주문 클라이언트
         us_url = settings.us_db_url()
         if not _in_memory(us_url):
             _migrate(us_url)
@@ -58,6 +59,7 @@ def _build_containers(settings: Settings, overrides: dict[str, Any]) -> dict[str
             create_schema=_in_memory(us_url),
             market="US",
             shared=container,
+            trading_client=overrides.get("trading_client"),
             clock=overrides.get("clock"),
         )
     return containers
@@ -78,8 +80,10 @@ def _lifespan(settings: Settings, containers: dict[str, Container]) -> Any:
         if u is not None:
             u.scheduler.shutdown()
         c.scheduler.shutdown()
-        if c.trading is not None:
-            await c.trading.aclose()
+        # 주문 클라이언트는 국장·미장이 같이 쓸 수 있다 — 한 번씩만 닫는다
+        traders = {id(x.trading): x.trading for x in containers.values() if x.trading is not None}
+        for trader in traders.values():
+            await trader.aclose()
         await c.toss.client.aclose()
 
     return lifespan
@@ -115,8 +119,9 @@ async def _start_kr(c: Container, settings: Settings) -> asyncio.Task[None] | No
     # 실제로 쓰는 모델(무료/유료 선택·유료 모델 선택 반영). .env 의 LLM_MODEL 이 아니다
     active_llm = c.runner.llm.model if c.runner.llm else "없음(규칙 기반)"
     log.info(
-        "기동: TRADING_MODE=%s 시세=토스증권(조회 전용) LLM=%s %s",
+        "기동: TRADING_MODE=%s US_TRADING_MODE=%s 시세=토스증권(조회 전용) LLM=%s %s",
         settings.trading_mode,
+        settings.us_trading_mode if settings.us_market_enabled else "off",
         active_llm,
         c.scheduler.describe(),
     )
@@ -152,15 +157,18 @@ async def _start_us(u: Container) -> asyncio.Task[None] | None:
     except Exception:
         log.exception("미장 초기 시세 동기화 실패")
     await u.scheduler.maintenance()
+    if s.us_is_live:
+        await _check_live_account(u)
     if not s.enable_scheduler:
         return None
     u.scheduler.start()
     model = u.runner.llm.model if u.runner.llm else "미설정(규칙 기반)"
     nxt = u.scheduler.next_runs(1)
     when = f", 다음 일정 {nxt[0]['at'][5:16].replace('T', ' ')} KST" if nxt else ""
+    account = "🔴 토스증권 실계좌(미국 주식 실거래)" if s.us_is_live else "미국 주식 모의투자 계좌(달러)"
     announce_boot(
         u,
-        f"🟢 미장 시스템 기동 — 주문: 미국 주식 모의투자 계좌(달러, 항상 모의), 시세: 토스증권 실시간, "
+        f"🟢 미장 시스템 기동 — 주문: {account}, 시세: 토스증권 실시간, "
         f"{u.scheduler.describe()}, LLM: {model}{when}",
     )
     return asyncio.create_task(u.runner.resume_pending())
@@ -170,7 +178,7 @@ async def _check_live_account(c: Any) -> None:
     """실거래: 주문 계좌를 확인한다. 확인이 안 되면 엔진을 일시정지하고 이유를 알린다(주문 실패 반복 방지)."""
     try:
         await c.broker.ensure_account()
-        c.hub.audit("LIVE", "실거래 모드 — 토스증권 계좌 확인 완료", None)
+        c.hub.audit("LIVE", "실거래 모드 — 토스증권 계좌 확인 완료", None)  # 시장마다 자기 감사 로그에
     except Exception as e:
         log.warning("실거래 계좌 확인 실패: %s", e)
         c.engine.pause()

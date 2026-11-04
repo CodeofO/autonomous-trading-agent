@@ -152,6 +152,22 @@ small {
   flex-direction: column;
   gap: 2px;
 }
+/* 넓은 화면 메뉴 묶음: '매일 보기' · '매니저·분석' */
+.side-nav {
+  gap: 14px !important;
+}
+.nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.nav-group-title {
+  padding: 0 12px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-dim);
+}
 .sidebar nav a {
   padding: 9px 12px;
   border-radius: 10px;
@@ -1517,7 +1533,6 @@ label.toggle input {
 /* 모바일 전용 요소는 넓은 화면에서 숨긴다 */
 .top-brand,
 .conn-dot,
-.top-logout,
 .nav-short,
 .tab-ind,
 .skeleton {
@@ -1616,10 +1631,17 @@ label.toggle input {
   .sidebar nav {
     position: relative;
     display: grid;
-    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--tabs, 5), minmax(0, 1fr));
     gap: 0;
   }
-  .sidebar nav a {
+  .sidebar nav .tab-more {
+    border: 0;
+    background: none;
+    font: inherit;
+    cursor: pointer;
+  }
+  .sidebar nav a,
+  .sidebar nav .tab-more {
     position: relative;
     z-index: 1;
     display: flex;
@@ -1640,26 +1662,28 @@ label.toggle input {
   .sidebar nav a:hover {
     background: none;
   }
-  .sidebar nav a.active {
+  .sidebar nav a.active,
+  .sidebar nav .tab-more.active {
     background: none;
     color: var(--accent);
   }
-  .sidebar nav a .nav-icon {
+  .sidebar nav .nav-icon {
     display: block;
     font-size: 19px;
     transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
   }
-  .sidebar nav a.active .nav-icon {
+  .sidebar nav .active .nav-icon {
     transform: translateY(-1px) scale(1.08);
   }
-  .sidebar nav a:active .nav-icon {
+  .sidebar nav a:active .nav-icon,
+  .sidebar nav .tab-more:active .nav-icon {
     transform: scale(0.86);
     transition-duration: 0.08s;
   }
   .sidebar nav a .nav-label {
     display: none;
   }
-  .sidebar nav a .nav-short {
+  .sidebar nav .nav-short {
     display: block;
   }
   /* 선택된 탭 뒤의 둥근 표시 — 탭을 바꾸면 옆으로 미끄러진다 */
@@ -1669,7 +1693,7 @@ label.toggle input {
     top: 0;
     bottom: 0;
     left: 0;
-    width: calc(100% / 7);
+    width: calc(100% / var(--tabs, 5));
     transform: translateX(calc(var(--tab-i, 0) * 100%));
     transition: transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
     pointer-events: none;
@@ -1744,10 +1768,6 @@ label.toggle input {
     content: "";
     position: absolute;
     inset: -5px -4px;
-  }
-  .top-logout {
-    display: inline;
-    font-size: 12px;
   }
   .top-info {
     order: 10;
@@ -2009,7 +2029,7 @@ html.vt-nav::view-transition-group(tab-ind) {
     animation: none;
   }
   .tab-ind,
-  .sidebar nav a .nav-icon {
+  .sidebar nav .nav-icon {
     transition: none;
   }
 }
@@ -2119,12 +2139,6 @@ html.vt-nav::view-transition-group(tab-ind) {
 }
 
 /* ---------- LLM 비용 ---------- */
-/* 휴대폰 하단 탭바에는 넣지 않는 메뉴 (넓은 화면 사이드바에만) */
-@media (max-width: 760px) {
-  .sidebar nav a.desktop-only {
-    display: none;
-  }
-}
 .link-card {
   display: flex;
   flex-direction: column;
@@ -3522,7 +3536,8 @@ html.vt-mkt::view-transition-group(mkt-ind) {
   /* 휴대폰: 상단 바 둘째 줄을 꽉 채우는 엄지 크기 전환 (보이는 높이 38px, 누르는 영역 44px) */
   .mkt-switch {
     order: 5;
-    flex: 1 0 100%;
+    /* 둘째 줄: 시장 전환 + 오른쪽 끝 ⚙️ 설정 (설정 버튼 자리 52px) */
+    flex: 1 0 calc(100% - 52px);
     display: grid;
     -webkit-user-select: none;
     user-select: none;
@@ -4211,5 +4226,123 @@ kbd,
   .conn-banner .spinner,
   .ptr.refreshing .ptr-ball::after {
     animation-duration: 2.4s;
+  }
+}
+
+/* ---------- 메뉴 정리 (설정은 오른쪽 위, 휴대폰은 4칸 + 더보기) ---------- */
+.top-settings {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  font-weight: 600;
+  font-size: 13.5px;
+  white-space: nowrap;
+}
+.top-settings:hover {
+  background: var(--panel-2);
+  text-decoration: none;
+}
+.top-settings.active {
+  background: var(--accent-soft);
+  border-color: transparent;
+  color: var(--accent);
+}
+.mgr-tabs {
+  margin-bottom: 14px;
+}
+.seg a {
+  color: var(--text-dim);
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+.seg a:hover {
+  text-decoration: none;
+  color: var(--text);
+}
+.seg a.active {
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+.more-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.more-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+.more-list li:last-child .more-item {
+  border-bottom: 0;
+}
+.more-item:hover {
+  text-decoration: none;
+}
+.more-item.active b {
+  color: var(--accent);
+}
+.more-icon {
+  font-size: 22px;
+  width: 30px;
+  text-align: center;
+}
+.more-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.more-text small {
+  font-size: 12px;
+}
+.more-logout {
+  width: 100%;
+  margin-top: 10px;
+}
+@media (max-width: 760px) {
+  /* 휴대폰: 아이콘만 (보이는 크기는 작게, 누르는 영역은 44px) */
+  .top-settings {
+    order: 6;
+    position: relative;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    font-size: 18px;
+    border-radius: 12px;
+  }
+  .top-settings-text {
+    display: none;
+  }
+  .top-settings::after {
+    content: "";
+    position: absolute;
+    inset: -5px -3px;
+  }
+  .mgr-tabs {
+    display: flex;
+    margin-bottom: 12px;
+  }
+  .mgr-tabs a {
+    flex: 1;
+    text-align: center;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 }

@@ -268,3 +268,47 @@
     transition: none;
   }
 }
+
+/* 🌙 장외 주문 (D-57) */
+.ext-card {
+  margin-top: 12px;
+}
+.ext-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ext-row + .ext-row {
+  border-top: 1px solid var(--border);
+}
+label.toggle.ext-toggle {
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  cursor: pointer;
+}
+.ext-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ext-text b {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+}
+.ext-time {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.pill.ext-now {
+  font-size: 11px;
+}
+.ext-note {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+}

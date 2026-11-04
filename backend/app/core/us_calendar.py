@@ -16,7 +16,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from app.core.clock import KST
-from app.core.market_calendar import MarketCalendar, Session
+from app.core.market_calendar import ExtSession, MarketCalendar, Session, toss_time
 
 NY = ZoneInfo("America/New_York")
 
@@ -69,9 +69,13 @@ US_PUBLISH_DELAY = timedelta(minutes=30)  # 일봉(정규장 OHLC)이 확정됐�
 class UsMarketCalendar(MarketCalendar):
     tz = NY
     pre_open_window = US_PRE_OPEN_WINDOW
+    #: 토스 미장 장외 세션: 데이마켓(한국 낮, 토스증권)·프리마켓·애프터마켓 (D-57)
+    EXT_SESSIONS = ("day_market", "pre_market", "after_market")
 
-    def __init__(self, extra_holidays: set[date] | None = None) -> None:
+    def __init__(self, extra_holidays: set[date] | None = None, *, pre_open: bool = True) -> None:
         super().__init__()
+        if not pre_open:  # 실거래(D-55): 장 시작 전 접수 없음 → 정규장 시작부터 주문
+            self.pre_open_window = timedelta(0)
         self._holidays = set(NYSE_HOLIDAYS) | (extra_holidays or set())
         self._early = set(NYSE_EARLY_CLOSES)
 
@@ -106,6 +110,7 @@ class UsMarketCalendar(MarketCalendar):
             if not entry or not entry.get("date"):
                 continue
             d = date.fromisoformat(entry["date"])
+            self._set_extended(d, self._us_extended(d, entry))
             regular = entry.get("regularMarket")
             if not regular:
                 self._overrides[d] = None
@@ -113,3 +118,27 @@ class UsMarketCalendar(MarketCalendar):
             open_ = datetime.fromisoformat(regular["startTime"]).astimezone(KST)
             close = datetime.fromisoformat(regular["endTime"]).astimezone(KST)
             self._overrides[d] = Session(day=d, open=open_, order_cutoff=close - US_ORDER_CUTOFF, close=close)
+
+    def order_hours_text(self) -> str:
+        if self.pre_open_window:
+            base = "미국 정규장 시작 30분 전~마감 10분 전, 미국 거래일만 접수"
+        else:
+            base = "미국 정규장 시작~마감 10분 전, 미국 거래일만 접수 (실거래는 장 시작 전 주문 없음)"
+        return base + self._ext_hours_suffix()
+
+    @staticmethod
+    def _us_extended(d: date, entry: dict[str, Any]) -> list[ExtSession]:
+        """미장 장외 세션: 토스가 준 세션 시각(한국 시각, 서머타임 반영) 그대로."""
+        out: list[ExtSession] = []
+        for key, name in (
+            ("dayMarket", "day_market"),
+            ("preMarket", "pre_market"),
+            ("afterMarket", "after_market"),
+        ):
+            sess = entry.get(key)
+            if not sess:
+                continue
+            start, end = toss_time(sess.get("startTime")), toss_time(sess.get("endTime"))
+            if start and end and end > start:
+                out.append(ExtSession(name, d, start, end))
+        return out

@@ -76,6 +76,19 @@ function SettingsNav({ current, pop }: { current: SettingsSection | null; pop: b
         {common.map((m) => (
           <NavItem key={m.key} m={m} active={current === m.key} sub={summary[m.key]} />
         ))}
+        {/* LLM 비용은 설정에 속한 화면 (사이드바에서 뺐다) */}
+        <Link to="/costs" className="settings-item press">
+          <span className="settings-icon" aria-hidden>
+            💸
+          </span>
+          <span className="settings-text">
+            <b>LLM 비용 예상</b>
+            <small className="muted">지금 사용량을 회사별 요금으로 바꾸면 한 달에 얼마인지</small>
+          </span>
+          <span className="settings-chev" aria-hidden>
+            ›
+          </span>
+        </Link>
       </NavGroup>
       <NavGroup
         title={many ? `${meta.flag} ${meta.name} 매니저` : "매니저·계좌"}
@@ -84,35 +97,6 @@ function SettingsNav({ current, pop }: { current: SettingsSection | null; pop: b
         {perMarket.map((m) => (
           <NavItem key={m.key} m={m} active={current === m.key} sub={summary[m.key]} />
         ))}
-      </NavGroup>
-      <NavGroup title="바로 가기">
-        <Link to="/costs" className="settings-item press">
-          <span className="settings-icon" aria-hidden>
-            💸
-          </span>
-          <span className="settings-text">
-            <b>LLM 비용 예상</b>
-            <small className="muted">
-              지금 사용량을 OpenAI·Google·Anthropic 요금으로 바꾸면 한 달에 얼마인지
-            </small>
-          </span>
-          <span className="settings-chev" aria-hidden>
-            ›
-          </span>
-        </Link>
-        {/* 휴대폰 하단 탭바에는 없는 화면 — 여기서도 들어간다 */}
-        <Link to="/memo" className="settings-item press">
-          <span className="settings-icon" aria-hidden>
-            📌
-          </span>
-          <span className="settings-text">
-            <b>메모 카드</b>
-            <small className="muted">매니저가 기억할 관심·주목·피할 종목과 운용 지시</small>
-          </span>
-          <span className="settings-chev" aria-hidden>
-            ›
-          </span>
-        </Link>
       </NavGroup>
     </nav>
   );

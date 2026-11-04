@@ -1,7 +1,8 @@
 """의존성 조립. Settings 하나로 전체 시스템을 만든다.
 
 시세는 토스증권 Open API, 시계는 실제 한국 시각.
-주문은 TRADING_MODE 에 따라 자체 모의계좌(PaperBroker, 기본) 또는 토스증권 실계좌(TossLiveBroker, D-34).
+주문은 TRADING_MODE(국장)·US_TRADING_MODE(미장)에 따라 자체 모의계좌(PaperBroker, 기본) 또는
+토스증권 실계좌(TossLiveBroker, D-34·D-55).
 테스트는 `toss_client`·`trading_client`·`clock` 을 주입해 네트워크 없이 조립한다.
 """
 
@@ -41,10 +42,11 @@ from app.db.models import (
     WatchlistItem,
 )
 from app.db.session import Database
+from app.engine import extended_hours
 from app.engine.engine import TradingEngine
 from app.engine.events import SYSTEM, EventHub
 from app.engine.push import PushNotifier
-from app.engine.scheduler import Scheduler, SessionScheduler
+from app.engine.scheduler import DailyJob, Scheduler, SessionScheduler
 from app.engine.settings_store import SettingsStore
 from app.engine.trades import trade_ledger
 from app.market.indicators import MarketIndicators
@@ -53,6 +55,8 @@ from app.market.toss import TossClient, TossMarketProvider
 from app.research.dart import DartClient
 from app.research.google import GoogleSearchClient
 from app.research.naver import NaverNewsClient
+from app.research.newsroom import SLOTS as NEWS_SLOTS
+from app.research.newsroom import NewsRoom
 from app.research.service import ResearchService
 from app.risk.rules import RiskConfig
 
@@ -86,6 +90,7 @@ class Container:
     market: MarketSpec | None = None  # 국장(KR)/미장(US) 프로필 (D-48)
     # LLM 무료/유료 선택·모델·테스트용 엔드포인트가 들어 있는 kv (= 국장 kv). 미장 스택도 이것을 읽는다
     llm_kv: SettingsStore | None = None
+    newsroom: NewsRoom | None = None  # 뉴스 룸 (D-56, 국장 스택에만 — 시장과 관계없는 공용 화면)
 
     @property
     def code(self) -> str:
@@ -306,13 +311,19 @@ def build_container(
 
     market="US"(미장, D-48): 별도 DB(US_DATABASE_URL)·모의계좌(달러)·이벤트 허브·엔진·에이전트·스케줄러.
     `shared`(국장 컨테이너)의 토스 클라이언트(토큰은 클라이언트당 1개 — 반드시 같은 인스턴스)·뉴스·비밀키·
-    주요 지표·LLM 설정 kv·휴대폰 알림 구독을 같이 쓴다. 미장은 TRADING_MODE 와 관계없이 항상 모의투자다.
+    주요 지표·LLM 설정 kv·휴대폰 알림 구독을 같이 쓴다. 미장 거래 모드는 US_TRADING_MODE 로 따로 정한다(D-55).
     """
     spec = spec_for(market, settings)
     us = spec.code == "US"
     if us:
         return _build_us(
-            settings, spec, shared, create_schema=create_schema, toss_client=toss_client, clock=clock
+            settings,
+            spec,
+            shared,
+            create_schema=create_schema,
+            toss_client=toss_client,
+            trading_client=trading_client,
+            clock=clock,
         )
     if toss_client is None:
         settings.require_toss()
@@ -398,6 +409,7 @@ def build_container(
     _reset_on_source_change(db, kv, broker, hub, LIVE_SOURCE if settings.is_live else SOURCE)
     store.forget_names()  # 기록 정리(purge_legacy)가 일봉을 지웠을 수 있다
     engine = TradingEngine(db, clock, cal, store, broker, hub, kv, toss=toss, market=spec)
+    extended_hours.apply(kv, cal)  # 설정에서 켠 장외 세션 (D-57)
 
     # 무료(LLM_TEST_*)/유료(LLM_*) 중 화면에서 고른 것, 유료는 화면에서 고른 모델
     llm = build_llm(settings, active_profile(kv, settings), kv)
@@ -423,6 +435,10 @@ def build_container(
     )
     engine.runner = runner
     scheduler = Scheduler(engine, settings.agent_interval_minutes)
+    # 뉴스 룸 (D-56): 매니저와 같은 활성 LLM 으로 요약(선택). 뉴스 키가 있을 때만 07·12·17시 자동 갱신
+    newsroom = NewsRoom(db, clock, kv, news=news, llm=lambda: runner.llm, audit=hub.audit)
+    if newsroom.available:
+        scheduler.daily.append(DailyJob("newsroom", NEWS_SLOTS, newsroom.scheduled))
     return Container(
         settings,
         db,
@@ -443,6 +459,7 @@ def build_container(
         trading,
         spec,
         kv,
+        newsroom=newsroom,
     )
 
 
@@ -453,9 +470,10 @@ def _build_us(
     *,
     create_schema: bool,
     toss_client: Any,
+    trading_client: Any = None,
     clock: Clock | None,
 ) -> Container:
-    """미장 모의투자 스택. 실거래 브로커는 만들지 않는다(국장 전용)."""
+    """미장 스택. 기본은 달러 모의계좌, US_TRADING_MODE=live(+확인 문구)면 토스 실계좌(D-55)."""
     if shared is not None:
         toss_client = shared.toss.client  # 토큰 1개 규칙: 국장과 같은 TossClient 인스턴스만 쓴다
         clock = clock or shared.clock
@@ -488,23 +506,46 @@ def _build_us(
     costs = PaperCosts(
         spec.commission_rate, spec.sell_tax_rate, spec.slippage_bps, spec.max_volume_participation
     )
-    broker = PaperBroker(
-        db,
-        store,
-        cal,
-        clock,
-        initial_cash=spec.initial_cash,
-        trading_mode="paper",  # TRADING_MODE=live 여도 미장은 항상 모의계좌
-        costs=costs,
-        quotes=toss,
-        round_price=spec.round_price,
-        keep_closed_orders=PAPER_KEEP_CLOSED_ORDERS,
-    )
 
     def trades(limit: int = 20) -> dict[str, Any]:
         since = kv.get("account_source").get("since")
         return trade_ledger(
             db, store.name_of, datetime.fromisoformat(since) if since else None, limit, currency=spec.currency
+        )
+
+    live = spec.live
+    broker: PaperBroker | TossLiveBroker
+    trading: TossTradingClient | None = None
+    if live:
+        # 실거래: 사용자가 .env 에서 US_TRADING_MODE=live + 확인 문구를 넣었을 때만 (Settings 가 검증).
+        # 국장도 실거래면 주문 클라이언트를 같이 쓴다 — 토스 주문 API 초당 한도는 계좌 하나에 걸린다
+        shared_trading = shared.trading if shared is not None else None
+        trading = trading_client or shared_trading or TossTradingClient(toss_client)
+        broker = TossLiveBroker(
+            trading,
+            toss,
+            store,
+            clock,
+            kv,
+            trading_mode="live",
+            daily_buy_limit=settings.us_live_daily_buy_limit,
+            account_seq=settings.toss_account_seq,
+            costs=costs,
+            ledger=lambda: trades(1),
+            market=spec,
+        )
+    else:
+        broker = PaperBroker(
+            db,
+            store,
+            cal,
+            clock,
+            initial_cash=spec.initial_cash,
+            trading_mode="paper",
+            costs=costs,
+            quotes=toss,
+            round_price=spec.round_price,
+            keep_closed_orders=PAPER_KEEP_CLOSED_ORDERS,
         )
 
     hub = EventHub(db, clock)
@@ -514,14 +555,15 @@ def _build_us(
         settings.vapid_subject,
         names=store.name_of,
         now=clock.now,
-        live=False,
+        live=live,
         prefix="[미장] ",
     )
     hub.listeners.append(push.on_audit)
     seed_defaults(db, kv, spec)
-    _reset_on_source_change(db, kv, broker, hub, SOURCE)
+    _reset_on_source_change(db, kv, broker, hub, LIVE_SOURCE if live else SOURCE)
     store.forget_names()
     engine = TradingEngine(db, clock, cal, store, broker, hub, kv, toss=toss, market=spec)
+    extended_hours.apply(kv, cal)  # 설정에서 켠 장외 세션 (D-57)
     llm = market_llm(llm_kv, settings, spec.code)
     toolbox = ToolBox(
         engine.portfolio, store, research, clock, screener=toss.screen, quote=broker.get_quote, market=spec
@@ -540,7 +582,7 @@ def _build_us(
         max_steps=settings.llm_max_steps,
         strategies=engine.enabled_strategies,
         names=store.name_of,
-        live=False,
+        live=live,
         market=spec,
     )
     engine.runner = runner
@@ -562,7 +604,7 @@ def _build_us(
         shared.secret_key if shared is not None else _secret_key(settings),
         push,
         shared.indicators if shared is not None else MarketIndicators(toss_client, clock),
-        None,
+        trading,
         spec,
         llm_kv,
     )

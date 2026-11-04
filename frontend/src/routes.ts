@@ -23,6 +23,10 @@ export const TradingRoomPage = lazyWithPreload(
   () => import("./pages/TradingRoom"),
   (m) => m.TradingRoom,
 );
+export const NewsRoomRoute = lazyWithPreload(
+  () => import("./pages/NewsRoom"),
+  (m) => m.NewsRoomPage,
+);
 export const AgentRoute = lazyWithPreload(
   () => import("./pages/Agent"),
   (m) => m.AgentPage,
@@ -68,6 +72,7 @@ export const LoginPage = lazyWithPreload(
 
 const BY_PREFIX: [prefix: string, page: Preloadable][] = [
   ["/room", TradingRoomPage],
+  ["/news", NewsRoomRoute],
   ["/agent", AgentRoute],
   ["/memo", MemoRoute],
   ["/portfolio", PortfolioPage],

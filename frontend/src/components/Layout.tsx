@@ -10,14 +10,14 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
-import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import type { MarketCode, MarketView, SystemInfo } from "../api/types";
 import { useAuth } from "../auth";
 import { useSystem } from "../hooks";
 import { useConnected, useEventsStore } from "../live/hooks";
 import { MARKET_META, readStore, useMarket, writeStore } from "../market";
-import { isMobile, navIndex, prefersReducedMotion, useMobileViewport } from "../mobile";
+import { isMobile, prefersReducedMotion, useIsMobile, useMobileViewport } from "../mobile";
 import { preloadPage } from "../routes";
 import { openPalette, preloadPalette } from "../ui/overlays";
 import { usePullToRefresh, type PullState } from "../ui/usePullToRefresh";
@@ -28,6 +28,8 @@ import { Loading } from "./Loading";
 import { MarketSwitch } from "./MarketSwitch";
 import { CommandPaletteHost, StockSheetHost } from "./Overlays";
 import { RouteErrorBoundary } from "./RouteErrorBoundary";
+import { isActive, MORE_ITEMS, NAV_GROUPS, SETTINGS, TAB_ITEMS, TABS, tabIndex, type NavItem } from "./nav";
+import { Sheet } from "./Sheet";
 
 export function PaperBadge({ live = false }: { live?: boolean }) {
   if (live) {
@@ -46,26 +48,10 @@ export function PaperBadge({ live = false }: { live?: boolean }) {
   );
 }
 
-// short: 모바일 하단 탭바에 쓰는 짧은 이름. mobile: false 는 넓은 화면 사이드바에만 (하단 탭바는 7칸 그대로)
-const NAV: { to: string; label: string; short: string; icon: string; mobile?: false }[] = [
-  { to: "/", label: "대시보드", short: "홈", icon: "🏠" },
-  { to: "/room", label: "트레이딩 룸", short: "채팅", icon: "💬" },
-  { to: "/agent", label: "에이전트 구조", short: "구조", icon: "🗺️" },
-  // 휴대폰에서는 에이전트 구조(매니저의 기억)·설정 화면의 링크로 들어간다
-  { to: "/memo", label: "메모 카드", short: "메모", icon: "📌", mobile: false },
-  { to: "/portfolio", label: "포트폴리오·주문", short: "자산", icon: "📒" },
-  { to: "/backtest", label: "백테스트", short: "백테스트", icon: "🧪" },
-  { to: "/settings", label: "설정", short: "설정", icon: "⚙️" },
-  { to: "/logs", label: "이벤트 로그", short: "로그", icon: "📜" },
-  // 휴대폰에서는 설정 화면의 링크로 들어간다
-  { to: "/costs", label: "LLM 비용", short: "비용", icon: "💸", mobile: false },
-];
-const TABS = NAV.filter((n) => n.mobile !== false).map((n) => n.to);
-
 const STATUS_KO: Record<string, string> = { RUNNING: "실행 중", PAUSED: "일시정지", KILLED: "정지(킬)" };
 
 /** 휴대폰에서 당겨서 새로고침하는 화면 (목록·숫자를 보는 화면 — 입력 폼이 많은 설정·메모·백테스트는 빼고) */
-const PULL_ROUTES = ["/room", "/portfolio", "/agent", "/logs", "/stock"];
+const PULL_ROUTES = ["/room", "/news", "/portfolio", "/agent", "/logs", "/stock"];
 const canPull = (pathname: string) =>
   pathname === "/" || PULL_ROUTES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
@@ -118,7 +104,10 @@ export function Layout() {
   const connected = all ? krLive && (!hasUS || usLive) : market === "US" ? usLive : krLive;
   const { logout, authEnabled } = useAuth();
   const { pathname } = useLocation();
-  const active = navIndex(pathname, TABS);
+  const active = tabIndex(pathname);
+  const mobile = useIsMobile();
+  const [moreOpen, setMoreOpen] = useState(false);
+  const openMore = useCallback(() => setMoreOpen(true), []);
   // 시장을 바꾸면 같은 주소라도 다른 화면 — 화면 상태와 스크롤 위치를 시장마다 따로 둔다
   const screen = `${view}:${pathname}`;
   const { scroller, topbar, onTab } = useMobileNav(pathname, screen, active);
@@ -126,7 +115,7 @@ export function Layout() {
   const reserved = useReservedWidths(
     topbar,
     view,
-    top && engine ? `${JSON.stringify(top.llm)}|${top.toss_ok}|${engine}|${allKilled}` : null,
+    top && engine ? `${JSON.stringify(top.llm)}|${engine}|${allKilled}` : null,
   );
   const pull = useRefreshOnPull(scroller, canPull(pathname), all ? available : [market]);
   return (
@@ -139,7 +128,12 @@ export function Layout() {
             <small>Paper Trading Agent</small>
           </div>
         </div>
-        <SideNav active={active} view={view} onTab={onTab} />
+        {/* 넓은 화면은 묶음 메뉴, 휴대폰은 하단 탭바(4칸 + 더보기) — 한쪽만 그린다 */}
+        {mobile ? (
+          <TabBar active={active} view={view} onTab={onTab} onMore={openMore} moreOpen={moreOpen} />
+        ) : (
+          <SideNav pathname={pathname} view={view} />
+        )}
         <div className="sidebar-foot">
           <span className={`conn ${connected ? "on" : ""}`}>
             {connected ? "● 실시간 연결" : "○ 연결 대기"}
@@ -169,13 +163,12 @@ export function Layout() {
             <KstClock />
             {top ? (
               <>
-                <span
-                  className={`chip ${top.toss_ok ? "ok" : "warn"}`}
-                  title={top.toss_issue ?? ""}
-                  data-chip="toss"
-                >
-                  {top.toss_ok ? "토스 실시세 연결" : "토스 시세 연결 안 됨"}
-                </span>
+                {/* 토스 시세는 문제가 있을 때만 (정상이면 칩을 두지 않는다 — 아래 배너도 함께 뜬다) */}
+                {!top.toss_ok && (
+                  <span className="chip warn" title={top.toss_issue ?? ""} data-chip="toss">
+                    토스 시세 연결 안 됨
+                  </span>
+                )}
                 <Link
                   to="/settings/llm"
                   className={`chip chip-link ${top.llm.configured ? "ok" : "warn"}`}
@@ -188,10 +181,7 @@ export function Layout() {
               </>
             ) : (
               // 상태를 받기 전에도 칩 자리를 잡아 둔다 (지난번 너비로) — 도착하면서 줄이 바뀌어 본문이 밀리지 않게
-              <>
-                <TopSkel className="chip top-skel toss" width={reserved?.toss} />
-                <TopSkel className="chip top-skel llm" width={reserved?.llm} />
-              </>
+              <TopSkel className="chip top-skel llm" width={reserved?.llm} />
             )}
             {shown.length > 0 ? (
               <span
@@ -211,11 +201,7 @@ export function Layout() {
           ) : (
             <TopSkel className="btn kill top-skel" width={reserved?.kill} />
           )}
-          {authEnabled && (
-            <button className="link top-logout" onClick={logout}>
-              로그아웃
-            </button>
-          )}
+          <SettingsButton active={isActive(SETTINGS, pathname)} view={view} />
           {/* 실시간 연결이 끊긴 동안만 상단 바 아래에 겹쳐 붙는 띠 (본문을 밀지 않는다) */}
           <ConnectionBanner />
         </header>
@@ -248,6 +234,14 @@ export function Layout() {
       </div>
       <CommandPaletteHost />
       <StockSheetHost />
+      {moreOpen && (
+        <MoreSheet
+          pathname={pathname}
+          view={view}
+          onClose={() => setMoreOpen(false)}
+          onLogout={authEnabled ? logout : undefined}
+        />
+      )}
     </div>
   );
 }
@@ -312,7 +306,6 @@ function PullIndicator({ state }: { state: PullState }) {
 }
 
 interface ChipWidths {
-  toss: number;
   llm: number;
   engine: number;
   kill: number;
@@ -342,7 +335,6 @@ function useReservedWidths(
     if (!contentKey || !el) return;
     const w = (sel: string) => Math.round(el.querySelector(sel)?.getBoundingClientRect().width ?? 0);
     const next: ChipWidths = {
-      toss: w('[data-chip="toss"]'),
       llm: w('[data-chip="llm"]'),
       engine: w('[data-chip="engine"]'),
       kill: w(":scope > .btn.kill, :scope > .btn.resume"),
@@ -374,50 +366,184 @@ function RouteFallback() {
   );
 }
 
+/** 메뉴에 마우스·손가락이 닿으면 그 화면 조각을 미리 받는다 */
+function warmProps(to: string, view: MarketView) {
+  const warm = () => preloadPage(to, view);
+  return { onPointerEnter: warm, onFocus: warm, onTouchStart: warm };
+}
+
 /**
- * 왼쪽 메뉴(휴대폰은 하단 탭바). 상태 폴링·실시간 이벤트로 머리말이 다시 그려져도 메뉴는 그대로 둔다(memo).
- * 메뉴에 마우스·손가락이 닿으면 그 화면 조각을 미리 받는다
+ * 넓은 화면 왼쪽 메뉴: '매일 보기'·'매니저·분석' 두 묶음. 설정은 오른쪽 위 ⚙️ 로 옮겼다.
+ * 상태 폴링·실시간 이벤트로 머리말이 다시 그려져도 메뉴는 그대로 둔다(memo — 주소가 바뀔 때만).
  */
-const SideNav = memo(function SideNav({
+const SideNav = memo(function SideNav({ pathname, view }: { pathname: string; view: MarketView }) {
+  return (
+    <nav className="side-nav" aria-label="메뉴">
+      {NAV_GROUPS.map((g) => (
+        <div key={g.title} className="nav-group" role="group" aria-label={g.title}>
+          <span className="nav-group-title" aria-hidden>
+            {g.title}
+          </span>
+          {g.items.map((n) => {
+            const on = isActive(n, pathname);
+            return (
+              <Link
+                key={n.to}
+                to={n.to}
+                aria-label={n.label}
+                aria-current={on ? "page" : undefined}
+                className={on ? "active" : undefined}
+                {...warmProps(n.to, view)}
+              >
+                <span className="nav-icon" aria-hidden>
+                  {n.icon}
+                </span>{" "}
+                <span className="nav-label">{n.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      ))}
+    </nav>
+  );
+});
+
+/**
+ * 휴대폰 하단 탭바: 자주 보는 4칸 + 더보기(나머지 화면·설정을 아래 시트로).
+ * 선택된 탭 뒤의 표시(--tab-i)가 미끄러지듯 옮겨 다닌다.
+ */
+const TabBar = memo(function TabBar({
   active,
   view,
   onTab,
+  onMore,
+  moreOpen,
 }: {
   active: number;
   view: MarketView;
   onTab: (e: MouseEvent<HTMLAnchorElement>, to: string, i: number) => void;
+  onMore: () => void;
+  moreOpen: boolean;
 }) {
+  const moreActive = active === TABS.length - 1;
   return (
-    <nav style={{ "--tab-i": active } as CSSProperties}>
-      {/* 모바일 탭바: 선택된 탭 뒤를 미끄러지듯 옮겨 다니는 표시 */}
+    <nav
+      className="tab-bar"
+      aria-label="하단 탭"
+      style={{ "--tab-i": active, "--tabs": TABS.length } as CSSProperties}
+    >
       {active >= 0 && <span className="tab-ind" aria-hidden />}
-      {NAV.map((n) => {
-        const warm = () => preloadPage(n.to, view);
-        return (
-          <NavLink
-            key={n.to}
-            to={n.to}
-            end={n.to === "/"}
-            aria-label={n.label}
-            className={n.mobile === false ? "desktop-only" : undefined}
-            onClick={(e) => onTab(e, n.to, TABS.indexOf(n.to))}
-            onPointerEnter={warm}
-            onFocus={warm}
-            onTouchStart={warm}
-          >
-            <span className="nav-icon" aria-hidden>
-              {n.icon}
-            </span>{" "}
-            <span className="nav-label">{n.label}</span>
-            <span className="nav-short" aria-hidden>
-              {n.short}
-            </span>
-          </NavLink>
-        );
-      })}
+      {TAB_ITEMS.map((n, i) => (
+        <Link
+          key={n.to}
+          to={n.to}
+          aria-label={n.label}
+          aria-current={active === i ? "page" : undefined}
+          className={active === i ? "active" : undefined}
+          onClick={(e) => onTab(e, n.to, i)}
+          {...warmProps(n.to, view)}
+        >
+          <span className="nav-icon" aria-hidden>
+            {n.icon}
+          </span>
+          <span className="nav-short" aria-hidden>
+            {n.short}
+          </span>
+        </Link>
+      ))}
+      <button
+        type="button"
+        className={`tab-more ${moreActive ? "active" : ""}`}
+        aria-label="더보기"
+        aria-haspopup="dialog"
+        aria-expanded={moreOpen}
+        aria-current={moreActive ? "page" : undefined}
+        onClick={onMore}
+      >
+        <span className="nav-icon" aria-hidden>
+          ☰
+        </span>
+        <span className="nav-short" aria-hidden>
+          더보기
+        </span>
+      </button>
     </nav>
   );
 });
+
+/** 휴대폰 '더보기' 시트: 매니저·백테스트·이벤트 로그·LLM 비용·설정 (+ 로그아웃) */
+function MoreSheet({
+  pathname,
+  view,
+  onClose,
+  onLogout,
+}: {
+  pathname: string;
+  view: MarketView;
+  onClose: () => void;
+  onLogout?: () => void;
+}) {
+  return (
+    <Sheet label="더보기" title="더보기" onClose={onClose} className="more-sheet">
+      <ul className="more-list">
+        {MORE_ITEMS.map((n: NavItem) => {
+          const on = isActive(n, pathname);
+          return (
+            <li key={n.to}>
+              <Link
+                to={n.to}
+                className={`more-item press ${on ? "active" : ""}`}
+                aria-current={on ? "page" : undefined}
+                onClick={onClose}
+                {...warmProps(n.to, view)}
+              >
+                <span className="more-icon" aria-hidden>
+                  {n.icon}
+                </span>
+                <span className="more-text">
+                  <b>{n.label}</b>
+                  {n.hint && <small className="muted">{n.hint}</small>}
+                </span>
+                <span className="settings-chev" aria-hidden>
+                  ›
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+      {onLogout && (
+        <button
+          type="button"
+          className="btn ghost more-logout"
+          onClick={() => {
+            onClose();
+            onLogout();
+          }}
+        >
+          로그아웃
+        </button>
+      )}
+    </Sheet>
+  );
+}
+
+/** 오른쪽 위 ⚙️ 설정 (넓은 화면은 글자도) */
+function SettingsButton({ active, view }: { active: boolean; view: MarketView }) {
+  return (
+    <Link
+      to={SETTINGS.to}
+      className={`top-settings ${active ? "active" : ""}`}
+      aria-label="설정"
+      aria-current={active ? "page" : undefined}
+      title="설정"
+      {...warmProps(SETTINGS.to, view)}
+    >
+      <span aria-hidden>⚙️</span>
+      <span className="top-settings-text">설정</span>
+    </Link>
+  );
+}
 
 /** 앱을 연 뒤 첫 화면을 이미 그렸는지 — 첫 화면은 등장 효과 없이 바로 (첫 화면 표시가 늦어지지 않게) */
 let firstPageShown = false;

@@ -35,13 +35,19 @@ const PAGES: { to: string; icon: string; label: string; keywords: string }[] = [
     keywords: "home dashboard 대시보드 홈 한눈에 overview",
   },
   { to: "/room", icon: "💬", label: "트레이딩 룸", keywords: "room chat 채팅 대화 세션" },
-  { to: "/agent", icon: "🗺️", label: "에이전트 구조", keywords: "agent 구조 기억 도구" },
-  { to: "/memo", icon: "📌", label: "메모 카드", keywords: "memo 메모 카드 기억" },
+  {
+    to: "/news",
+    icon: "📰",
+    label: "뉴스 룸",
+    keywords: "news 뉴스 세계 국제 경제 증시 이슈 헤드라인 속보",
+  },
+  { to: "/agent", icon: "🦉", label: "매니저 › 구조·기억", keywords: "agent 매니저 에이전트 구조 기억 도구" },
+  { to: "/memo", icon: "📌", label: "매니저 › 메모 카드", keywords: "memo 매니저 메모 카드 기억" },
   { to: "/portfolio", icon: "📒", label: "포트폴리오·주문", keywords: "portfolio 자산 주문 체결 결정" },
   { to: "/backtest", icon: "🧪", label: "백테스트", keywords: "backtest 백테스트 전략" },
   { to: "/settings", icon: "⚙️", label: "설정", keywords: "settings 설정" },
   { to: "/logs", icon: "📜", label: "이벤트 로그", keywords: "logs 로그 감사 기록" },
-  { to: "/costs", icon: "💸", label: "LLM 비용", keywords: "costs 비용 요금 토큰" },
+  { to: "/costs", icon: "💸", label: "설정 › LLM 비용", keywords: "costs 비용 요금 토큰 llm" },
 ];
 
 const norm = (s: string) => s.toLowerCase().replace(/\s+/g, "");

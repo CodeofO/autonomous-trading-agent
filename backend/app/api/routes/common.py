@@ -72,8 +72,13 @@ def _iso(t: datetime | None) -> str | None:
     return (t if t.tzinfo else t.replace(tzinfo=UTC)).isoformat()
 
 
-def _paper_only(c: Container) -> bool:
-    return bool(c.market and c.market.paper_only)
+def _is_us(c: Container) -> bool:
+    return bool(c.market and c.market.code == "US")
+
+
+def _is_live(c: Container) -> bool:
+    """이 시장이 토스증권 실계좌로 주문하는지 (국장 TRADING_MODE, 미장 US_TRADING_MODE)."""
+    return bool(c.broker.is_live)
 
 
 def chat_dict(m: ChatMessage) -> dict[str, Any]:

@@ -287,3 +287,17 @@ class DailyReport(Base):
     day: Mapped[date] = mapped_column(Date, primary_key=True)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+
+
+class NewsEdition(Base):
+    """뉴스 룸 한 판 (D-56): 매일 07·12·17시(한국 시각) 또는 수동 새로고침으로 모은 섹션별 뉴스와 요약.
+
+    payload = {trigger, slot, headline, sections[{key, title, icon, summary, items[], errors[]}], stats, …}.
+    국장 DB 에만 쌓인다(뉴스 룸은 시장과 관계없는 공용 화면). 오래된 판은 지운다(KEEP_DAYS).
+    """
+
+    __tablename__ = "news_editions"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, index=True)
+    trigger: Mapped[str] = mapped_column(String(16))  # schedule | manual
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON)

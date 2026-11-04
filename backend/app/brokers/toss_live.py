@@ -1,4 +1,4 @@
-"""토스증권 실계좌 브로커 (TRADING_MODE=live 에서만 생성, D-34).
+"""토스증권 실계좌 브로커 (국장 TRADING_MODE=live / 미장 US_TRADING_MODE=live 에서만 생성, D-34·D-55).
 
 근거: 토스증권 Open API 명세 openapi.json 1.2.28 (docs/TOSS_API_NOTES.md §주문·계좌)
 - 계좌: GET /api/v1/accounts → accountSeq. 계좌·주문 API 는 `X-Tossinvest-Account: {accountSeq}` 헤더 필요
@@ -9,8 +9,11 @@
 - 조회: GET /api/v1/orders/{orderId} → status, execution{filledQuantity, averageFilledPrice, commission, tax}
         주문 1건 = 1행(부분체결은 누적 합산) → 체결 증분은 OrderManager 가 DB 기록과의 차이로 계산한다
 - 토큰은 클라이언트당 1개만 유효 → 시세용 TossClient 의 토큰을 같이 쓴다
+- 미장(D-55): 같은 주문 API. symbol = 영문 티커, price = 달러 소수($1 이상 0.01·미만 0.0001, 그 아래 절삭),
+        잔고 items[].marketCountry=US·currency=USD(가격은 거래 통화), 주문가능금액은 buying-power?currency=USD.
+        이 시스템은 정수 수량 주문만 낸다(금액 주문·소수점 수량은 쓰지 않음)
 
-안전장치: 생성 시 trading_mode=live 확인, 하루 매수 총액 상한, 1억원 이상 주문 거부,
+안전장치: 생성 시 trading_mode=live 확인, 하루 매수 총액 상한, 1억원(미장은 토스 환율로 원화 환산) 이상 주문 거부,
 주문 POST 무재시도(SafeHttpClient), 응답 불명 시 같은 clientOrderId 로만 재확인(멱등키 10분).
 """
 
@@ -22,6 +25,7 @@ import math
 import re
 from collections.abc import Callable
 from datetime import date, datetime
+from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
 from typing import Any
 
 import httpx
@@ -41,6 +45,7 @@ from app.brokers.base import (
 from app.brokers.paper import PaperCosts
 from app.core.clock import KST, Clock
 from app.core.http import LiveOrderBlockedError, Route, SafeHttpClient, TokenBucket
+from app.core.market import MarketSpec
 from app.engine.settings_store import SettingsStore
 from app.market.store import PriceStore
 from app.market.toss import BASE, HOST, TossApiError, TossClient, TossMarketProvider, _num
@@ -58,7 +63,9 @@ TRADING_ROUTES = [
 ]
 # 공식 Rate Limits 의 80% (ACCOUNT 1, ASSET 5, ORDER 10, ORDER_HISTORY 5, ORDER_INFO 6 /s)
 RATE_GROUPS = {"ACCOUNT": 0.8, "ASSET": 4, "ORDER": 8, "ORDER_HISTORY": 4, "ORDER_INFO": 2.4}
-HIGH_VALUE_ORDER = 100_000_000  # 이 금액 이상은 토스가 별도 확인을 요구 → 이 시스템은 아예 보내지 않는다
+HIGH_VALUE_ORDER = 100_000_000  # 이 금액(원) 이상은 토스가 별도 확인을 요구 → 이 시스템은 아예 보내지 않는다
+# 미장 주문의 원화 환산에 쓸 환율을 못 받았을 때 쓰는 보수적인 값 (원/달러를 높게 잡아 더 일찍 막는다)
+FX_FALLBACK_USDKRW = 2_000.0
 
 # 토스 주문 상태 → 내부 상태
 _STATUS = {
@@ -86,6 +93,16 @@ def round_to_tick(price: float, side: OrderSide) -> int:
     tick = krx_tick(price)
     f = math.floor if side == OrderSide.BUY else math.ceil
     return int(f(price / tick) * tick)
+
+
+def us_limit_price(price: float, side: OrderSide) -> str:
+    """미국 주식 지정가 문자열: $1 이상 소수 둘째·$1 미만 넷째 자리 (토스 명세, 그 아래는 토스가 절삭).
+
+    절삭에 맡기지 않고 직접 맞춘다: 매수는 내림, 매도는 올림 (지정한 가격보다 불리하게 나가지 않게).
+    """
+    step = Decimal("0.01") if price >= 1 else Decimal("0.0001")
+    rounding = ROUND_FLOOR if side == OrderSide.BUY else ROUND_CEILING
+    return str(Decimal(str(price)).quantize(step, rounding=rounding))
 
 
 class TossTradingClient:
@@ -147,8 +164,8 @@ class TossTradingClient:
     async def holdings(self) -> dict[str, Any]:
         return dict(await self._call("ASSET", "GET", "/api/v1/holdings") or {})
 
-    async def buying_power(self) -> float:
-        res = await self._call("ORDER_INFO", "GET", "/api/v1/buying-power", params={"currency": "KRW"})
+    async def buying_power(self, currency: str = "KRW") -> float:
+        res = await self._call("ORDER_INFO", "GET", "/api/v1/buying-power", params={"currency": currency})
         return _num((res or {}).get("cashBuyingPower"))
 
     async def create_order(self, body: dict[str, Any]) -> dict[str, Any]:
@@ -183,9 +200,14 @@ class TossLiveBroker(BrokerInterface):
         account_seq: str = "",
         costs: PaperCosts | None = None,
         ledger: Callable[[], dict[str, Any]] | None = None,
+        market: MarketSpec | None = None,
     ) -> None:
         if trading_mode != "live":
             raise LiveOrderBlockedError("실계좌 브로커는 TRADING_MODE=live 에서만 만들 수 있어요.")
+        # 시장: 국장(KR, 원) / 미장(US, 달러·뉴욕 날짜) — 잔고 필터·주문가능금액 통화·가격 형식·날짜가 달라진다
+        self.country = market.code if market else "KR"
+        self.currency = market.currency if market else "KRW"
+        self.tz = market.tz if market else KST
         self.client = client
         self.quotes = quotes
         self.store = store
@@ -221,7 +243,7 @@ class TossLiveBroker(BrokerInterface):
     async def get_quote(self, symbol: str) -> Quote | None:
         px = (await self.quotes.last_prices([symbol])).get(symbol)
         if px:  # 이름 = 마지막 일봉의 이름 (캐시)
-            return Quote(symbol, px, self.clock.now().astimezone(KST).date(), self.store.name_of(symbol))
+            return Quote(symbol, px, self.clock.now().astimezone(self.tz).date(), self.store.name_of(symbol))
         b = self.store.last_bar(symbol)
         return Quote(symbol, b.close, b.day, b.name) if b else None
 
@@ -231,12 +253,14 @@ class TossLiveBroker(BrokerInterface):
     async def get_positions(self) -> list[Position]:
         await self.ensure_account()
         h = await self.client.holdings()
-        today = self.clock.now().astimezone(KST).date()
+        today = self.clock.now().astimezone(self.tz).date()
         opened = self.kv.get("live_opened")
         out = []
+        mine = (None, "KR") if self.country == "KR" else (self.country,)
         for it in h.get("items") or []:
+            # 소수점 보유분(미장)은 정수 부분만 — 이 시스템은 정수 수량으로만 주문한다
             qty = int(_num(it.get("quantity")))
-            if it.get("marketCountry") not in (None, "KR") or qty <= 0:
+            if it.get("marketCountry") not in mine or qty <= 0:
                 continue
             sym = str(it["symbol"])
             out.append(
@@ -260,7 +284,7 @@ class TossLiveBroker(BrokerInterface):
         return await self._balance(positions), positions
 
     async def _balance(self, positions: list[Position]) -> Balance:
-        cash = await self.client.buying_power()
+        cash = await self.client.buying_power(self.currency)
         pv = sum(p.market_value for p in positions)
         start = self.kv.get("live_account")
         if not start.get("initial_equity"):  # 실거래 시작 시점 평가액 = 수익률 기준
@@ -284,7 +308,18 @@ class TossLiveBroker(BrokerInterface):
         return float(d.get("amount", 0.0)) if d.get("day") == self._today() else 0.0
 
     def _today(self) -> str:
-        return self.clock.now().astimezone(KST).date().isoformat()
+        return self.clock.now().astimezone(self.tz).date().isoformat()
+
+    async def _krw(self, amount: float) -> float:
+        """1억원 확인 기준용 원화 환산. 국장은 그대로, 미장은 토스 환율(못 받으면 보수적인 값)."""
+        if self.currency == "KRW":
+            return amount
+        rate = 0.0
+        try:
+            rate = _num((await self.quotes.client.exchange_rate()).get("rate"))
+        except Exception as e:  # 환율 장애가 주문을 막지는 않되, 더 이른 금액에서 막히게
+            log.warning("환율 조회 실패 — 보수적인 환율로 환산: %s", e)
+        return amount * (rate if rate > 0 else FX_FALLBACK_USDKRW)
 
     def _rejected(self, req: OrderRequest, code: str) -> OrderResult:
         return OrderResult(
@@ -294,14 +329,20 @@ class TossLiveBroker(BrokerInterface):
     async def place_order(self, req: OrderRequest) -> OrderResult:
         self._guard()
         await self.ensure_account()
-        price: int | None = None
+        price: float | None = None
+        price_text = ""
         if req.order_type == OrderType.LIMIT:
             if not req.limit_price or req.limit_price <= 0:
                 return self._rejected(req, "invalid-limit-price")
-            price = round_to_tick(req.limit_price, req.side)
+            if self.country == "US":
+                price_text = us_limit_price(req.limit_price, req.side)
+                price = float(price_text)
+            else:
+                price = round_to_tick(req.limit_price, req.side)
+                price_text = str(int(price))
         ref = price or (q.price if (q := await self.get_quote(req.symbol)) else 0.0)
         notional = req.quantity * ref
-        if notional >= HIGH_VALUE_ORDER:
+        if await self._krw(notional) >= HIGH_VALUE_ORDER:
             return self._rejected(req, "high-value-order-blocked")
         if req.side == OrderSide.BUY and self._daily_bought() + notional > self.daily_buy_limit:
             return self._rejected(req, "live-daily-buy-limit")
@@ -315,7 +356,7 @@ class TossLiveBroker(BrokerInterface):
             "quantity": str(req.quantity),
         }
         if price is not None:
-            body["price"] = str(price)
+            body["price"] = price_text
 
         res: dict[str, Any] | None = None
         for attempt in range(3):

@@ -360,6 +360,7 @@ class TossMarketProvider:
         self._universe: dict[str, dict[str, Any]] = {}
         self._universe_at = 0.0
         self._quote_cache: dict[str, tuple[float, float]] = {}
+        self._quote_ts: dict[str, datetime | None] = {}  # 토스가 준 시세 시각 (장외 체결 판단, D-57)
 
     # ------------------------------------------------------------ 종목 정보
     async def info(self, symbols: list[str]) -> dict[str, dict[str, Any]]:
@@ -437,10 +438,18 @@ class TossMarketProvider:
         now = time.monotonic()
         need = [s for s in symbols if s not in self._quote_cache or now - self._quote_cache[s][1] > max_age]
         if need:
-            for sym, (px, _ts) in (await self.client.prices(need)).items():
+            for sym, (px, ts) in (await self.client.prices(need)).items():
                 if px > 0:
                     self._quote_cache[sym] = (px, now)
+                    self._quote_ts[sym] = ts
         return {s: self._quote_cache[s][0] for s in symbols if s in self._quote_cache}
+
+    async def last_quotes(
+        self, symbols: list[str], max_age: float = 5.0
+    ) -> dict[str, tuple[float, datetime | None]]:
+        """현재가와 그 시세의 시각(토스 `timestamp`, 체결이 없으면 None)."""
+        prices = await self.last_prices(symbols, max_age)
+        return {s: (px, self._quote_ts.get(s)) for s, px in prices.items()}
 
     # ------------------------------------------------------------ 스크리너
     async def screen(

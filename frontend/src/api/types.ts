@@ -640,3 +640,105 @@ export interface ScheduleUpdate {
   end: string;
   interval_minutes: number;
 }
+
+// ---------- 뉴스 룸 (GET /api/news-room, D-56 — 시장과 관계없는 공용 화면) ----------
+
+export interface NewsItem {
+  title: string;
+  description: string;
+  link: string;
+  /** 기사 주소의 도메인 (매체 구분용) */
+  domain: string;
+  /** 한국 시각 ISO (네이버 pubDate). 모르면 null */
+  published_at: string | null;
+  /** 같은 사건을 다룬 기사 수 (이 기사 포함) */
+  related: number;
+}
+
+export interface NewsSection {
+  key: string;
+  title: string;
+  icon: string;
+  /** LLM 요약 2~3문장 (요약을 끄거나 LLM 이 없거나 실패하면 null) */
+  summary: string | null;
+  items: NewsItem[];
+  /** 실패한 검색어 안내 */
+  errors: string[];
+}
+
+export interface NewsEdition {
+  id: number;
+  /** 만든 시각 (한국 시각 ISO) */
+  created_at: string;
+  trigger: "schedule" | "manual";
+  /** 정기 갱신 슬롯 "07:00" · "12:00" · "17:00" (수동이면 null) */
+  slot: string | null;
+  /** '오늘의 흐름' 한 문장 (요약이 없으면 null) */
+  headline: string | null;
+  summary_model: string | null;
+  summary_error: string | null;
+  sections: NewsSection[];
+  stats: { queries: number; failed_queries: number; articles: number };
+}
+
+export interface NewsRoom {
+  edition: NewsEdition | null;
+  updated_at: string | null;
+  /** 다음 자동 갱신 시각 (한국 시각 ISO) */
+  next_update_at: string;
+  /** ["07:00", "12:00", "17:00"] */
+  schedule: string[];
+  timezone: string;
+  /** 자동 갱신이 켜져 있는지 (스케줄러·뉴스 키) */
+  auto: boolean;
+  /** 뉴스 검색 키가 있는지 */
+  available: boolean;
+  /** 쓸 수 없는 이유 (키 없음·키 인증 실패) */
+  reason: string | null;
+  /** 지금 모으는 중 */
+  refreshing: boolean;
+  /** 마지막 시도가 실패했으면 그 이유 (이전 판은 그대로 보인다) */
+  last_error: string | null;
+  last_attempt: string | null;
+  settings: { summary: boolean };
+  /** 요약에 쓸 지금 활성 LLM */
+  llm: { configured: boolean; model: string | null };
+  sections: { key: string; title: string; icon: string }[];
+}
+
+// ---------- 장외 주문 (GET·PUT /api/extended-hours, 미장 /api/us/extended-hours, D-57) ----------
+
+export type ExtendedSessionKey = "day_market" | "pre_market" | "after_market";
+
+export interface ExtendedSession {
+  key: ExtendedSessionKey;
+  /** 데이마켓 · 프리마켓 · 애프터마켓 */
+  label: string;
+  hint: string;
+  enabled: boolean;
+  /** 지금 이 세션이 진행 중인지 */
+  active: boolean;
+  /** 다음(또는 지금) 세션 — 토스 장 운영 캘린더 기준. 모르면 null */
+  next: {
+    day: string;
+    /** 한국 시각 ISO */
+    start: string;
+    end: string;
+    /** 시장 현지 시각 HH:MM */
+    start_local: string;
+    end_local: string;
+  } | null;
+}
+
+export interface ExtendedHoursInfo {
+  market: MarketCode;
+  timezone: string;
+  live: boolean;
+  /** 토스 장 운영 캘린더에서 장외 시각을 받았는지 (못 받으면 장외 주문을 받지 않는다) */
+  calendar_known: boolean;
+  sessions: ExtendedSession[];
+  /** 주문 접수 시간 안내 */
+  order_hours: string;
+}
+
+export type ExtendedHoursUpdate = Partial<Record<ExtendedSessionKey, boolean>>;

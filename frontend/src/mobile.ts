@@ -40,23 +40,6 @@ export function useMediaQuery(query: string): boolean {
 /** 휴대폰 폭인지 (넓은 화면과 다르게 그리는 곳: 설정 목록 → 화면, 확인 창 → 아래 시트) */
 export const useIsMobile = () => useMediaQuery(MOBILE_QUERY);
 
-// 하단 탭이 없는 화면은 들어가는 길목의 탭 아래로 본다
-const PARENT_TAB: [prefix: string, tab: string][] = [
-  ["/stock", "/portfolio"], // 종목 상세 → 자산
-  ["/costs", "/settings"], // LLM 비용 → 설정 (설정 화면의 링크로 들어간다)
-  ["/memo", "/agent"], // 메모 카드 → 구조 (매니저의 기억에서 들어간다)
-];
-
-/**
- * 하단 탭 순서상 위치. 탭이 아니면 -1.
- * 한눈에 보기(전체)도 '/' 라 '홈' 탭이고, 종목 상세는 '자산', LLM 비용은 '설정', 메모 카드는 '구조' 탭 아래로 본다
- */
-export function navIndex(pathname: string, tabs: readonly string[]): number {
-  const parent = PARENT_TAB.find(([p]) => pathname === p || pathname.startsWith(`${p}/`));
-  const path = parent ? parent[1] : pathname;
-  return tabs.findIndex((to) => (to === "/" ? path === "/" : path === to || path.startsWith(`${to}/`)));
-}
-
 const TEXT_FIELD =
   'input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), textarea, [contenteditable]';
 

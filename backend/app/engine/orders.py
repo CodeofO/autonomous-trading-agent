@@ -50,8 +50,8 @@ _REJECT_KO = {
     "prerequisite-required": "토스에서 먼저 해야 할 절차(약관 동의 등)가 있어요",
     "account-restricted": "계좌가 거래 제한 상태예요",
     "invalid-request": "토스가 주문 형식을 거부했어요",
-    "high-value-order-blocked": "1억원 이상 주문은 이 시스템에서 보내지 않아요",
-    "live-daily-buy-limit": "오늘 실거래 매수 총액 상한(LIVE_DAILY_BUY_LIMIT)에 닿았어요",
+    "high-value-order-blocked": "1억원(미장은 원화 환산) 이상 주문은 이 시스템에서 보내지 않아요",
+    "live-daily-buy-limit": "오늘 실거래 매수 총액 상한(국장 LIVE_DAILY_BUY_LIMIT·미장 US_LIVE_DAILY_BUY_LIMIT)에 닿았어요",
     "unknown-submit-state": "주문 접수 여부를 확인하지 못했어요. 토스증권 앱에서 꼭 확인해 주세요",
     "toss-rejected": "토스증권이 주문을 거부했어요",
 }

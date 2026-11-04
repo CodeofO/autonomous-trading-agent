@@ -7,7 +7,7 @@ import { EventsProvider } from "../events";
 import { usePortfolio } from "../hooks";
 import { useChatMessages } from "../live/hooks";
 import { useCurrency, useMarket } from "../market";
-import { navIndex } from "../mobile";
+import { isActive, NAV_GROUPS, tabIndex } from "../components/nav";
 import { UsLlmProfileToggle } from "../pages/settings/LlmSection";
 import { RiskSettings } from "../pages/settings/RiskSection";
 import { money, price } from "../utils/format";
@@ -332,8 +332,8 @@ describe("상단 시장 전환 (전체 · 국장 · 미장)", () => {
 
     fireEvent.click(within(sw).getByRole("button", { name: "전체" }));
     expect(screen.getByTestId("here")).toHaveTextContent("/ ALL US");
-    // LLM 비용처럼 시장과 관계없는 화면은 '전체' 그대로
-    expect(navIndex("/costs", ["/", "/settings"])).toBe(1);
+    // LLM 비용처럼 시장과 관계없는 화면은 '전체' 그대로 — 휴대폰에서는 '더보기' 아래
+    expect(tabIndex("/costs")).toBe(4);
   });
 
   it("전체 보기의 킬 스위치는 두 시장을 함께 멈춘다", async () => {
@@ -357,11 +357,12 @@ describe("상단 시장 전환 (전체 · 국장 · 미장)", () => {
 });
 
 describe("모바일 탭 위치 (시장)", () => {
-  it("메모 카드는 '구조' 탭, 한눈에 보기('/')는 '홈' 탭", () => {
-    const TABS = ["/", "/room", "/agent", "/portfolio", "/backtest", "/settings", "/logs"];
-    expect(navIndex("/memo", TABS)).toBe(2);
-    expect(navIndex("/", TABS)).toBe(0);
-    expect(navIndex("/stock/AAPL", TABS)).toBe(3);
+  it("메모 카드는 '매니저' 메뉴(휴대폰은 더보기), 한눈에 보기('/')는 '홈' 탭", () => {
+    const manager = NAV_GROUPS.flatMap((g) => g.items).find((n) => n.to === "/agent")!;
+    expect(isActive(manager, "/memo")).toBe(true);
+    expect(tabIndex("/memo")).toBe(4);
+    expect(tabIndex("/")).toBe(0);
+    expect(tabIndex("/stock/AAPL")).toBe(2);
   });
 });
 

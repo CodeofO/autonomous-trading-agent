@@ -3,6 +3,8 @@
 체결 규칙(docs/DATA_API_NOTES.md §5):
 - 08:30~09:00 접수 → 당일 시가 체결, 09:00~15:20 접수 → 당일 종가 체결, 그 외 → 거부
 - 공식 일봉이 공개되면(T+1 13:00) `settle()` 이 체결을 확정한다
+- 장외 세션(D-57, 설정에서 켠 것만): 시세 시각이 그 세션 안일 때(장외 거래가 실제로 있을 때)만 현재가로 체결,
+  세션이 끝날 때까지 미체결분은 취소
 - 체결 수량 ≤ 당일 거래량 × 참여율. 남은 수량은 부분체결 후 취소
 - 수수료·매도세·슬리피지 반영
 """
@@ -13,7 +15,7 @@ import logging
 import math
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Any, Protocol
 
 from app.brokers.base import (
@@ -51,9 +53,13 @@ class PaperCosts:
 
 
 class QuoteSource(Protocol):
-    """실시간 현재가 공급자 (토스 시세)."""
+    """실시간 현재가 공급자 (토스 시세). 장외 체결에는 `last_quotes`(가격, 시세 시각)도 쓴다(있으면)."""
 
     async def last_prices(self, symbols: list[str]) -> dict[str, float]: ...
+
+
+def _aware(t: datetime) -> datetime:
+    return t if t.tzinfo else t.replace(tzinfo=UTC)
 
 
 class PaperBroker(BrokerInterface):
@@ -178,6 +184,18 @@ class PaperBroker(BrokerInterface):
         except Exception as e:  # 시세 일시 장애 → 마지막 일봉으로 대체
             log.warning("실시간 시세 조회 실패: %s", e)
             return {}
+
+    async def _ext_prices(self, symbols: list[str], since: datetime) -> dict[str, float]:
+        """장외 세션 체결용 현재가: 시세 시각이 `since`(세션 시작) 이후인 종목만 — 장외 거래가 없으면 체결하지 않는다."""
+        fn = getattr(self.quotes, "last_quotes", None)
+        if fn is None or not symbols:
+            return {}
+        try:
+            quotes = await fn(symbols)
+        except Exception as e:
+            log.warning("실시간 시세 조회 실패: %s", e)
+            return {}
+        return {s: px for s, (px, ts) in quotes.items() if px > 0 and ts is not None and _aware(ts) >= since}
 
     async def get_quote(self, symbol: str) -> Quote | None:
         px = (await self._live_prices([symbol])).get(symbol)
@@ -342,17 +360,32 @@ class PaperBroker(BrokerInterface):
         assert basis is not None
         if self.realtime and basis == "CLOSE":
             basis = "NOW"  # 장중: 현재가 즉시 체결
+        ext = self.cal.extended_at(now) if basis == "EXT" else None
+        if basis == "EXT" and (ext is None or not self.realtime):
+            return self._reject(req, "order-hours-closed")  # 장외 체결은 실시간 시세가 있을 때만
+        extra: dict[str, Any] = {}
+        if ext is not None:  # 장외: 그 세션이 속한 거래일, 세션 끝에 만료
+            extra = {
+                "session": ext.name,
+                "ext_start": ext.start.isoformat(),
+                "expires_at": ext.end.isoformat(),
+            }
         oid = self._new_order(
             req,
             OrderStatus.SUBMITTED,
             fill_basis=basis,
-            trade_day=self.cal.local_date(now).isoformat(),
+            trade_day=(ext.day if ext is not None else self.cal.local_date(now)).isoformat(),
             reserved=reserved,
+            **extra,
         )
         fills: list[FillInfo] = []
         if basis == "NOW":
             o = self.state["orders"][oid]
             px = (await self._live_prices([req.symbol])).get(req.symbol)
+            fills = self._fill_now(o, px, now) if px else []
+        elif ext is not None:
+            o = self.state["orders"][oid]
+            px = (await self._ext_prices([req.symbol], ext.start)).get(req.symbol)
             fills = self._fill_now(o, px, now) if px else []
         if fills:
             res = self._result(oid, [OrderStatus.SUBMITTED, OrderStatus.FILLED], fills)
@@ -427,9 +460,12 @@ class PaperBroker(BrokerInterface):
         opened = [(oid, o) for oid, o in self.state["orders"].items() if o["status"] not in TERMINAL]
         if not opened:
             return []
-        prices = await self._live_prices(sorted({o["symbol"] for _, o in opened}))
-        results: list[OrderResult] = []
-        for oid, o in opened:
+        regular = [(oid, o) for oid, o in opened if o.get("fill_basis") != "EXT"]
+        prices = await self._live_prices(sorted({o["symbol"] for _, o in regular}))
+        results: list[OrderResult] = await self._settle_extended(
+            [(oid, o) for oid, o in opened if o.get("fill_basis") == "EXT"], now
+        )
+        for oid, o in regular:
             tday = date.fromisoformat(o["trade_day"])
             if session is None or tday < today or now >= session.order_cutoff:
                 o["reserved"] = 0.0
@@ -448,6 +484,34 @@ class PaperBroker(BrokerInterface):
                 results.append(self._result(oid, path, fills))
         if results:
             self._save()
+        return results
+
+    async def _settle_extended(
+        self, orders: list[tuple[str, dict[str, Any]]], now: datetime
+    ) -> list[OrderResult]:
+        """장외 주문: 세션이 끝났으면 만료, 아니면 장외 시세가 그 세션 안에서 갱신됐을 때만 현재가로 체결."""
+        results: list[OrderResult] = []
+        groups: dict[str, list[tuple[str, dict[str, Any]]]] = {}  # 세션 시작 시각별
+        for oid, o in orders:
+            if now >= datetime.fromisoformat(o["expires_at"]):
+                o["reserved"] = 0.0
+                o["status"], o["reject_reason"] = OrderStatus.CANCELED.value, "ext-session-expired"
+                results.append(self._result(oid, [OrderStatus.CANCELED]))
+            else:
+                groups.setdefault(o["ext_start"], []).append((oid, o))
+        for start, group in groups.items():
+            prices = await self._ext_prices(
+                sorted({o["symbol"] for _, o in group}), datetime.fromisoformat(start)
+            )
+            for oid, o in group:
+                fills = self._fill_now(o, prices.get(o["symbol"]), now)
+                if fills:
+                    path = (
+                        [OrderStatus.FILLED]
+                        if o["status"] == OrderStatus.FILLED.value
+                        else [OrderStatus.PARTIALLY_FILLED]
+                    )
+                    results.append(self._result(oid, path, fills))
         return results
 
     async def settle(self) -> list[OrderResult]:

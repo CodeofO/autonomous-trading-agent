@@ -85,12 +85,7 @@ class RiskManager:
         if ctx.killed:
             return block("kill_switch", "킬 스위치가 켜져 있어 모든 주문이 중단됐습니다")
         if self.cal.fill_basis(ctx.now) is None:
-            hours = (
-                "미국 정규장 시작 30분 전~마감 10분 전, 미국 거래일만 접수"
-                if self.currency == "USD"
-                else "08:30~15:20 거래일만 접수"
-            )
-            return block("market_hours", f"장 운영시간 외 주문 금지 ({hours})")
+            return block("market_hours", f"장 운영시간 외 주문 금지 ({self.cal.order_hours_text()})")
         if it.quantity <= 0 or it.ref_price <= 0:
             return block("invalid", "수량/가격이 올바르지 않습니다")
         if it.symbol in ctx.open_order_symbols:

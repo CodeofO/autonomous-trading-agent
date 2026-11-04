@@ -114,6 +114,18 @@
 - FAQ: 짧은 시간에 소액 주문을 대량으로 내면 거래가 일시 제한될 수 있다.
 - **명세에 없는 것**: 계좌의 시장 구분, 주문의 거래소 지정, 주문 조회 응답의 clientOrderId, 거부 사유 필드, 부분 수량 취소, 샌드박스.
 
+미국 주식 주문 (D-55, `US_TRADING_MODE=live` 일 때만):
+- 같은 `POST /api/v1/orders`. `symbol` = 영문 티커. `price` = 달러 소수 문자열 — $1 이상 소수 둘째, 미만 넷째 자리(그 아래는 토스가 절삭).
+- 수량은 기본 정수. 소수점 수량은 미국 시장가 매도만, 금액 주문(`orderAmount`, 달러)은 미국 시장가 전용이고 정규장 시작~종료 1시간 전만 받는다. **이 시스템은 정수 수량만 쓴다.**
+- `timeInForce`: `DAY`(기본), `CLS`(미국 지정가 종가 주문). 이 시스템은 `DAY` 만.
+- 잔고 `items[]` 에 `marketCountry`(KR/US)·`currency`(KRW/USD). 가격은 거래 통화 기준. 주문가능금액 `buying-power?currency=USD`.
+- `confirmHighValueOrder`: 1억원 이상 주문에 필요. 미국 주문도 원화 환산으로 보고 1억원 이상은 보내지 않는다.
+
+장 운영 캘린더의 장외 세션 (D-57):
+- KR `integrated.{preMarket, regularMarket, afterMarket}` (KRX+NXT 통합, 장전/장후 시간외종가 제외). preMarket `{startTime, singlePriceAuctionStartTime, endTime}`, afterMarket `{startTime, singlePriceAuctionEndTime, endTime}`.
+- US `{dayMarket, preMarket, regularMarket, afterMarket}` 각각 `{startTime, endTime}` (KST, 휴장이면 모두 null).
+- `/prices` 결과의 `timestamp`(데이터 시각, 체결이 없으면 null)로 장외 체결 여부를 판단한다.
+
 → 모의투자 모드에서는 `core/http.check_outbound` 가 주문·계좌 경로를 **어떤 호스트든 허용목록보다 먼저** 차단한다(`LiveOrderBlockedError`). 실거래 모드의 `TossTradingClient`(`allow_trading=True`)만 위 표의 ✅·허용 경로를 정확히 호출할 수 있고, 정정·조건주문·다른 호스트는 여전히 차단된다. 주문 POST 는 자동 재시도하지 않는다(`tests/test_guard.py`, `tests/test_live_broker.py`).
 
 ## 6. 실시간 시세 (WebSocket)

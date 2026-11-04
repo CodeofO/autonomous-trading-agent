@@ -14,10 +14,12 @@ from app.api.routes import (
     auth,
     chat,
     control,
+    extended,
     llm,
     market,
     markets,
     memory,
+    newsroom,
     orders,
     push,
     reports,
@@ -39,16 +41,18 @@ for _m in (
     agent,
     llm,
     schedule,
+    extended,
     chat,
     risk,
     memory,
     market,
     reports,
     markets,
+    newsroom,
 ):
     router.include_router(_m.router)
 
-# /api/us 아래에 두지 않는 전역 API (계정·알림·LLM 설정·비용·주요 지표·시장 목록·합산 요약)
+# /api/us 아래에 두지 않는 전역 API (계정·알림·LLM 설정·비용·주요 지표·시장 목록·합산 요약·뉴스 룸)
 GLOBAL_PATHS = (
     "/api/health",
     "/api/auth",
@@ -57,6 +61,7 @@ GLOBAL_PATHS = (
     "/api/market/indicators",
     "/api/markets",
     "/api/overview",
+    "/api/news-room",
 )
 
 

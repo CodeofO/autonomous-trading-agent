@@ -14,6 +14,7 @@
 
 그 밖: 매 1분 지정가·장전 주문 체결·당일 만료·손절/익절 감시(`intraday`, 장 시작 1분 전 ~ 마감 5분 뒤에만),
 일봉 갱신(장 시작 1시간 전 ~ 마감 30분 뒤에만 10분마다 — 국장·미장 같음, B6), 하루 한 번 데이터 정리(`maintenance`, B7).
+거래일과 관계없이 매일 같은 한국 시각에 도는 작업(`daily`, 예: 뉴스 룸 07·12·17시, D-56)도 같은 분배기·실행 기록을 쓴다.
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -42,6 +44,7 @@ Job = Callable[[], Awaitable[object]]
 KR_MORNING = time(8, 35)
 KR_REPORT = time(15, 45)
 PRE_OPEN_LEAD = timedelta(minutes=25)  # 미장: 장 시작 25분 전 장전 판단 (국장 08:35 와 같은 역할)
+LIVE_FIRST_DELAY = timedelta(minutes=5)  # 미장 실거래: 장 시작 전 주문이 없으니 첫 판단은 장 시작 5분 뒤
 REPORT_DELAY = timedelta(minutes=15)  # 마감 15분 뒤 일일 리포트
 GRACE = timedelta(minutes=10)  # 늦게 깨어나도 이 안이면 실행 (APScheduler misfire_grace_time 과 같은 역할)
 REFRESH_BEFORE = timedelta(
@@ -50,6 +53,26 @@ REFRESH_BEFORE = timedelta(
 REFRESH_AFTER = timedelta(minutes=30)
 DECISIONS = ("morning", "hourly")
 TZ_LABEL = {"KR": "한국 시각", "US": "미국 동부 시각"}
+
+
+@dataclass(frozen=True)
+class DailyJob:
+    """거래일·일정 설정과 관계없이 매일 같은 한국 시각에 도는 작업 (D-56, 예: 뉴스 룸 07·12·17시).
+
+    판단 잠금(`_busy`)을 잡지 않는다. 놓친 경우(서버가 꺼져 있었음) 켜진 뒤 **가장 최근 슬롯 하나만** 따라잡는다.
+    run 은 그 슬롯 시각(한국 시각)을 받는다.
+    """
+
+    name: str
+    times: tuple[time, ...]
+    run: Callable[[datetime], Awaitable[object]]
+
+
+def _bind(job: DailyJob, at: datetime) -> Job:
+    async def run() -> None:
+        await job.run(at)
+
+    return run
 
 
 def session_times(interval_minutes: int) -> list[time]:
@@ -85,15 +108,22 @@ def daily_jobs(engine: TradingEngine, interval_minutes: int) -> list[tuple[time,
     return [(t, name, fn[name]) for t, name in kr_default_times(interval_minutes)]
 
 
-def session_job_times(s: Session, interval_minutes: int) -> list[tuple[datetime, str]]:
-    """미장 기본 일정(시각은 tz-aware): 장전 판단, 장중 판단(장 시작 + N×간격, 주문 마감 전까지), 일일 리포트."""
-    out: list[tuple[datetime, str]] = [(s.open - PRE_OPEN_LEAD, "morning")]
+def session_job_times(
+    s: Session, interval_minutes: int, *, pre_open: bool = True
+) -> list[tuple[datetime, str]]:
+    """미장 기본 일정(시각은 tz-aware): 장전 판단, 장중 판단(장 시작 + N×간격, 주문 마감 전까지), 일일 리포트.
+
+    pre_open=False(실거래, 장 시작 전 주문 없음 — D-55): 첫 판단을 장 시작 5분 뒤로 옮긴다(주문을 낼 수 있는 시각).
+    """
+    first = s.open - PRE_OPEN_LEAD if pre_open else s.open + LIVE_FIRST_DELAY
+    out: list[tuple[datetime, str]] = [(first, "morning")]
     if interval_minutes <= 0:
         out.append((s.open + (s.order_cutoff - s.open) / 2, "hourly"))
     else:
         t = s.open + timedelta(minutes=interval_minutes)
         while t < s.order_cutoff:
-            out.append((t, "hourly"))
+            if t > first:
+                out.append((t, "hourly"))
             t += timedelta(minutes=interval_minutes)
     out.append((s.close + REPORT_DELAY, "report"))
     return out
@@ -128,6 +158,7 @@ class Scheduler:
         self._busy = asyncio.Lock()
         self._tasks: set[asyncio.Task[None]] = set()
         self._calendar_day: date | None = None
+        self.daily: list[DailyJob] = []  # 매일 도는 작업 (D-56) — 조립할 때 붙인다
 
     # ------------------------------------------------------------ 설정
     @property
@@ -185,6 +216,28 @@ class Scheduler:
             key = self._key(d, at, name)
             if at <= now < at + GRACE and key not in fired.get(d.isoformat(), []):
                 out.append((key, name))
+        return out
+
+    def daily_due(self, now: datetime) -> list[tuple[str, DailyJob, datetime]]:
+        """매일 작업 중 지금 실행할 (작업 키, 작업, 슬롯 시각). 작업마다 지난 슬롯 중 가장 최근 것 하나만 본다."""
+        if not self.daily:
+            return []
+        fired = self.engine.settings.get(self.KEY)
+        today = now.astimezone(KST).date()
+        out: list[tuple[str, DailyJob, datetime]] = []
+        for job in self.daily:
+            past = [
+                at
+                for d in (today - timedelta(days=1), today)
+                for t in job.times
+                if (at := datetime.combine(d, t, KST)) <= now
+            ]
+            if not past:
+                continue
+            at = max(past)
+            key = self._key(at.date(), at, job.name)
+            if key not in fired.get(at.date().isoformat(), []):
+                out.append((key, job, at))
         return out
 
     def _mark(self, *keys: str) -> None:
@@ -250,6 +303,10 @@ class Scheduler:
             self._mark(key)  # 먼저 기록: 실패해도 같은 작업을 1분마다 다시 하지 않는다
             ran.append(key)
             runs.append(self._guarded(name, self._job(name), busy_wait=name == "report")())
+        for key, job, at in self.daily_due(now):
+            self._mark(key)
+            ran.append(key)
+            runs.append(self._guarded(job.name, _bind(job, at), busy_skip=False)())
         if self.REFRESH_IN_TICK and self._near_session(now) and now.minute % 10 == 0:
             runs.append(self._guarded("refresh", self.engine.sync_data)())
         for coro in runs:
@@ -421,7 +478,6 @@ class Scheduler:
         dec = [at for at, name in jobs if name in DECISIONS]
         rep = next((at for at, name in jobs if name == "report"), s.close + REPORT_DELAY)
         default = self.default_view(s)
-        lo = s.open - cal.pre_open_window
 
         def hm(t: datetime) -> str:
             return f"{t.astimezone(tz):%H:%M}"
@@ -439,10 +495,8 @@ class Scheduler:
             "times": [hm(t) for t in dec],
             "times_kst": [f"{t.astimezone(KST):%H:%M}" for t in dec],
             "market_hours": {"open": hm(s.open), "close": hm(s.close), "order_cutoff": hm(s.order_cutoff)},
-            # 화면 규칙과 같다: (장 시작 - 장전 접수 30분)보다 이르거나 주문 마감보다 늦은 시각
-            "outside_market": [
-                hm(t) for t in dec if t < lo or t >= s.order_cutoff
-            ],  # 마감 시각부터는 주문 접수 안 됨(fill_basis)
+            # 주문을 받지 않는 시각 (장전 접수·정규장·설정에서 켠 장외 세션 밖) — 주문 접수 규칙(fill_basis) 그대로
+            "outside_market": [hm(t) for t in dec if cal.fill_basis(t) is None],
             "report_at": hm(rep),
             "next_runs": self.next_runs(6),
         }
@@ -463,5 +517,8 @@ class SessionScheduler(Scheduler):
     MAINTENANCE_AT = time(12, 40)  # 한국 시각 낮 = 미국 장외
 
     def default_jobs(self, d: date) -> list[tuple[datetime, str]]:
-        s = self.engine.cal.session(d)
-        return session_job_times(s, self.default_interval) if s is not None else []
+        cal = self.engine.cal
+        s = cal.session(d)
+        if s is None:
+            return []
+        return session_job_times(s, self.default_interval, pre_open=bool(cal.pre_open_window))

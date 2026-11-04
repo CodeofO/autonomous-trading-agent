@@ -507,10 +507,12 @@ describe("살아 있는 숫자", () => {
     // 그리기 전에 시작 값으로 되돌려 두고 굴리기 시작한다
     expect(el).toHaveTextContent("1,000원");
     expect(el).toHaveClass("flash-up");
-    await waitFor(() => expect(el).toHaveTextContent("2,000원"));
+    // 굴리기는 420ms 지만 jsdom 의 화면 갱신(rAF)은 CPU 가 바쁘면 늦어진다 — 기본 1초 대신 넉넉히 기다린다
+    const rolled = { timeout: 3000 };
+    await waitFor(() => expect(el).toHaveTextContent("2,000원"), rolled);
     rerender(<AnimatedNumber value={1500} format={won} />);
     expect(el).toHaveClass("flash-down");
-    await waitFor(() => expect(el).toHaveTextContent("1,500원"));
+    await waitFor(() => expect(el).toHaveTextContent("1,500원"), rolled);
   });
 
   it("'동작 줄이기'면 굴리지도 깜빡이지도 않고 바로 바꾼다", () => {

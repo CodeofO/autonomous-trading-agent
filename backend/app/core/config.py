@@ -3,6 +3,7 @@
 비밀정보(데이터 API 키, LLM 키, APP_SECRET_KEY)는 .env 로만 주입하며 SecretStr 로 보관한다.
 TRADING_MODE 기본은 "paper"(자체 모의계좌). "live"(토스증권 실계좌 주문)는 사용자가 .env 에서
 LIVE_TRADING_CONFIRM 확인 문구까지 넣어야만 켜진다(D-34). 켜는 것은 사용자의 판단이다.
+미장은 US_TRADING_MODE + US_LIVE_TRADING_CONFIRM 으로 국장과 따로 켠다(D-55).
 시세는 토스증권 Open API(조회 전용)만 쓴다. 목업 데이터·가속 시뮬레이션은 없다(D-28).
 """
 
@@ -94,8 +95,13 @@ class Settings(BaseSettings):
     paper_slippage_bps: float = 5.0
     paper_max_volume_participation: float = Field(default=0.05, gt=0, le=1)
 
-    # --- 미장 모의투자 (D-48) — 미국 주식은 TRADING_MODE 와 관계없이 항상 모의계좌 -----------------
+    # --- 미장 (D-48, D-55) — 거래 모드는 국장(TRADING_MODE)과 따로 정한다 ---------------------
     us_market_enabled: bool = True
+    # paper: 자체 달러 모의계좌 (기본) | live: 토스증권 실계좌로 미국 주식 실제 주문 (US_LIVE_TRADING_CONFIRM 필요)
+    us_trading_mode: Literal["paper", "live"] = "paper"
+    us_live_trading_confirm: str = ""  # live 일 때 LIVE_CONFIRM_PHRASE 와 같아야 함
+    # 미장 실거래 하루 매수 총액 상한(달러). 리스크 한도와 별개로 코드가 강제한다
+    us_live_daily_buy_limit: float = Field(default=3_000, gt=0)
     # 비우면 sqlite:///{DATA_DIR}/us_market.db (국장 DB 가 메모리면 미장도 메모리)
     us_database_url: str = ""
     paper_us_initial_cash: float = Field(default=10_000, gt=0)  # 달러
@@ -114,14 +120,16 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     enable_scheduler: bool = True
 
-    @field_validator("trading_mode", mode="before")
+    @field_validator("trading_mode", "us_trading_mode", mode="before")
     @classmethod
     def _mode(cls, v: object) -> object:
         if v is None or v == "":
             return "paper"
         m = str(v).strip().lower()
         if m not in ("paper", "live"):
-            raise ValueError("TRADING_MODE 는 'paper'(모의투자) 또는 'live'(실거래)만 쓸 수 있습니다.")
+            raise ValueError(
+                "TRADING_MODE·US_TRADING_MODE 는 'paper'(모의투자) 또는 'live'(실거래)만 쓸 수 있습니다."
+            )
         return m
 
     @field_validator("us_agent_interval_minutes", mode="before")
@@ -136,11 +144,22 @@ class Settings(BaseSettings):
                 "TRADING_MODE=live 는 실제 돈으로 주문합니다. 켜려면 .env 에 "
                 f"LIVE_TRADING_CONFIRM={LIVE_CONFIRM_PHRASE} 를 함께 넣으세요."
             )
+        if self.us_trading_mode == "live" and self.us_live_trading_confirm.strip() != LIVE_CONFIRM_PHRASE:
+            raise ValueError(
+                "US_TRADING_MODE=live 는 미국 주식을 실제 돈으로 주문합니다. 켜려면 .env 에 "
+                f"US_LIVE_TRADING_CONFIRM={LIVE_CONFIRM_PHRASE} 를 함께 넣으세요."
+            )
         return self
 
     @property
     def is_live(self) -> bool:
+        """국장 실거래 여부."""
         return self.trading_mode == "live"
+
+    @property
+    def us_is_live(self) -> bool:
+        """미장 실거래 여부 (미장이 꺼져 있으면 항상 False)."""
+        return self.us_market_enabled and self.us_trading_mode == "live"
 
     @field_validator("llm_base_url")
     @classmethod
