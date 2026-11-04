@@ -20,6 +20,7 @@ import { MARKET_META, readStore, useMarket, writeStore } from "../market";
 import { isMobile, prefersReducedMotion, useIsMobile, useMobileViewport } from "../mobile";
 import { preloadPage } from "../routes";
 import { openPalette, preloadPalette } from "../ui/overlays";
+import { attachSwipe, canGoBack, tick, type SwipeDir } from "../ui/swipe";
 import { usePullToRefresh, type PullState } from "../ui/usePullToRefresh";
 import { llmChipText } from "../utils/llm";
 import { ConnectionBanner } from "./ConnectionBanner";
@@ -28,7 +29,18 @@ import { Loading } from "./Loading";
 import { MarketSwitch } from "./MarketSwitch";
 import { CommandPaletteHost, StockSheetHost } from "./Overlays";
 import { RouteErrorBoundary } from "./RouteErrorBoundary";
-import { isActive, MORE_ITEMS, NAV_GROUPS, SETTINGS, TAB_ITEMS, TABS, tabIndex, type NavItem } from "./nav";
+import {
+  isActive,
+  MORE_ITEMS,
+  NAV_GROUPS,
+  SETTINGS,
+  swipeTarget,
+  TAB_ITEMS,
+  TABS,
+  tabIndex,
+  topbarCompact,
+  type NavItem,
+} from "./nav";
 import { Sheet } from "./Sheet";
 
 export function PaperBadge({ live = false }: { live?: boolean }) {
@@ -582,9 +594,16 @@ function useMobileNav(pathname: string, screen: string, active: number) {
   useEffect(() => {
     const el = scroller.current;
     if (!el) return;
+    let lastY = el.scrollTop;
     const onScroll = () => {
-      positions.current.set(current.current, el.scrollTop);
-      topbar.current?.classList.toggle("scrolled", el.scrollTop > 2);
+      const y = el.scrollTop;
+      positions.current.set(current.current, y);
+      const bar = topbar.current;
+      bar?.classList.toggle("scrolled", y > 2);
+      // 휴대폰: 내리면 상단 바 둘째·셋째 줄(시장 전환·설정·상태 칩)을 접고, 올리면 다시 편다
+      if (bar && isMobile())
+        bar.classList.toggle("compact", topbarCompact(bar.classList.contains("compact"), lastY, y));
+      lastY = y;
     };
     el.addEventListener("scroll", onScroll, { passive: true });
     // 보이는 본문 높이 — 트레이딩 룸 채팅이 상단 바와 탭바 사이를 꽉 채우는 데 쓴다
@@ -634,6 +653,35 @@ function useMobileNav(pathname: string, screen: string, active: number) {
     latest.current = { pathname, active };
   });
 
+  /** 화면 이동 (휴대폰): 지원하면 View Transition 으로 옆으로 밀며, 아니면 그냥 이동. to = -1 이면 뒤로 */
+  const go = useCallback(
+    (to: string | -1, dir: "prev" | "next") => {
+      const move = () => (to === -1 ? navigate(-1) : navigate(to));
+      if (prefersReducedMotion() || typeof document.startViewTransition !== "function") {
+        move();
+        return;
+      }
+      const root = document.documentElement;
+      root.dataset.navDir = dir;
+      root.classList.add("vt-nav");
+      const t = document.startViewTransition(
+        () =>
+          new Promise<void>((resolve) => {
+            navDone.current = resolve;
+            move();
+            window.setTimeout(resolve, 300); // 화면이 늦게 바뀌어도 전환이 멈춰 있지 않게
+          }),
+      );
+      const done = () => {
+        root.classList.remove("vt-nav");
+        delete root.dataset.navDir;
+      };
+      t.ready.catch(() => {});
+      t.finished.then(done, done);
+    },
+    [navigate],
+  );
+
   const onTab = useCallback(
     (e: MouseEvent<HTMLAnchorElement>, to: string, i: number) => {
       if (!isMobile() || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
@@ -647,26 +695,28 @@ function useMobileNav(pathname: string, screen: string, active: number) {
       // 지원하지 않는 브라우저는 그냥 이동 (.page 의 CSS 등장 효과만)
       if (!smooth || typeof document.startViewTransition !== "function") return;
       e.preventDefault();
-      const root = document.documentElement;
-      root.dataset.navDir = i < active ? "prev" : "next";
-      root.classList.add("vt-nav");
-      const t = document.startViewTransition(
-        () =>
-          new Promise<void>((resolve) => {
-            navDone.current = resolve;
-            navigate(to);
-            window.setTimeout(resolve, 300); // 화면이 늦게 바뀌어도 전환이 멈춰 있지 않게
-          }),
-      );
-      const done = () => {
-        root.classList.remove("vt-nav");
-        delete root.dataset.navDir;
-      };
-      t.ready.catch(() => {});
-      t.finished.then(done, done);
+      go(to, i < active ? "prev" : "next");
     },
-    [navigate],
+    [go],
   );
+
+  // 가로 넘기기: 탭 화면은 옆 탭으로, 그 밖의 화면은 오른쪽으로 넘기면 뒤로 (ui/swipe.ts)
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    const target = (dir: SwipeDir) => swipeTarget(latest.current.pathname, dir, canGoBack());
+    return attachSwipe(el, {
+      enabled: () => isMobile() && !document.documentElement.classList.contains("kb-open"),
+      canGo: (dir) => target(dir) !== null,
+      motion: () => !prefersReducedMotion(),
+      onSwipe: (dir) => {
+        const to = target(dir);
+        if (to === null) return;
+        tick();
+        go(to, dir === "left" ? "next" : "prev");
+      },
+    });
+  }, [go]);
 
   return { scroller, topbar, onTab };
 }

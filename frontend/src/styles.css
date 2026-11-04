@@ -4346,3 +4346,58 @@ kbd,
     justify-content: center;
   }
 }
+
+/* ---------- 휴대폰: 가로 넘기기 · 내리면 상단 바 접기 ---------- */
+@media (max-width: 760px) {
+  /* 넘기는 동안만 본문이 손가락을 조금 따라온다 (ui/swipe.ts) */
+  .page.swiping {
+    transform: translateX(var(--swipe-x, 0));
+  }
+  .page.swiping.settle {
+    transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  /* 내리면 둘째·셋째 줄(시장 전환·설정·상태 칩)을 접는다 — 조금이라도 올리면 다시 편다 */
+  .topbar .mkt-switch,
+  .topbar .top-settings,
+  .topbar .top-info {
+    max-height: 64px;
+    transition:
+      max-height 0.22s ease,
+      opacity 0.16s ease,
+      margin 0.22s ease,
+      padding 0.22s ease,
+      visibility 0s linear 0s;
+  }
+  .topbar.compact {
+    row-gap: 0;
+  }
+  .topbar.compact .mkt-switch,
+  .topbar.compact .top-settings,
+  .topbar.compact .top-info {
+    max-height: 0;
+    opacity: 0;
+    margin-block: 0;
+    padding-block: 0;
+    border-width: 0;
+    overflow: hidden;
+    pointer-events: none;
+    visibility: hidden;
+    transition:
+      max-height 0.22s ease,
+      opacity 0.12s ease,
+      margin 0.22s ease,
+      padding 0.22s ease,
+      visibility 0s linear 0.22s;
+  }
+}
+@media (max-width: 760px) and (prefers-reduced-motion: reduce) {
+  .topbar .mkt-switch,
+  .topbar .top-settings,
+  .topbar .top-info,
+  .topbar.compact .mkt-switch,
+  .topbar.compact .top-settings,
+  .topbar.compact .top-info,
+  .page.swiping.settle {
+    transition: none;
+  }
+}

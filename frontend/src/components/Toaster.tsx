@@ -1,3 +1,4 @@
+import { useRef, type TouchEvent } from "react";
 import { dismissToast, useToasts, type ToastItem } from "../ui/toast";
 
 /**
@@ -24,10 +25,42 @@ export function Toaster() {
   );
 }
 
+/** 이만큼 옆으로 밀면 토스트를 닫는다(px) */
+const TOAST_SWIPE_PX = 56;
+
 function Toast({ t }: { t: ToastItem }) {
+  // 손가락으로 옆으로 밀어 닫기 (휴대폰). 미는 동안은 손가락을 따라오고 흐려진다
+  const start = useRef<number | null>(null);
+  const onTouchStart = (e: TouchEvent<HTMLDivElement>) => {
+    start.current = e.touches[0].clientX;
+  };
+  const onTouchMove = (e: TouchEvent<HTMLDivElement>) => {
+    if (start.current === null) return;
+    const dx = e.touches[0].clientX - start.current;
+    e.currentTarget.style.transform = `translateX(${dx}px)`;
+    e.currentTarget.style.opacity = String(Math.max(0.2, 1 - Math.abs(dx) / 160));
+  };
+  const onTouchEnd = (e: TouchEvent<HTMLDivElement>) => {
+    if (start.current === null) return;
+    const dx = e.changedTouches[0].clientX - start.current;
+    start.current = null;
+    if (Math.abs(dx) >= TOAST_SWIPE_PX) {
+      dismissToast(t.id);
+      return;
+    }
+    e.currentTarget.style.transform = "";
+    e.currentTarget.style.opacity = "";
+  };
   // 글자는 이 요소에 바로 둔다 (아이콘은 CSS) — 화면 읽기·검색에 글자 그대로 잡힌다
   return (
-    <div className={`toast ${t.tone}`} data-testid="toast" onClick={() => dismissToast(t.id)}>
+    <div
+      className={`toast ${t.tone}`}
+      data-testid="toast"
+      onClick={() => dismissToast(t.id)}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+    >
       {t.text}
       <button
         type="button"

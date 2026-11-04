@@ -86,3 +86,28 @@ export function tabIndex(pathname: string): number {
   const i = TAB_ITEMS.findIndex((n) => isActive(n, pathname));
   return i >= 0 ? i : TABS.length - 1;
 }
+
+/**
+ * 가로 넘기기의 목적지 (휴대폰). 탭 화면(그 주소 그대로)은 옆 탭으로, 탭 아래 화면·더보기 화면은
+ * 오른쪽으로 넘기면 뒤로(앱 안에 뒤로 갈 곳이 있을 때). 갈 곳이 없으면 null.
+ */
+export function swipeTarget(pathname: string, dir: "left" | "right", canBack: boolean): string | -1 | null {
+  const i = TAB_ITEMS.findIndex((n) => n.to === pathname);
+  if (i >= 0) {
+    const j = dir === "left" ? i + 1 : i - 1;
+    return j >= 0 && j < TAB_ITEMS.length ? TAB_ITEMS[j].to : null;
+  }
+  return dir === "right" && canBack ? -1 : null;
+}
+
+/** 내릴 때 상단 바를 접는 기준: 맨 위 근처는 항상 펴고, 이만큼 이상 내리면 접고, 이만큼 올리면 편다(px) */
+const COMPACT_TOP = 56;
+const COMPACT_STEP = 6;
+
+/** 스크롤 위치 변화 → 상단 바를 접을지 (순수 함수, 작은 흔들림은 무시) */
+export function topbarCompact(compact: boolean, lastY: number, y: number): boolean {
+  if (y < COMPACT_TOP) return false;
+  if (y - lastY > COMPACT_STEP) return true;
+  if (lastY - y > COMPACT_STEP) return false;
+  return compact;
+}
