@@ -1,13 +1,16 @@
-import { memo, useEffect, useRef } from "react";
+import { memo, useEffect, useId, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { errorText, get, post, put } from "../api/client";
-import type { NewsItem, NewsRoom, NewsSection } from "../api/types";
+import type { NewsImpactLine, NewsItem, NewsRoom, NewsSection } from "../api/types";
 import { RelTime } from "../components/RelTime";
 import { SkeletonCards } from "../components/Skeleton";
+import { readStore, writeStore } from "../market";
 import { toast } from "../ui/toast";
 import { fmtWhen } from "../utils/format";
 import {
   editionLabel,
+  IMPACT_OPEN_KEY,
+  impactSections,
   NEWS_IDLE_MS,
   NEWS_POLL_MS,
   NEWS_ROOM_KEY,
@@ -119,6 +122,8 @@ export function NewsRoomPage() {
         {ed?.summary_error && <p className="muted news-note">{ed.summary_error}</p>}
       </section>
 
+      {ed && <ImpactStrip sections={ed.sections} />}
+
       {ed ? (
         <div className="news-sections">
           {ed.sections.map((s) => (
@@ -184,6 +189,100 @@ function useSummaryToggle() {
     },
     onError: (e) => toast.error(errorText(e)),
   });
+}
+
+/**
+ * 📊 증시 영향 3줄 (D-59): 섹션마다 증시에 영향이 클 것 같은 이슈 3줄과 근거 기사.
+ * 판을 만들 때 서버가 함께 저장한 것 — 활성 LLM 이 없거나 실패하면 기사 제목으로 대신하고 'AI 요약 아님'.
+ * 휴대폰은 카드를 옆으로 넘겨 본다. 접어 두면 다음에 열어도 접혀 있다
+ */
+function ImpactStrip({ sections }: { sections: NewsSection[] }) {
+  const id = useId();
+  const [open, setOpen] = useState(() => readStore(IMPACT_OPEN_KEY) !== "0");
+  const cards = impactSections(sections);
+  if (cards.length === 0) return null;
+  const toggle = () => {
+    writeStore(IMPACT_OPEN_KEY, open ? "0" : "1");
+    setOpen(!open);
+  };
+  return (
+    <section className="card news-impact" aria-labelledby={`${id}-title`} data-testid="news-impact">
+      <div className="news-impact-head">
+        <h3 id={`${id}-title`}>📊 증시 영향 큰 뉴스</h3>
+        <small className="muted news-impact-sub">섹션별 3줄</small>
+        <button
+          type="button"
+          className="btn tiny news-impact-toggle"
+          aria-expanded={open}
+          aria-controls={`${id}-cards`}
+          onClick={toggle}
+        >
+          {open ? "접기" : "펼치기"}
+        </button>
+      </div>
+      {open && (
+        <>
+          {/* 휴대폰: 가로로 넘기는 상자 — 화면 넘기기(탭 이동)보다 이 상자의 가로 스크롤이 먼저 */}
+          <ul className="news-impact-cards" id={`${id}-cards`} data-no-swipe>
+            {cards.map(({ section, impact }) => (
+              <li key={section.key} className="news-impact-card" aria-label={section.title}>
+                <div className="news-impact-card-head">
+                  <b>
+                    <span aria-hidden>{section.icon}</span> {section.title}
+                  </b>
+                  {impact.source === "ai" ? (
+                    <span className="pill news-ai" title="활성 LLM 이 기사 제목·요약문으로 고른 3줄">
+                      AI
+                    </span>
+                  ) : (
+                    <span
+                      className="pill news-rule"
+                      title="LLM 요약이 없어 증시 관련 기사 제목으로 대신했어요"
+                    >
+                      AI 요약 아님
+                    </span>
+                  )}
+                </div>
+                {impact.lines.length === 0 ? (
+                  <p className="muted news-impact-none">지난 24시간 기사가 없어요.</p>
+                ) : (
+                  <ol className="news-impact-lines">
+                    {impact.lines.map((ln, i) => (
+                      <ImpactLine key={i} line={ln} />
+                    ))}
+                  </ol>
+                )}
+              </li>
+            ))}
+          </ul>
+          <small className="muted news-impact-hint" aria-hidden>
+            ← 옆으로 넘겨 보기 →
+          </small>
+        </>
+      )}
+    </section>
+  );
+}
+
+function ImpactLine({ line }: { line: NewsImpactLine }) {
+  const href = line.link ? safeLink(line.link) : null;
+  return (
+    <li>
+      <span className="news-impact-text">{line.text}</span>
+      {href && (
+        <a
+          className="news-impact-link"
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={line.title ?? undefined}
+          aria-label={`관련 기사: ${line.title ?? line.text}`}
+        >
+          기사 ›
+        </a>
+      )}
+    </li>
+  );
 }
 
 const SectionCard = memo(function SectionCard({ section: s }: { section: NewsSection }) {

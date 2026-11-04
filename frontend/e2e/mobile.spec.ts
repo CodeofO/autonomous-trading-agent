@@ -1,3 +1,5 @@
+/// <reference lib="dom" />
+// page.evaluate 안의 코드는 브라우저에서 돈다 (터치 이벤트를 만들려고 DOM 타입을 쓴다)
 import { expect, test, type Page } from "@playwright/test";
 
 // 휴대폰 화면(iPhone 14 크기): 가로로 넘치지 않고, 하단 탭바로 이동하며, 채팅 입력창이 탭바에 가리지 않는다

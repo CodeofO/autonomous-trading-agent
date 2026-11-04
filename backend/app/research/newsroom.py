@@ -5,6 +5,9 @@
   기사일수록 위로 올린다(묶인 기사 수 → 최신순). 앞 섹션에 나온 사건은 뒤 섹션에서 뺀다.
 - 요약(선택): 지금 활성 LLM 프로필(국장 매니저와 같은 것)로 '오늘의 흐름' 한 줄과 섹션별 2~3문장. LLM 이 없거나
   실패하면 요약 없이 기사 목록만 저장한다. 화면에서 끌 수 있다(kv `news_room.summary`).
+- 증시 영향 3줄(D-59): 같은 LLM 호출에서 섹션마다 증시에 영향이 클 것 같은 이슈 3줄(+근거 기사 번호)을 받아 판에 함께
+  저장한다(화면을 열 때 LLM 을 부르지 않는다). LLM 이 없거나 실패·빠뜨리면 규칙 기반(증시 관련 말이 많은 기사 제목
+  3개, `source: "rule"` = 화면의 'AI 요약 아님'). 예전 판은 읽을 때 규칙 기반으로 채운다.
 - 구글 검색(Gemini 그라운딩)은 쓰지 않는다: 약관상 그라운딩 결과는 Search Suggestions 와 함께 '질문한 사용자'에게만
   보여 줘야 하고, 캐시·수정·다른 내용과 섞기가 금지라 미리 모아 저장해 두는 뉴스 룸과 맞지 않는다.
 - 일정: 매일 07:00·12:00·17:00(한국 시각, 주말·휴장일 포함). 국장 1분 분배기(`Scheduler.daily`)가 `sched_fired`
@@ -14,7 +17,9 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import email.utils
+import json
 import logging
 import re
 from collections.abc import Callable
@@ -45,6 +50,14 @@ SAME_STORY = 0.45  # 제목 단어 자카드 유사도가 이 이상이면 같�
 MANUAL_COOLDOWN = timedelta(seconds=60)  # 수동 새로고침 최소 간격 (유료 LLM 연타 방지)
 SUMMARY_MAX = 400  # 섹션 요약 최대 글자
 HEADLINE_MAX = 120
+IMPACT_LINES = 3  # 섹션마다 '증시 영향' 몇 줄 (D-59)
+IMPACT_MAX = 90  # 한 줄 최대 글자
+# 규칙 기반 '증시 영향'(LLM 없음·실패·요약 끔) 순위에 쓰는 말 — 제목·요약문에 많이 나올수록 위로
+MARKET_WORDS: tuple[str, ...] = (
+    "증시", "주가", "코스피", "코스닥", "나스닥", "다우", "s&p", "금리", "연준", "fomc", "환율", "달러",
+    "유가", "원유", "관세", "무역", "수출", "실적", "반도체", "인플레이션", "물가", "고용", "국채", "채권",
+    "외국인", "매수", "매도", "부동산", "예산", "규제", "제재", "전쟁", "휴전", "경기", "성장률",
+)  # fmt: skip
 
 
 @dataclass(frozen=True)
@@ -164,21 +177,89 @@ def pick_stories(
     return out
 
 
+# ====================================================================== 증시 영향 3줄 (D-59)
+def market_score(item: dict[str, Any]) -> int:
+    text = f"{item.get('title', '')} {item.get('description', '')}".lower()
+    return sum(w in text for w in MARKET_WORDS)
+
+
+def rule_impact(items: list[dict[str, Any]]) -> dict[str, Any]:
+    """LLM 없이: 증시 관련 말이 많이 든 기사 → 많이 다뤄진 기사 → 원래 순서로 3개, 제목 그대로 ('AI 요약 아님')."""
+    ranked = sorted(
+        enumerate(items), key=lambda p: (-market_score(p[1]), -int(p[1].get("related") or 1), p[0])
+    )
+    lines = [
+        {"text": str(it["title"])[:IMPACT_MAX], "link": it.get("link") or None, "title": it["title"]}
+        for _i, it in ranked[:IMPACT_LINES]
+    ]
+    return {"source": "rule", "lines": lines}
+
+
+def fill_impact(sections: list[dict[str, Any]]) -> None:
+    """'증시 영향'이 없는 섹션(LLM 이 빠뜨림·요약 없음·예전 판)을 규칙 기반으로 채운다."""
+    for s in sections:
+        if not isinstance(s.get("impact"), dict):
+            s["impact"] = rule_impact(s.get("items") or [])
+
+
+def _impact_line(x: Any, items: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """LLM 이 준 한 줄({text, ref} 또는 글자) → {text, link, title}. 글자가 없으면 None."""
+    text, ref = (x.get("text"), x.get("ref")) if isinstance(x, dict) else (x, None)
+    if not isinstance(text, str) or not text.strip():
+        return None
+    if isinstance(ref, str) and ref.strip().isdigit():
+        ref = int(ref)
+    item = None
+    if isinstance(ref, int) and not isinstance(ref, bool) and 1 <= ref <= len(items):
+        item = items[ref - 1]
+    return {
+        "text": text.strip()[:IMPACT_MAX],
+        "link": (item.get("link") or None) if item else None,
+        "title": item["title"] if item else None,
+    }
+
+
+def parse_impact(raw: Any, sections: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    """LLM 의 impact {섹션: [{text, ref}]} → 섹션별 줄. ref(기사 번호)가 맞으면 그 기사 링크를 붙인다."""
+    out: dict[str, list[dict[str, Any]]] = {}
+    if not isinstance(raw, dict):
+        return out
+    for s in sections:
+        got = raw.get(s["key"])
+        if not isinstance(got, list):
+            continue
+        items = s.get("items") or []
+        lines = [ln for x in got if (ln := _impact_line(x, items)) is not None][:IMPACT_LINES]
+        if lines:
+            out[s["key"]] = lines
+    return out
+
+
 # ====================================================================== 요약 (LLM, 선택)
 SUMMARY_SYSTEM = (
     "너는 한국어 뉴스 데스크 편집자다. 주어진 기사 제목과 요약문만 근거로 쓴다. 기사에 없는 사실·숫자·전망을 "
     "지어내지 말고, 투자 권유나 매수·매도 의견은 쓰지 않는다. 반드시 JSON 객체 하나만 답한다."
 )
 SUMMARY_PROMPT = (
-    "아래는 {when} 기준 섹션별 주요 기사다.\n"
-    '다음 형식의 JSON 으로 답하라: {{"headline": "세계와 한국의 오늘 흐름 한 문장(80자 이내)", '
-    '"sections": {{{keys}}}}}\n'
-    "섹션 요약은 각각 2~3문장, 200자 이내, 핵심 사건 위주로. 기사가 없는 섹션은 빈 문자열.\n\n{body}"
+    "아래는 {when} 기준 섹션별 주요 기사다 (각 기사 앞 숫자가 그 섹션의 기사 번호).\n"
+    "다음 형식의 JSON 으로 답하라:\n{schema}\n"
+    "- headline: 세계와 한국의 오늘 흐름 한 문장(80자 이내)\n"
+    "- sections: 섹션 요약 각각 2~3문장, 200자 이내, 핵심 사건 위주. 기사가 없는 섹션은 빈 문자열\n"
+    "- impact: 섹션마다 주식시장(국내·미국 증시)에 영향이 가장 클 것 같은 이슈 3개를 영향이 큰 순서로, "
+    "각각 한 줄(60자 이내). ref 는 근거 기사 번호. 기사가 없는 섹션은 빈 배열. "
+    "오르내림을 단정하거나 매수·매도를 권하지 말 것\n\n{body}"
 )
 
 
 def summary_prompt(sections: list[dict[str, Any]], when: datetime) -> str:
-    keys = ", ".join(f'"{s["key"]}": "{s["title"]} 요약"' for s in sections)
+    schema = json.dumps(
+        {
+            "headline": "…",
+            "sections": {s["key"]: f"{s['title']} 요약" for s in sections},
+            "impact": {s["key"]: [{"text": "증시 영향 한 줄", "ref": 1}] for s in sections},
+        },
+        ensure_ascii=False,
+    )
     parts: list[str] = []
     for s in sections:
         parts.append(f"## {s['key']} — {s['title']}")
@@ -187,10 +268,14 @@ def summary_prompt(sections: list[dict[str, Any]], when: datetime) -> str:
             parts.append(f"{i}. {it['title']}" + (f" — {desc}" if desc else ""))
         if not s["items"]:
             parts.append("(기사 없음)")
-    return SUMMARY_PROMPT.format(when=f"{when:%Y-%m-%d %H:%M} KST", keys=keys, body="\n".join(parts))
+    return SUMMARY_PROMPT.format(when=f"{when:%Y-%m-%d %H:%M} KST", schema=schema, body="\n".join(parts))
 
 
-def parse_summary(text: str, keys: list[str]) -> tuple[str | None, dict[str, str]]:
+def parse_summary(
+    text: str, sections: list[dict[str, Any]]
+) -> tuple[str | None, dict[str, str], dict[str, list[dict[str, Any]]]]:
+    """(headline, 섹션 요약, 증시 영향 줄). 쓸 내용이 하나도 없으면 ValueError."""
+    keys = [s["key"] for s in sections]
     data = extract_json(text or "")
     if data is None:
         raise ValueError("요약 응답이 JSON 이 아니에요")
@@ -203,9 +288,10 @@ def parse_summary(text: str, keys: list[str]) -> tuple[str | None, dict[str, str
         for k in keys
         if isinstance(secs.get(k), str) and secs[k].strip()
     }
-    if headline is None and not out:
+    impact = parse_impact(data.get("impact"), sections)
+    if headline is None and not out and not impact:
         raise ValueError("요약 응답에 내용이 없어요")
-    return headline, out
+    return headline, out, impact
 
 
 # ====================================================================== 일정
@@ -285,11 +371,13 @@ class NewsRoom:
         llm = self.llm()
         edition = None
         if row is not None:
+            payload = copy.deepcopy(row.payload)
+            fill_impact(payload.get("sections") or [])  # 증시 영향이 없는 예전 판(D-59 전)은 규칙 기반으로
             edition = {
                 "id": row.id,
                 "created_at": _iso(row.created_at),
                 "trigger": row.trigger,
-                **row.payload,
+                **payload,
             }
         return {
             "edition": edition,
@@ -429,6 +517,7 @@ class NewsRoom:
         if total == 0:
             raise RuntimeError("지난 24시간 안의 기사를 찾지 못했어요")
         headline, model, summary_error = await self._summarize(sections, now)
+        fill_impact(sections)  # LLM 이 없거나 빠뜨린 섹션은 규칙 기반 ('AI 요약 아님')
         return {
             "trigger": trigger,
             "slot": slot_label(slot.astimezone(KST).time()) if slot else None,
@@ -457,12 +546,14 @@ class NewsRoom:
                 ]
             )
             record_usage(self.db, self.clock.now(), "newsroom", None, llm.model, res.usage)
-            headline, by_key = parse_summary(res.content, [s["key"] for s in sections])
+            headline, by_key, impact = parse_summary(res.content, sections)
         except Exception as e:
             log.warning("뉴스 룸 요약 실패(%s): %s", llm.model, str(e)[:200])
             return None, None, f"요약 실패 — 기사 목록만 보여 줘요 ({str(e)[:120]})"
         for s in sections:
             s["summary"] = by_key.get(s["key"]) or None
+            if s["key"] in impact:
+                s["impact"] = {"source": "ai", "lines": impact[s["key"]]}
         return headline, llm.model, None
 
 

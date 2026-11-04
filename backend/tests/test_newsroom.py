@@ -22,7 +22,7 @@ from app.db.session import Database
 from app.engine.settings_store import SettingsStore
 from app.research import naver, newsroom
 from app.research.naver import NaverNewsClient
-from app.research.newsroom import SECTIONS, NewsRoom, next_slot, pick_stories
+from app.research.newsroom import SECTIONS, NewsRoom, next_slot, pick_stories, rule_impact
 from tests.test_api import _client
 
 KEYS = {"naver_client_id": "id-test-0001", "naver_client_secret": "secret-test"}
@@ -193,6 +193,59 @@ async def test_refresh_without_llm_keeps_article_list() -> None:
     assert view["next_update_at"] == "2026-11-05T12:00:00+09:00"
     assert view["auto"] is True and view["available"] is True and view["last_error"] is None
     assert view["llm"] == {"configured": False, "model": None}
+    # LLM 이 없으면 증시 영향은 규칙 기반 (기사 제목 그대로, 'AI 요약 아님')
+    assert all(s["impact"]["source"] == "rule" for s in ed["sections"])
+    assert [ln["text"] for ln in world["impact"]["lines"]] == [
+        "미중 정상회담 개최…관세 협상 진전",
+        "유럽 의회 선거 결과 발표",
+    ]
+    assert world["impact"]["lines"][0]["link"] == "https://a.example.com/1"
+
+
+def test_rule_impact_prefers_market_news() -> None:
+    items = [
+        {"title": "연예 소식 화제", "description": "", "link": "https://x/1", "related": 4},
+        {"title": "미 연준 금리 동결", "description": "달러 환율 영향", "link": "https://x/2", "related": 1},
+        {"title": "날씨 맑음", "description": "", "link": "https://x/3", "related": 1},
+        {"title": "코스피 상승", "description": "", "link": "", "related": 2},
+    ]
+    out = rule_impact(items)
+    assert out["source"] == "rule"
+    assert [ln["text"] for ln in out["lines"]] == ["미 연준 금리 동결", "코스피 상승", "연예 소식 화제"]
+    assert out["lines"][1]["link"] is None  # 링크가 비면 None
+    assert rule_impact([]) == {"source": "rule", "lines": []}
+
+
+async def test_old_edition_without_impact_is_filled_on_read() -> None:
+    """D-59 전에 저장된 판: 화면에서 읽을 때 규칙 기반으로 채운다 (DB 는 그대로, LLM 호출 없음)."""
+    clock = SimulatedClock(NOW)
+    r, db = room(clock)
+    old_section = {
+        "key": "kr_market",
+        "title": "국내 경제·증시",
+        "icon": "📈",
+        "summary": None,
+        "errors": [],
+        "items": [
+            {
+                "title": "코스피 반등",
+                "description": "",
+                "link": "https://e.example.com/9",
+                "domain": "e.example.com",
+                "published_at": None,
+                "related": 1,
+            }
+        ],
+    }
+    with db.session() as s:
+        s.add(NewsEdition(created_at=NOW, trigger="schedule", payload={"sections": [old_section]}))
+    sec = r.view(auto=True)["edition"]["sections"][0]
+    assert sec["impact"] == {
+        "source": "rule",
+        "lines": [{"text": "코스피 반등", "link": "https://e.example.com/9", "title": "코스피 반등"}],
+    }
+    with db.session() as s:
+        assert "impact" not in s.query(NewsEdition).one().payload["sections"][0]
 
 
 @respx.mock
@@ -206,7 +259,11 @@ async def test_refresh_with_active_llm_summary_and_usage() -> None:
         seen.append(json.loads(request.content))
         return llm_reply(
             '```json\n{"headline": "미중 정상회담이 시장의 중심", "sections": '
-            '{"world": "미중 정상이 만나 관세를 논의했다.", "kr_market": "코스피가 올랐다.", "x": "무시"}}\n```'
+            '{"world": "미중 정상이 만나 관세를 논의했다.", "kr_market": "코스피가 올랐다.", "x": "무시"}, '
+            '"impact": {"world": [{"text": "관세 협상 진전 — 수출주 관심", "ref": 1}, '
+            '{"text": "유럽 선거 결과", "ref": "2"}, {"text": "근거 기사 번호가 틀린 줄", "ref": 9}, '
+            '{"text": "네 번째 줄은 버린다", "ref": 1}], '
+            '"kr_market": ["외국인 매수 지속 여부"], "global_econ": [], "x": [{"text": "무시"}]}}\n```'
         )
 
     respx.post(f"{LLM_BASE}/chat/completions").mock(side_effect=handler)
@@ -218,6 +275,43 @@ async def test_refresh_with_active_llm_summary_and_usage() -> None:
     assert by["global_econ"]["summary"] is None and ed["summary_error"] is None
     prompt = seen[0]["messages"][1]["content"]
     assert "미중 정상회담 개최…관세 협상 진전" in prompt and "2026-11-05 07:00 KST" in prompt
+    assert '"impact"' in prompt and "증시" in prompt  # 같은 호출에서 증시 영향 3줄도 받는다 (D-59)
+    assert len(seen) == 1
+    # 증시 영향: AI 줄은 기사 번호로 링크를 붙이고 3줄까지, 빠뜨린 섹션은 규칙 기반 ('AI 요약 아님')
+    assert by["world"]["impact"] == {
+        "source": "ai",
+        "lines": [
+            {
+                "text": "관세 협상 진전 — 수출주 관심",
+                "link": "https://a.example.com/1",
+                "title": "미중 정상회담 개최…관세 협상 진전",
+            },
+            {
+                "text": "유럽 선거 결과",
+                "link": "https://c.example.com/3",
+                "title": "유럽 의회 선거 결과 발표",
+            },
+            {"text": "근거 기사 번호가 틀린 줄", "link": None, "title": None},
+        ],
+    }
+    assert by["kr_market"]["impact"] == {
+        "source": "ai",
+        "lines": [{"text": "외국인 매수 지속 여부", "link": None, "title": None}],
+    }
+    assert by["global_econ"]["impact"]["source"] == "rule"  # 빈 배열 → 규칙 기반
+    assert by["kr_issues"]["impact"] == {
+        "source": "rule",
+        "lines": [
+            {
+                "text": "[속보] 국회 본회의 예산안 처리",
+                "link": "https://g.example.com/7",
+                "title": "[속보] 국회 본회의 예산안 처리",
+            }
+        ],
+    }
+    # 판에 저장된다 — 화면을 열 때 LLM 을 다시 부르지 않는다
+    assert r.view(auto=True)["edition"]["sections"][0]["impact"]["source"] == "ai"
+    assert len(seen) == 1
     with db.session() as s:
         usage = s.query(LlmUsage).one()
         assert (usage.kind, usage.model, usage.input_tokens, usage.run_id) == (

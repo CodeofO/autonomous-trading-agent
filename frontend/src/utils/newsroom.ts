@@ -1,4 +1,4 @@
-import type { NewsEdition, NewsRoom } from "../api/types";
+import type { NewsEdition, NewsImpact, NewsRoom, NewsSection } from "../api/types";
 import { fmtHm } from "./format";
 
 /** 뉴스 룸 캐시 키 — 시장과 관계없는 공용 화면이라 시장을 붙이지 않는다 */
@@ -38,3 +38,11 @@ export function summaryNote(room: NewsRoom): string {
 
 /** 링크는 http(s) 만 연다 (그 밖의 주소는 글자만) */
 export const safeLink = (url: string) => (/^https?:\/\//i.test(url) ? url : null);
+
+/** 증시 영향 띠를 접었는지 기억하는 저장소 키 ("0" = 접음) */
+export const IMPACT_OPEN_KEY = "newsroom.impact.open";
+
+/** 증시 영향 카드로 보일 섹션 (예전 서버처럼 impact 가 없으면 뺀다) */
+export function impactSections(sections: NewsSection[]): { section: NewsSection; impact: NewsImpact }[] {
+  return sections.flatMap((section) => (section.impact ? [{ section, impact: section.impact }] : []));
+}

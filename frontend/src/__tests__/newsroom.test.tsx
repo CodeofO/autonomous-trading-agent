@@ -7,14 +7,38 @@ import { isAllRoute } from "../market";
 import { NewsRoomPage } from "../pages/NewsRoom";
 import { pageFor } from "../routes";
 import { clearToasts } from "../ui/toast";
-import { editionLabel, safeLink, staleError, summaryNote } from "../utils/newsroom";
+import {
+  editionLabel,
+  IMPACT_OPEN_KEY,
+  impactSections,
+  safeLink,
+  staleError,
+  summaryNote,
+} from "../utils/newsroom";
 import { apiError, mockFetch, renderWithProviders } from "./utils";
 
 // 뉴스 룸 (D-56): 섹션별 뉴스·갱신 시각·다음 갱신 시각, 지금 새로 모으기, AI 요약 켜기/끄기, ⌘K
+// 증시 영향 3줄 (D-59): 섹션별 카드, 'AI 요약 아님', 접기·펼치기(기억), 휴대폰 가로 넘기기 상자
+
+/** 테스트마다 빈 저장소 (접기 상태가 다음 테스트로 넘어가지 않게) */
+function memoryStorage(): Storage {
+  const m = new Map<string, string>();
+  return {
+    get length() {
+      return m.size;
+    },
+    clear: () => m.clear(),
+    getItem: (k) => m.get(k) ?? null,
+    key: (i) => [...m.keys()][i] ?? null,
+    removeItem: (k) => void m.delete(k),
+    setItem: (k, v) => void m.set(k, String(v)),
+  };
+}
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-11-05T07:30:00+09:00"));
+  vi.stubGlobal("localStorage", memoryStorage());
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -43,6 +67,22 @@ const EDITION: NewsEdition = {
       ...SECTIONS[0],
       summary: "미중 정상이 만나 관세를 논의했다.",
       errors: [],
+      impact: {
+        source: "ai",
+        lines: [
+          {
+            text: "관세 협상 진전 — 수출주 관심",
+            link: "https://a.example.com/1",
+            title: "미중 정상회담 개최…관세 협상 진전",
+          },
+          { text: "근거 기사를 모르는 줄", link: null, title: null },
+          {
+            text: "이상한 주소는 링크로 만들지 않음",
+            link: "javascript:alert(1)",
+            title: "이상한 주소 기사",
+          },
+        ],
+      },
       items: [
         {
           title: "미중 정상회담 개최…관세 협상 진전",
@@ -62,11 +102,21 @@ const EDITION: NewsEdition = {
         },
       ],
     },
-    { ...SECTIONS[1], summary: null, errors: [], items: [] },
+    { ...SECTIONS[1], summary: null, errors: [], items: [], impact: { source: "rule", lines: [] } },
     {
       ...SECTIONS[2],
       summary: null,
       errors: ["'코스닥' 검색 실패"],
+      impact: {
+        source: "rule",
+        lines: [
+          {
+            text: "코스피 외국인 매수에 상승 출발",
+            link: "https://e.example.com/5",
+            title: "코스피 외국인 매수에 상승 출발",
+          },
+        ],
+      },
       items: [
         {
           title: "코스피 외국인 매수에 상승 출발",
@@ -225,6 +275,80 @@ describe("뉴스 룸 화면", () => {
     expect(put[1]?.method).toBe("PUT");
     expect(JSON.parse(String(put[1]?.body))).toEqual({ summary: false });
     await waitFor(() => expect(screen.getByLabelText("AI 요약 꺼짐 — 기사 목록만")).not.toBeChecked());
+  });
+});
+
+describe("증시 영향 3줄 (맨 위 섹션별 카드)", () => {
+  it("AI 카드는 3줄과 근거 기사 링크, LLM 없이 만든 카드는 'AI 요약 아님'", async () => {
+    mockFetch({ "/api/news-room": room() });
+    renderWithProviders(<NewsRoomPage />, { route: "/news" });
+    const strip = await screen.findByTestId("news-impact");
+    expect(within(strip).getByRole("heading", { name: "📊 증시 영향 큰 뉴스" })).toBeInTheDocument();
+    // 맨 위: 섹션별 뉴스 카드들보다 앞
+    const firstSection = screen.getByRole("region", { name: "세계·국제" });
+    expect(strip.compareDocumentPosition(firstSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    const world = within(strip).getByRole("listitem", { name: "세계·국제" });
+    expect(within(world).getByText("AI")).toHaveClass("news-ai");
+    const lines = within(within(world).getByRole("list")).getAllByRole("listitem");
+    expect(lines.map((l) => l.querySelector(".news-impact-text")?.textContent)).toEqual([
+      "관세 협상 진전 — 수출주 관심",
+      "근거 기사를 모르는 줄",
+      "이상한 주소는 링크로 만들지 않음",
+    ]);
+    const link = within(world).getByRole("link", { name: "관련 기사: 미중 정상회담 개최…관세 협상 진전" });
+    expect(link).toHaveAttribute("href", "https://a.example.com/1");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    expect(within(world).getAllByRole("link")).toHaveLength(1); // 링크 없음·javascript: 는 링크로 만들지 않는다
+
+    const kr = within(strip).getByRole("listitem", { name: "국내 경제·증시" });
+    expect(within(kr).getByText("AI 요약 아님")).toHaveClass("news-rule");
+    expect(
+      within(kr).getByRole("link", { name: "관련 기사: 코스피 외국인 매수에 상승 출발" }),
+    ).toHaveAttribute("href", "https://e.example.com/5");
+    const glob = within(strip).getByRole("listitem", { name: "미국·글로벌 경제" });
+    expect(within(glob).getByText("지난 24시간 기사가 없어요.")).toBeInTheDocument();
+    // impact 가 없는 섹션(예전 서버)은 카드를 만들지 않는다
+    expect(within(strip).queryByRole("listitem", { name: "국내 주요 이슈" })).not.toBeInTheDocument();
+    // 휴대폰에서 이 상자의 가로 넘기기가 화면(탭) 넘기기보다 먼저
+    expect(strip.querySelector(".news-impact-cards")).toHaveAttribute("data-no-swipe");
+  });
+
+  it("접기를 누르면 숨기고, 다시 열어도 접혀 있다 (펼치기로 되돌림)", async () => {
+    mockFetch({ "/api/news-room": room() });
+    const first = renderWithProviders(<NewsRoomPage />, { route: "/news" });
+    const strip = await screen.findByTestId("news-impact");
+    const toggle = within(strip).getByRole("button", { name: "접기" });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(toggle);
+    expect(within(strip).getByRole("button", { name: "펼치기" })).toHaveAttribute("aria-expanded", "false");
+    expect(within(strip).queryByRole("listitem", { name: "세계·국제" })).not.toBeInTheDocument();
+    expect(window.localStorage.getItem(IMPACT_OPEN_KEY)).toBe("0");
+    first.unmount();
+
+    renderWithProviders(<NewsRoomPage />, { route: "/news" });
+    const again = await screen.findByTestId("news-impact");
+    fireEvent.click(within(again).getByRole("button", { name: "펼치기" }));
+    expect(within(again).getByRole("listitem", { name: "세계·국제" })).toBeInTheDocument();
+    expect(window.localStorage.getItem(IMPACT_OPEN_KEY)).toBe("1");
+  });
+
+  it("증시 영향이 없는 예전 서버 응답이면 띠를 그리지 않는다", async () => {
+    const old: NewsEdition = {
+      ...EDITION,
+      sections: EDITION.sections.map((sec) => ({ ...sec, impact: undefined })),
+    };
+    mockFetch({ "/api/news-room": room({ edition: old }) });
+    renderWithProviders(<NewsRoomPage />, { route: "/news" });
+    expect(await screen.findByRole("region", { name: "세계·국제" })).toBeInTheDocument();
+    expect(screen.queryByTestId("news-impact")).not.toBeInTheDocument();
+    expect(impactSections(old.sections)).toEqual([]);
+    expect(impactSections(EDITION.sections).map((x) => x.section.key)).toEqual([
+      "world",
+      "global_econ",
+      "kr_market",
+    ]);
   });
 });
 

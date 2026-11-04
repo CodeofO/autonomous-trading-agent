@@ -664,6 +664,22 @@ export interface NewsSection {
   items: NewsItem[];
   /** 실패한 검색어 안내 */
   errors: string[];
+  /** 증시 영향 3줄 (D-59) — 판을 만들 때 함께 저장. 예전 서버에는 없다 */
+  impact?: NewsImpact;
+}
+
+export interface NewsImpactLine {
+  text: string;
+  /** 근거 기사 원문 주소 (모르면 null) */
+  link: string | null;
+  /** 근거 기사 제목 (모르면 null) */
+  title: string | null;
+}
+
+export interface NewsImpact {
+  /** ai = 활성 LLM 이 고른 3줄, rule = LLM 없이 기사 제목으로 대신 ('AI 요약 아님') */
+  source: "ai" | "rule";
+  lines: NewsImpactLine[];
 }
 
 export interface NewsEdition {

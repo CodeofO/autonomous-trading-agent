@@ -181,7 +181,108 @@ a.news-title:hover {
   font-size: 11.5px;
 }
 
+/* 📊 증시 영향 3줄 (D-59): 넓은 화면은 격자, 휴대폰은 옆으로 넘기는 카드 */
+.news-impact-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.news-impact-head h3 {
+  margin: 0;
+  font-size: 16px;
+}
+.news-impact-toggle {
+  margin-left: auto;
+}
+.news-impact-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr));
+  gap: 12px;
+}
+.news-impact-card {
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel-2);
+}
+.news-impact-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+.news-impact-card-head .pill {
+  margin-left: 0;
+  white-space: nowrap;
+}
+.news-ai {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.news-rule {
+  background: rgba(255, 159, 10, 0.14);
+  color: var(--warn);
+}
+.news-impact-lines {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.news-impact-lines li {
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.news-impact-link {
+  margin-left: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+  color: var(--accent);
+  text-decoration: none;
+}
+.news-impact-link:hover {
+  text-decoration: underline;
+}
+.news-impact-none {
+  margin: 4px 0 0;
+  font-size: 13px;
+}
+.news-impact-hint {
+  display: none;
+}
+
 @media (max-width: 760px) {
+  .news-impact-cards {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    gap: 10px;
+    padding-bottom: 4px;
+  }
+  .news-impact-cards::-webkit-scrollbar {
+    display: none;
+  }
+  .news-impact-card {
+    flex: 0 0 86%;
+    scroll-snap-align: start;
+  }
+  .news-impact-hint {
+    display: block;
+    margin-top: 6px;
+    text-align: center;
+    font-size: 11px;
+  }
   .news-head .card-head {
     align-items: flex-start;
   }
