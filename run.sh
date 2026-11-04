@@ -7,6 +7,7 @@
 #   ./run.sh down     백그라운드 실행 중지
 #   ./run.sh test     백엔드 + 프론트 테스트
 #   ./run.sh llm-check [--live]  LLM 연결 점검 (기본: .env 의 LLM_TEST_* 테스트용 엔드포인트, --live 는 실서비스·실제 과금)
+#   ./run.sh news-check [검색어]  네이버 뉴스 검색 키 점검 (실제 검색 1회, 무료)
 # 포트: .env 의 FRONTEND_PORT(기본 15173) / BACKEND_PORT(기본 18000)
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -184,6 +185,14 @@ run_llm_check() {
   fi
 }
 
+run_news_check() {
+  if docker_ok && docker compose ps --status running --services 2>/dev/null | grep -qx backend; then
+    docker compose exec -T backend python -m app.research.check "$@"
+  else
+    (cd backend && uv run python -m app.research.check "$@")
+  fi
+}
+
 case "$MODE" in
   docker) run_docker ;;
   up) run_up ;;
@@ -191,6 +200,7 @@ case "$MODE" in
   local) run_local ;;
   test) run_tests ;;
   llm-check) run_llm_check "${@:2}" ;;
+  news-check) run_news_check "${@:2}" ;;
   auto) if docker_ok; then run_docker; else warn "Docker 가 꺼져 있어 로컬 모드로 실행합니다"; run_local; fi ;;
-  *) die "사용법: ./run.sh [auto|docker|up|down|local|test|llm-check]" ;;
+  *) die "사용법: ./run.sh [auto|docker|up|down|local|test|llm-check|news-check]" ;;
 esac

@@ -111,7 +111,7 @@ async def test_dart_error_status_raises() -> None:
 @respx.mock
 async def test_naver_news_cleans_tags_and_sends_headers() -> None:
     route = respx.get(naver.URL).mock(return_value=httpx.Response(200, json=_fx("naver_news.json")))
-    c = NaverNewsClient("id123", "secret456", http=_http(naver.ROUTES))
+    c = NaverNewsClient("id123", "secret456", http=_http(naver.ROUTES), api="developers")
     items = await c.search("삼성전자", display=500, sort="weird")
     assert items[0]["title"] == '삼성전자, 대규모 수주 "기대 이상"'
     assert items[0]["link"] == "https://news.example.com/a/1"

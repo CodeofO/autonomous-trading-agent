@@ -28,6 +28,11 @@ class ResearchService:
             "news": "NAVER" if self.news_client else "없음",
         }
 
+    @property
+    def news_error(self) -> str | None:
+        """뉴스 키 인증 실패 사유(재시작 전까지 유지). 화면에 '키 인증 실패'로 표시한다."""
+        return self.news_client.auth_error if self.news_client else None
+
     def _today(self) -> date:
         return self.clock.now().astimezone(KST).date()
 

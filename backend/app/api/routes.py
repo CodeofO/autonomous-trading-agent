@@ -13,7 +13,7 @@ from sqlalchemy import func, select
 
 from app.agent.activity import TOOL_GROUPS
 from app.agent.costs import summary
-from app.agent.profiles import active_profile, build_llm
+from app.agent.profiles import MODEL_KEY, active_profile, build_llm, check_model, paid_model
 from app.agent.profiles import configured as profile_configured
 from app.agent.profiles import info as profile_info
 from app.agent.prompts import DEFAULT_PERSONA, DEFAULT_POLICY
@@ -437,24 +437,60 @@ class LlmProfileBody(BaseModel):
     active: Literal["free", "paid"]
 
 
+class LlmModelBody(BaseModel):
+    model: str = Field(min_length=1, max_length=128)
+
+
+def _profile(c: Container, active: str | None = None) -> dict[str, Any]:
+    today = c.clock.now().astimezone(KST).date()
+    return profile_info(c.settings, active or active_profile(c.kv, c.settings), c.kv, today)
+
+
+def _llm_busy(c: Container) -> None:
+    p = c.runner.progress
+    if p.get("active") or p.get("replying"):
+        raise HTTPException(409, "판단 세션이나 답장이 진행 중이에요. 끝난 뒤에 바꿔 주세요")
+
+
 @router.get("/llm/profile")
 def llm_profile(c: C, _: U) -> dict[str, Any]:
-    """무료(LLM_TEST_*)/유료(LLM_*) 중 지금 쓰는 LLM (D-43)."""
-    return profile_info(c.settings, active_profile(c.kv, c.settings))
+    """무료(LLM_TEST_*)/유료(LLM_*) 중 지금 쓰는 LLM (D-43), 유료 제공사와 고를 수 있는 모델 (D-45)."""
+    return _profile(c)
+
+
+@router.put("/llm/model")
+def set_llm_model(body: LlmModelBody, c: C, _: U) -> dict[str, Any]:
+    """유료 모델 바꾸기 (D-45). .env 키로 알아낸 제공사의 모델만 고를 수 있다."""
+    s = c.settings
+    if not profile_configured(s, "paid"):
+        raise HTTPException(400, ".env 에 LLM_* 를 채우고 다시 시작해야 쓸 수 있어요")
+    prev = paid_model(c.kv, s)
+    if body.model == prev:
+        return _profile(c)
+    reason = check_model(s, body.model)
+    if reason:
+        raise HTTPException(400, reason)
+    _llm_busy(c)
+    c.kv.set(MODEL_KEY, {"model": body.model})
+    active = active_profile(c.kv, s)
+    if active == "paid":
+        c.runner.llm = build_llm(s, "paid", c.kv)
+    c.hub.audit("CONFIG", f"유료 LLM 모델 변경: {prev} → {body.model}", None, model=body.model, previous=prev)
+    when = "다음 판단·답장부터 적용돼요" if active == "paid" else "유료로 바꾸면 이 모델을 써요"
+    c.hub.chat(SYSTEM, "text", f"🔄 유료 LLM 모델을 {body.model}(으)로 바꿨어요. {when}.")
+    return _profile(c, active)
 
 
 @router.put("/llm/profile")
 def set_llm_profile(body: LlmProfileBody, c: C, _: U) -> dict[str, Any]:
     prev = active_profile(c.kv, c.settings)
     if body.active == prev:
-        return profile_info(c.settings, prev)
+        return _profile(c, prev)
     if not profile_configured(c.settings, body.active):
         env = "LLM_TEST_*" if body.active == "free" else "LLM_*"
         raise HTTPException(400, f".env 에 {env} 를 채우고 다시 시작해야 쓸 수 있어요")
-    p = c.runner.progress
-    if p.get("active") or p.get("replying"):
-        raise HTTPException(409, "판단 세션이나 답장이 진행 중이에요. 끝난 뒤에 바꿔 주세요")
-    llm = build_llm(c.settings, body.active)
+    _llm_busy(c)
+    llm = build_llm(c.settings, body.active, c.kv)
     c.runner.llm = llm
     c.kv.set("llm_profile", {"active": body.active})
     name = {"free": "무료", "paid": "유료"}
@@ -471,7 +507,7 @@ def set_llm_profile(body: LlmProfileBody, c: C, _: U) -> dict[str, Any]:
         "text",
         f"🔄 LLM 을 {name[body.active]} 모델({model})로 바꿨어요. 다음 판단·답장부터 적용돼요.",
     )
-    return profile_info(c.settings, body.active)
+    return _profile(c, body.active)
 
 
 @router.get("/agent/structure")
@@ -482,9 +518,10 @@ def agent_structure(c: C, _: U) -> dict[str, Any]:
     ready = {
         "토스증권": c.engine._health[0],
         "DART": c.research.sources["financials"] == "DART",
-        "NAVER": c.research.sources["news"] == "NAVER",
+        "NAVER": c.research.sources["news"] == "NAVER" and not c.research.news_error,
         account: True,
     }
+    notes = {"NAVER": "키 인증 실패"} if c.research.news_error else {}
     tools = []
     for t in openai_tools(toss=c.toss is not None):
         f = t["function"]
@@ -510,7 +547,7 @@ def agent_structure(c: C, _: U) -> dict[str, Any]:
             "max_steps": s.llm_max_steps,
             "max_tokens": s.llm_max_tokens,
         },
-        "sources": [{"name": k, "ready": v} for k, v in ready.items()],
+        "sources": [{"name": k, "ready": v, "note": notes.get(k)} for k, v in ready.items()],
         "tools": tools,
         "schedule": {
             "interval_minutes": c.scheduler.interval_minutes,

@@ -63,6 +63,17 @@
 
 ## 3. 네이버 검색 API — 뉴스
 
+키를 받는 곳이 두 군데입니다. `.env` 의 `NAVER_API` 로 고릅니다(기본 `hub`).
+
+- **NAVER API HUB** (`NAVER_API=hub`, 네이버 클라우드 콘솔 > NAVER API HUB > Application > 인증 정보)
+  - 문서: <https://api.ncloud-docs.com/docs/naver-api-hub-search-news>, 공통: <https://api.ncloud-docs.com/docs/naver-api-hub-overview>
+  - 요청: `GET https://naverapihub.apigw.ntruss.com/search/v1/news` · 파라미터는 아래와 같고 `format`(`json` 기본·`xml`) 추가
+  - 헤더: `X-NCP-APIGW-API-KEY-ID`(Client ID), `X-NCP-APIGW-API-KEY`(Client Secret)
+  - 공통 오류: 401 인증 실패(키 틀림·헤더 없음·Application 에 API 권한 없음), 403 HTTPS 아님 등, 429 하루 허용량 초과, 500. 게이트웨이 오류 본문은 `{"error": {"errorCode", "message", "details"}}`, 검색 API 오류는 `{"errorCode", "errorMessage"}`. 검색 오류 코드에 `SE05`(404, 잘못된 API)·`SE06`(인코딩)·`SE99`(500)도 있음
+  - 요금: 종량제, 공식 문서상 현재 한시 무료(유료 전환 시 사전 공지). 콘솔에서 이용 한도·임계치 알림 설정 가능
+
+**네이버 개발자센터** (`NAVER_API=developers`, 예전 방식):
+
 - 문서: <https://developers.naver.com/docs/serviceapi/search/news/news.md>
 - 요청: `GET https://openapi.naver.com/v1/search/news.json`
 - 헤더: `X-Naver-Client-Id`, `X-Naver-Client-Secret`
@@ -71,6 +82,7 @@
   - `title`/`description` 의 검색어 일치 부분은 `<b>` 태그로 감싸져 있어 제거해야 한다.
 - 한도: 검색 API **하루 25,000회**(클라이언트 아이디별 합산)
 - 오류: `SE01`(잘못된 쿼리) · `SE02`(display) · `SE03`(start) · `SE04`(sort) 등 400 계열
+- 개발자센터 주소에 키가 틀리면(API HUB 키를 넣어도) `HTTP 401`, `errorCode: "024"`, `errorMessage: "... Authentication failed. (인증에 실패했습니다.)"` (2026-11-04 실제 응답으로 확인). 점검: `./run.sh news-check`
 
 ## 4. LLM (OpenAI 호환 Chat Completions)
 

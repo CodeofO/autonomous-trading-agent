@@ -256,3 +256,20 @@
 - 판단 세션이나 답장이 진행 중이면 바꾸지 않습니다(409) — 한 세션 안에서 모델이 섞이지 않게. 비어 있는 묶음은 고를 수 없습니다(400). 바꾸면 감사 로그(CONFIG)와 트레이딩 룸 안내를 남기고 다음 판단·답장부터 적용합니다. 유료로 바꿀 때는 화면에서 과금 확인을 한 번 더 받습니다.
 - 화면 API(`/api/system`, `/api/llm/profile`)에는 모델 이름과 호출 방식만 내보내고, LLM 서버 주소(내부 IP 일 수 있음)와 키는 내보내지 않습니다. 이전에 내보내던 `llm.host` 는 뺐습니다.
 - `./run.sh llm-check` 는 그대로 무료(테스트용) 묶음으로 점검하고, `--live` 는 유료 묶음입니다.
+
+### D-44 네이버 뉴스: NAVER API HUB 지원, 키 인증 실패 표시, 점검 명령
+- 2026-11-04 판단 세션에서 뉴스 검색이 모두 실패했고, 매니저는 "뉴스 검색이 막혔네요"라고만 남겼습니다. 실제 호출로 확인하니 개발자센터 주소(`openapi.naver.com`)가 `HTTP 401`, `errorCode 024`("Authentication failed")로 키를 거절했습니다. 키는 네이버 클라우드 **NAVER API HUB** 에서 받은 것이었고, API HUB 는 주소·헤더가 다릅니다.
+- `NAVER_API` 로 키를 받은 곳을 고릅니다(기본 `hub`). 둘 다 공식 문서 형식을 따르고, 요청 파라미터(`query`·`display`·`start`·`sort`)와 응답(`items[]`)은 같습니다.
+  - `hub`: `GET https://naverapihub.apigw.ntruss.com/search/v1/news?format=json`, 헤더 `X-NCP-APIGW-API-KEY-ID`·`X-NCP-APIGW-API-KEY` (api.ncloud-docs.com `naver-api-hub-search-news`, `naver-api-hub-overview`). 종량제지만 공식 문서상 현재 한시 무료이며, 검색 API 하루 한도는 25,000회입니다.
+  - `developers`: `GET https://openapi.naver.com/v1/search/news.json`, 헤더 `X-Naver-Client-Id`·`X-Naver-Client-Secret`.
+  - 한쪽이 실패했을 때 다른 쪽으로 몰래 넘어가지 않습니다(키 두 벌을 섞지 않도록 설정으로만 고름).
+- 401 을 받으면 이유와 고칠 곳(어느 화면의 어떤 값을 `.env` 어디에 넣는지, 재시작)을 오류 메시지로 돌려줘 매니저가 정확히 전합니다. 같은 키로는 결과가 바뀌지 않으므로 재시작 전까지 네이버를 다시 부르지 않습니다. 429(하루 한도 초과)·400 등은 그대로 다음 검색을 시도합니다. 오류 본문은 검색 API 형식(`errorCode`)과 API 게이트웨이 형식(`error.errorCode`)을 모두 읽습니다.
+- 에이전트 화면의 데이터 출처 칩에 `○ NAVER · 키 인증 실패`, `search_news` 도구에 '연결 안 됨'을 표시합니다. 키 값은 어디에도 나오지 않습니다.
+- `./run.sh news-check [검색어]`: 실제 검색 1회(3건)로 키를 점검합니다.
+
+### D-45 유료 LLM 모델 고르기 (제공사 자동 판별 + 설정 화면 드롭다운)
+- `.env` 의 `LLM_*` 로 제공사를 알아냅니다. `LLM_BASE_URL` 주소(`api.openai.com` → OpenAI, `generativelanguage.googleapis.com` → Google, `api.anthropic.com` → Anthropic)가 우선이고, 주소가 비어 있으면 키 모양(`sk-ant-` → Anthropic, `sk-` → OpenAI, `AIza`·`AQ.` → Google)으로 판단해 공식 주소를 씁니다. 그 밖의 주소(자체 서버·게이트웨이)는 제공사를 모르는 것으로 보고 `LLM_MODEL` 만 씁니다.
+- 설정 → 'LLM 모델' 카드의 유료 쪽에 드롭다운을 둡니다. 모델 목록은 비용 화면과 같은 표(`app/agent/costs.py` 의 `MODELS`, 2026-11-04 공식 가격표 기준 12개)이고, 오늘 기준 입력·출력 단가를 같이 보여 줍니다. 판별된 제공사의 모델만 고를 수 있고, 다른 회사 모델은 "키가 .env 에 없어요"로 막습니다. `LLM_MODEL` 이 표에 없으면 '(.env)' 항목으로 맨 앞에 둡니다.
+- 고른 모델은 `app_settings` 의 `llm_paid_model` 에 남아 재시작해도 유지됩니다. `.env` 를 다른 회사 키로 바꿔 저장값을 쓸 수 없게 되면 `LLM_MODEL` 로 돌아갑니다. 판단 세션·답장이 진행 중이면 바꾸지 않고(409), 바꾸면 감사 로그(CONFIG)와 트레이딩 룸 안내를 남깁니다. 무료를 쓰는 중에 바꾸면 저장만 하고 유료로 돌아갈 때 그 모델을 씁니다. 화면에서는 과금 확인을 한 번 더 받습니다.
+- 호출 방식(`LLM_API`)과 추론 강도(`LLM_REASONING_EFFORT`)는 모델과 관계없이 그대로 적용됩니다. 고른 모델이 그 추론 강도를 받지 않으면 OpenAI 가 400 으로 거절하니, 그때는 `.env` 의 값을 비우거나 맞춥니다.
+- **Anthropic 은 목록에만 있고 고를 수 없습니다.** Anthropic 공식 가이드는 OpenAI 호환 방식이 아니라 전용 Messages API 를 쓰라고 하고, Claude Opus 5.5·Sonnet 5.5 는 이 앱이 세션 마지막에 쓰는 도구 강제 호출(`tool_choice` 로 특정 도구 지정)을 400 으로 거절합니다. Anthropic 전용 연결(Messages API, 강제 호출 대신 `auto` + 지시문)을 만든 뒤에 엽니다.

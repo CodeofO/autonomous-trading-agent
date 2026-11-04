@@ -77,9 +77,38 @@ export interface LlmProfileInfo {
   reasoning_effort: string | null;
 }
 
+// 유료 모델 고르기 (GET /api/llm/profile 의 profiles.paid.models, PUT /api/llm/model) — LlmProvider 는 비용 예상 쪽 정의를 같이 쓴다
+
+export interface LlmModelOption {
+  id: string;
+  name: string;
+  /** "env" = 카탈로그에 없는 .env 의 LLM_MODEL */
+  provider: LlmProvider | "env";
+  /** "최상위" | "주력" | "중간" | "경량" | "" */
+  tier: string;
+  /** USD / 100만 토큰 */
+  input: number | null;
+  output: number | null;
+  note: string;
+  available: boolean;
+  /** 못 쓰는 이유 (예: "OpenAI 키가 .env 에 없어요") */
+  reason: string | null;
+  selected: boolean;
+}
+
+/** 유료 설정 — 모델 고르기 필드는 예전 서버에는 없을 수 있다 */
+export interface LlmPaidProfileInfo extends LlmProfileInfo {
+  /** .env 키·주소로 알아낸 제공사. null = 알 수 없는 엔드포인트 */
+  provider?: LlmProvider | null;
+  provider_label?: string | null;
+  /** .env 의 LLM_MODEL (기본값) */
+  env_model?: string | null;
+  models?: LlmModelOption[];
+}
+
 export interface LlmProfiles {
   active: LlmProfileName;
-  profiles: Record<LlmProfileName, LlmProfileInfo>;
+  profiles: { free: LlmProfileInfo; paid: LlmPaidProfileInfo };
 }
 
 export interface SystemInfo {
@@ -237,7 +266,7 @@ export interface AgentStructure {
     max_steps: number;
     max_tokens: number;
   };
-  sources: { name: string; ready: boolean }[];
+  sources: { name: string; ready: boolean; note?: string | null }[];
   tools: { name: string; description: string; group: ToolGroup; source: string; ready: boolean }[];
   schedule: {
     interval_minutes: number;

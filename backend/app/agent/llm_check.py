@@ -43,7 +43,7 @@ def client(s: Settings, live: bool) -> LLMClient | None:
             return None
         assert s.llm_api_key is not None
         return LLMClient(
-            s.llm_base_url,
+            s.llm_paid_base_url,
             s.llm_model,
             s.llm_api_key.get_secret_value(),
             temperature=s.llm_temperature,

@@ -1,8 +1,10 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useId, useState, type FormEvent, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, del, errorText, get, post, put } from "../api/client";
 import type {
+  LlmModelOption,
+  LlmPaidProfileInfo,
   LlmProfileName,
   LlmProfiles,
   PushPrefs,
@@ -28,7 +30,7 @@ import {
 import { Modal } from "../components/Modal";
 import { useLlmProfile, useSystem } from "../hooks";
 import { fmtDateTime } from "../utils/format";
-import { apiLabel, PROFILE_KO } from "../utils/llm";
+import { apiLabel, MODEL_GROUPS, modelOptionText, modelPriceText, PROFILE_KO } from "../utils/llm";
 
 export function Settings() {
   return (
@@ -59,19 +61,27 @@ function switchErrorText(e: unknown): string {
   return text;
 }
 
+/** 서버가 돌려준 새 LLM 설정을 캐시에 넣고, 모델 이름을 보여 주는 화면(상단 칩·구조·비용)을 다시 받는다 */
+function useApplyLlmProfile() {
+  const qc = useQueryClient();
+  return (data: LlmProfiles) => {
+    qc.setQueryData(["llm-profile"], data);
+    for (const key of ["system", "llm-profile", "agent-structure", "llm-costs"])
+      qc.invalidateQueries({ queryKey: [key] });
+  };
+}
+
 /** LLM 무료(.env LLM_TEST_*) / 유료(LLM_*) 전환. 유료로 바꿀 때만 한 번 더 확인 */
 export function LlmProfileSettings() {
-  const qc = useQueryClient();
   const q = useLlmProfile();
+  const apply = useApplyLlmProfile();
   const { data: sys } = useSystem();
   const [confirm, setConfirm] = useState(false);
   const change = useMutation({
     mutationFn: (active: LlmProfileName) => put<LlmProfiles>("/api/llm/profile", { active }),
     onSuccess: (data) => {
       setConfirm(false);
-      qc.setQueryData(["llm-profile"], data);
-      for (const key of ["system", "llm-profile", "agent-structure", "llm-costs"])
-        qc.invalidateQueries({ queryKey: [key] });
+      apply(data);
     },
   });
 
@@ -124,6 +134,7 @@ export function LlmProfileSettings() {
           })}
         </div>
       )}
+      {data && <PaidModelPicker paid={data.profiles.paid} active={data.active} busy={change.isPending} />}
       <div className="llm-status" aria-live="polite">
         {change.isPending && !confirm && <p className="muted">바꾸는 중…</p>}
         {done && (
@@ -174,6 +185,155 @@ export function LlmProfileSettings() {
         </Modal>
       )}
     </section>
+  );
+}
+
+/** 못 쓰는 모델의 이유를 제공사별로 한 번씩: [["Google", "Google 키가 .env 에 없어요"], …] */
+function unavailableReasons(models: LlmModelOption[]): [string, string][] {
+  const out: [string, string][] = [];
+  for (const g of MODEL_GROUPS) {
+    const reasons = new Set(
+      models.filter((m) => m.provider === g.key && !m.available && m.reason).map((m) => m.reason!),
+    );
+    for (const r of reasons) out.push([g.label, r]);
+  }
+  return out;
+}
+
+/** 유료(LLM_*)에 쓸 모델 고르기. .env 키로 알아낸 제공사의 모델만 고를 수 있고, 바꿀 때 한 번 더 확인 */
+function PaidModelPicker({
+  paid,
+  active,
+  busy,
+}: {
+  paid: LlmPaidProfileInfo;
+  active: LlmProfileName;
+  busy: boolean;
+}) {
+  const apply = useApplyLlmProfile();
+  const selectId = useId();
+  const [pick, setPick] = useState<LlmModelOption | null>(null);
+  const change = useMutation({
+    mutationFn: (model: string) => put<LlmProfiles>("/api/llm/model", { model }),
+    onSuccess: (data) => {
+      setPick(null);
+      apply(data);
+    },
+  });
+
+  const models = paid.models ?? [];
+  if (!paid.configured || models.length === 0) return null;
+
+  const current = models.find((m) => m.selected) ?? null;
+  const currentId = current?.id ?? paid.model ?? "";
+  const groups = MODEL_GROUPS.map((g) => ({ ...g, items: models.filter((m) => m.provider === g.key) })).filter(
+    (g) => g.items.length > 0,
+  );
+  const reasons = unavailableReasons(models);
+  const providerName = paid.provider
+    ? (paid.provider_label ?? MODEL_GROUPS.find((g) => g.key === paid.provider)?.label ?? paid.provider)
+    : null;
+
+  const onSelect = (id: string) => {
+    const m = models.find((x) => x.id === id);
+    if (!m || !m.available || id === currentId || change.isPending) return;
+    change.reset();
+    setPick(m);
+  };
+  const cancel = () => !change.isPending && setPick(null);
+
+  const paidData = change.isSuccess ? change.data.profiles.paid : null;
+  const doneName = paidData ? (paidData.models?.find((m) => m.selected)?.name ?? paidData.model ?? "-") : null;
+  const pickPrice = pick ? modelPriceText(pick) : null;
+
+  return (
+    <div className="llm-model">
+      <p className="llm-model-provider">
+        제공사:{" "}
+        {providerName ? (
+          <>
+            <b>{providerName}</b> <span className="muted">(.env 키로 감지)</span>
+          </>
+        ) : (
+          <b>알 수 없는 엔드포인트</b>
+        )}
+      </p>
+      <label htmlFor={selectId}>유료 모델</label>
+      <select
+        id={selectId}
+        value={pick?.id ?? currentId}
+        disabled={busy || change.isPending}
+        onChange={(e) => onSelect(e.target.value)}
+      >
+        {groups.map((g) => (
+          <optgroup key={g.key} label={g.label}>
+            {g.items.map((m) => (
+              <option key={m.id} value={m.id} disabled={!m.available}>
+                {modelOptionText(m)}
+              </option>
+            ))}
+          </optgroup>
+        ))}
+      </select>
+      <small className="muted">
+        요금은 100만 토큰당 달러예요.
+        {paid.env_model ? ` .env 기본값: ${paid.env_model}` : ""}
+        {current?.note ? ` · ${current.note}` : ""}
+      </small>
+      {reasons.length > 0 && (
+        <ul className="llm-model-reasons">
+          {reasons.map(([label, r]) => (
+            <li key={`${label}:${r}`}>
+              <small className="muted">
+                {label}: {r}
+              </small>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="llm-status" aria-live="polite">
+        {doneName && (
+          <p className="ok">유료 모델을 바꿨어요 ✓ ({doneName}) 다음 판단·답장부터 적용돼요.</p>
+        )}
+        {change.isError && !pick && <p className="error">{switchErrorText(change.error)}</p>}
+      </div>
+      {pick && (
+        <Modal
+          title="유료 모델을 바꿀까요?"
+          tone="danger"
+          onClose={cancel}
+          actions={
+            <>
+              <button className="btn ghost" onClick={cancel} disabled={change.isPending}>
+                취소
+              </button>
+              <button className="btn primary" onClick={() => change.mutate(pick.id)} disabled={change.isPending}>
+                {change.isPending ? "바꾸는 중…" : "이 모델로 바꾸기"}
+              </button>
+            </>
+          }
+        >
+          <p>유료 모델은 호출마다 실제 요금이 나가요. 비싼 모델일수록 판단·답장마다 요금이 커져요.</p>
+          <p>
+            <b>{pick.name}</b>
+            {pick.tier ? ` · ${pick.tier}` : ""}
+            <br />
+            <span className="muted">
+              {pickPrice ? `${pickPrice} (100만 토큰당)` : "요금 정보가 없어요"}
+              {current ? ` — 지금: ${current.name}` : ""}
+            </span>
+          </p>
+          <p>
+            다음 판단·답장부터 적용돼요.
+            {active === "free" ? " 지금은 무료를 쓰는 중이라 유료로 바꿨을 때 이 모델을 써요." : ""}
+          </p>
+          <p>
+            <Link to="/costs">LLM 비용 예상 보기 →</Link>
+          </p>
+          {change.isError && <p className="error">{switchErrorText(change.error)}</p>}
+        </Modal>
+      )}
+    </div>
   );
 }
 

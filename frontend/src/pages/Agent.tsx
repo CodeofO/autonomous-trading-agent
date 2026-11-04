@@ -61,6 +61,7 @@ export function AgentPage() {
           {st.sources.map((s) => (
             <span key={s.name} className={`chip ${s.ready ? "ok" : "warn"}`}>
               {s.ready ? "●" : "○"} {s.name}
+              {s.note ? ` · ${s.note}` : ""}
             </span>
           ))}
         </div>

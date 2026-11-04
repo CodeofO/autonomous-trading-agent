@@ -15,6 +15,8 @@ from typing import Literal
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.llm_providers import resolve_base_url
+
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 # 실거래를 켤 때 .env 의 LIVE_TRADING_CONFIRM 에 그대로 적어야 하는 문구 (실수로 켜지는 것 방지)
 LIVE_CONFIRM_PHRASE = "I_UNDERSTAND_REAL_MONEY"
@@ -45,6 +47,8 @@ class Settings(BaseSettings):
     dart_api_key: SecretStr | None = None
     naver_client_id: SecretStr | None = None
     naver_client_secret: SecretStr | None = None
+    # 뉴스 검색 키를 받은 곳: hub = 네이버 클라우드 NAVER API HUB, developers = 네이버 개발자센터 (D-44)
+    naver_api: Literal["hub", "developers"] = "hub"
 
     # --- LLM (OpenAI 호환 Chat Completions) -------------------------------
     llm_base_url: str = ""
@@ -149,7 +153,13 @@ class Settings(BaseSettings):
 
     @property
     def has_llm(self) -> bool:
-        return bool(self.llm_base_url and self.llm_model and _filled(self.llm_api_key))
+        return bool(self.llm_paid_base_url and self.llm_model and _filled(self.llm_api_key))
+
+    @property
+    def llm_paid_base_url(self) -> str:
+        """LLM_BASE_URL, 비어 있으면 키로 알아낸 공식 주소 (D-45)."""
+        key = self.llm_api_key.get_secret_value() if self.llm_api_key else ""
+        return resolve_base_url(self.llm_base_url, key)
 
     def require_toss(self) -> None:
         if not self.has_toss:

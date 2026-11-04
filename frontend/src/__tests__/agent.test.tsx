@@ -18,7 +18,7 @@ const STRUCTURE = {
   sources: [
     { name: "토스증권", ready: true },
     { name: "DART", ready: true },
-    { name: "NAVER", ready: false },
+    { name: "NAVER", ready: false, note: "키 인증 실패" },
     { name: "모의계좌", ready: true },
   ],
   tools: [
@@ -63,6 +63,7 @@ describe("에이전트 구조", () => {
     expect(screen.getByText("2,000,000원")).toBeInTheDocument();
     expect(screen.getByText("get_supply_demand")).toBeInTheDocument();
     expect(screen.getByText("NAVER · 연결 안 됨")).toBeInTheDocument();
+    expect(screen.getByText(/○ NAVER · 키 인증 실패/)).toBeInTheDocument(); // 키가 틀리면 이유까지
     expect(screen.getByText("진행 중")).toBeInTheDocument(); // 판단 중이면 리서치 단계 강조
   });
 });

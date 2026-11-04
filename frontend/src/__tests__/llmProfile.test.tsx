@@ -1,12 +1,12 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Route, Routes } from "react-router-dom";
-import type { LlmCosts, LlmProfileName, LlmProfiles } from "../api/types";
+import type { LlmCosts, LlmModelOption, LlmProfileName, LlmProfiles } from "../api/types";
 import { Layout } from "../components/Layout";
 import { AgentPage } from "../pages/Agent";
 import { Costs } from "../pages/Costs";
 import { LlmProfileSettings } from "../pages/Settings";
-import { llmChipText } from "../utils/llm";
+import { fmtUsd, llmChipText, modelOptionText } from "../utils/llm";
 import { apiError, mockFetch, renderWithProviders, SYSTEM } from "./utils";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -169,6 +169,184 @@ describe("LLM 모델 카드 (설정)", () => {
     // 창을 닫으면 카드에 같은 안내가 남는다
     fireEvent.click(within(dialog).getByRole("button", { name: "취소" }));
     expect(screen.getByText(detail)).toHaveClass("error");
+  });
+});
+
+// ── 유료 모델 고르기 (profiles.paid.models, PUT /api/llm/model) ──
+
+const opt = (
+  id: string,
+  name: string,
+  provider: LlmModelOption["provider"],
+  over: Partial<LlmModelOption> = {},
+): LlmModelOption => ({
+  id,
+  name,
+  provider,
+  tier: "주력",
+  input: 2,
+  output: 10,
+  note: "",
+  available: provider === "openai",
+  reason:
+    provider === "openai"
+      ? null
+      : provider === "anthropic"
+        ? "Anthropic 전용 API 연결 전이라 아직 못 써요"
+        : "Google 키가 .env 에 없어요",
+  selected: false,
+  ...over,
+});
+
+const MODELS: LlmModelOption[] = [
+  opt("gpt-top", "GPT Top", "openai", { tier: "최상위", input: 15, output: 60 }),
+  opt("gpt-main", "GPT Main", "openai", { selected: true }),
+  opt("gpt-mini", "GPT Mini", "openai", { tier: "경량", input: 0.1, output: 0.4 }),
+  opt("gemini-pro", "Gemini Pro", "google"),
+  opt("claude-big", "Claude Big", "anthropic", { tier: "최상위", input: 5, output: 25 }),
+  opt("claude-small", "Claude Small", "anthropic", { tier: "경량", input: 1, output: 5 }),
+  opt("my-model", "my-model (.env)", "env", { tier: "", input: null, output: null, available: false, reason: null }),
+];
+
+const withModels = (active: LlmProfileName = "paid", models = MODELS): LlmProfiles => {
+  const base = profiles(active);
+  return {
+    ...base,
+    profiles: {
+      ...base.profiles,
+      paid: {
+        ...base.profiles.paid,
+        model: models.find((m) => m.selected)?.id ?? null,
+        provider: "openai",
+        provider_label: "OpenAI",
+        env_model: "my-model",
+        models,
+      },
+    },
+  };
+};
+
+/** /api/llm/profile + /api/llm/model 가짜 서버 */
+function mockModelApi(initial: LlmProfiles, onPut?: (model: string) => Response | undefined) {
+  const puts: unknown[] = [];
+  let state = initial;
+  const fetchMock = mockFetch({
+    "/api/system": SYSTEM,
+    "/api/llm/profile": () => state,
+    "/api/llm/model": (_url: string, init?: RequestInit) => {
+      const body = JSON.parse(init!.body as string);
+      puts.push({ method: init?.method, body });
+      const err = onPut?.(body.model);
+      if (err) return err;
+      const models = state.profiles.paid.models!.map((m) => ({ ...m, selected: m.id === body.model }));
+      state = withModels(state.active, models);
+      return state;
+    },
+  });
+  return { fetchMock, puts };
+}
+
+const modelSelect = () => screen.findByRole("combobox", { name: "유료 모델" });
+
+describe("유료 모델 고르기 (설정)", () => {
+  it("제공사와 제공사별 묶음을 보여 주고, 감지되지 않은 제공사 모델은 고를 수 없다", async () => {
+    mockModelApi(withModels());
+    renderWithProviders(<LlmProfileSettings />);
+    const select = await modelSelect();
+    expect(screen.getByText(/제공사:/)).toHaveTextContent("제공사: OpenAI (.env 키로 감지)");
+    expect(select).toHaveValue("gpt-main");
+
+    const groups = Array.from(select.querySelectorAll("optgroup")).map((g) => g.label);
+    expect(groups).toEqual(["OpenAI", "Google", "Anthropic", ".env"]);
+
+    const option = (name: RegExp) => within(select).getByRole("option", { name });
+    expect(option(/GPT Main/)).toHaveTextContent("GPT Main · 주력 · 입력 $2 / 출력 $10");
+    expect(option(/GPT Mini/)).toHaveTextContent("GPT Mini · 경량 · 입력 $0.1 / 출력 $0.4");
+    expect(option(/GPT Top/)).toBeEnabled();
+    expect(option(/Gemini Pro/)).toBeDisabled();
+    expect(option(/Gemini Pro/)).toHaveTextContent("— 키 필요");
+    for (const name of [/Claude Big/, /Claude Small/]) {
+      expect(option(name)).toBeDisabled();
+      expect(option(name)).toHaveTextContent("— 준비 중");
+    }
+    expect(option(/my-model \(\.env\)/)).toBeDisabled();
+    // 못 쓰는 이유 전체 문장
+    expect(screen.getByText("Anthropic: Anthropic 전용 API 연결 전이라 아직 못 써요")).toBeInTheDocument();
+    expect(screen.getByText("Google: Google 키가 .env 에 없어요")).toBeInTheDocument();
+  });
+
+  it("다른 OpenAI 모델을 고르면 확인 창을 거쳐 PUT /api/llm/model {model}", async () => {
+    const { fetchMock, puts } = mockModelApi(withModels());
+    renderWithProviders(<LlmProfileSettings />);
+    fireEvent.change(await modelSelect(), { target: { value: "gpt-mini" } });
+
+    const dialog = screen.getByRole("dialog", { name: "유료 모델을 바꿀까요?" });
+    expect(dialog).toHaveTextContent("호출마다 실제 요금이 나가요");
+    expect(dialog).toHaveTextContent("GPT Mini");
+    expect(dialog).toHaveTextContent("입력 $0.1 / 출력 $0.4 (100만 토큰당)");
+    expect(dialog).toHaveTextContent("다음 판단·답장부터 적용돼요");
+    expect(puts).toEqual([]);
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "이 모델로 바꾸기" }));
+    await waitFor(() => expect(puts).toEqual([{ method: "PUT", body: { model: "gpt-mini" } }]));
+    expect(fetchMock.mock.calls.some(([url]) => url === "/api/llm/model")).toBe(true);
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(await screen.findByText(/유료 모델을 바꿨어요 ✓ \(GPT Mini\)/)).toBeInTheDocument();
+    expect(await modelSelect()).toHaveValue("gpt-mini");
+  });
+
+  it("확인 창에서 취소하면 보내지 않고 원래 모델로 돌아간다", async () => {
+    const { puts } = mockModelApi(withModels());
+    renderWithProviders(<LlmProfileSettings />);
+    const select = await modelSelect();
+    fireEvent.change(select, { target: { value: "gpt-top" } });
+    expect(select).toHaveValue("gpt-top");
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "취소" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(select).toHaveValue("gpt-main");
+    expect(puts).toEqual([]);
+  });
+
+  it("판단 세션 중(409)이면 서버 안내를 보여 주고 모델은 그대로", async () => {
+    const detail = "판단 세션이나 답장이 진행 중이에요. 끝난 뒤에 바꿔 주세요";
+    mockModelApi(withModels(), () => apiError(409, detail));
+    renderWithProviders(<LlmProfileSettings />);
+    const select = await modelSelect();
+    fireEvent.change(select, { target: { value: "gpt-mini" } });
+    fireEvent.click(screen.getByRole("button", { name: "이 모델로 바꾸기" }));
+    const dialog = screen.getByRole("dialog");
+    expect(await within(dialog).findByText(new RegExp(`${detail} — 잠시 후 다시 시도해 주세요`))).toHaveClass(
+      "error",
+    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "취소" }));
+    expect(select).toHaveValue("gpt-main");
+    expect(screen.getByText(new RegExp(detail))).toHaveClass("error");
+  });
+
+  it("제공사를 모르면 '알 수 없는 엔드포인트'", async () => {
+    const data = withModels();
+    data.profiles.paid.provider = null;
+    data.profiles.paid.provider_label = null;
+    mockModelApi(data);
+    renderWithProviders(<LlmProfileSettings />);
+    await modelSelect();
+    expect(screen.getByText(/제공사:/)).toHaveTextContent("제공사: 알 수 없는 엔드포인트");
+  });
+
+  it("유료가 미설정이면 모델 목록을 그리지 않는다", async () => {
+    const data = withModels("free");
+    data.profiles.paid = { ...data.profiles.paid, ...UNCONFIGURED };
+    mockModelApi(data);
+    renderWithProviders(<LlmProfileSettings />);
+    expect(await screen.findByRole("button", { name: /유료/ })).toBeDisabled();
+    expect(screen.queryByRole("combobox", { name: "유료 모델" })).not.toBeInTheDocument();
+  });
+
+  it("가격 글자 만들기", () => {
+    expect(fmtUsd(0.1)).toBe("$0.1");
+    expect(fmtUsd(2)).toBe("$2");
+    expect(fmtUsd(1.25)).toBe("$1.25");
+    expect(modelOptionText(opt("x", "X", "openai", { tier: "", input: null, output: null }))).toBe("X");
   });
 });
 

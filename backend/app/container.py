@@ -283,7 +283,9 @@ def build_container(
     if settings.has_naver:
         assert settings.naver_client_id and settings.naver_client_secret
         news = NaverNewsClient(
-            settings.naver_client_id.get_secret_value(), settings.naver_client_secret.get_secret_value()
+            settings.naver_client_id.get_secret_value(),
+            settings.naver_client_secret.get_secret_value(),
+            api=settings.naver_api,
         )
     research = ResearchService(clock, dart=dart, news=news)
 
@@ -340,9 +342,8 @@ def build_container(
     _reset_on_source_change(db, kv, broker, hub, LIVE_SOURCE if settings.is_live else SOURCE)
     engine = TradingEngine(db, clock, cal, store, broker, hub, kv, toss=toss)
 
-    llm = build_llm(
-        settings, active_profile(kv, settings)
-    )  # 무료(LLM_TEST_*)/유료(LLM_*) 중 화면에서 고른 것
+    # 무료(LLM_TEST_*)/유료(LLM_*) 중 화면에서 고른 것, 유료는 화면에서 고른 모델
+    llm = build_llm(settings, active_profile(kv, settings), kv)
     toolbox = ToolBox(engine.portfolio, store, research, clock, screener=toss.screen, quote=broker.get_quote)
     toolbox.toss = toss
     toolbox.trades = trades

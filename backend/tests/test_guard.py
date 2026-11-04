@@ -56,6 +56,7 @@ def test_allowed_routes_pass() -> None:
     check_outbound("GET", f"{toss.BASE}/api/v1/prices", ALL_ROUTES)
     check_outbound("GET", "https://opendart.fss.or.kr/api/list.json", ALL_ROUTES)
     check_outbound("GET", naver.URL, ALL_ROUTES)
+    check_outbound("GET", naver.HUB_URL, ALL_ROUTES)
     with pytest.raises(OutboundBlockedError):  # 메서드가 다르면 차단
         check_outbound("POST", naver.URL, ALL_ROUTES)
     # 국채 금리는 일봉만 허용 (투자자 매매는 코스피·코스닥만)
