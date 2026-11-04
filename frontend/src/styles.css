@@ -2469,3 +2469,100 @@ tr.priciest .cost-bar i {
     justify-content: center;
   }
 }
+
+/* ---------- LLM 무료/유료 전환 (설정 · 상단 바 칩) ---------- */
+a.chip-link {
+  color: inherit;
+}
+a.chip-link.ok {
+  color: var(--ok);
+}
+a.chip-link.warn {
+  color: var(--warn);
+}
+a.chip-link:hover {
+  text-decoration: none;
+  border-color: var(--accent);
+}
+.llm-seg {
+  display: flex;
+  width: min(560px, 100%);
+}
+.llm-seg button {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 12px;
+  text-align: left;
+  white-space: normal;
+}
+.llm-seg button b {
+  font-size: 14px;
+}
+.llm-seg button.active.paid b {
+  color: var(--warn);
+}
+.llm-seg button.active.free b {
+  color: var(--ok);
+}
+.llm-seg-model {
+  font-weight: 500;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.llm-seg button small {
+  font-weight: 400;
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+}
+.llm-seg button:disabled {
+  opacity: 0.6;
+}
+.llm-status {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+.llm-status:empty {
+  display: none;
+}
+.llm-status p {
+  margin: 0;
+}
+.pill.paid {
+  background: rgba(255, 159, 10, 0.14);
+  color: var(--warn);
+  font-weight: 700;
+}
+@media (max-width: 760px) {
+  .llm-seg {
+    width: 100%;
+  }
+  .llm-seg button {
+    min-height: 56px;
+    padding: 8px 10px;
+  }
+  /* 상단 칩 링크: 보이는 크기는 그대로, 누르는 영역만 44px (가로 스크롤 줄이 잘라내지 않게 위아래 여백을 둔다) */
+  .top-info {
+    padding-block: 9px;
+    margin-block: -9px;
+  }
+  .top-info a.chip-link {
+    position: relative;
+    overflow: visible;
+  }
+  .top-info a.chip-link > span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .top-info a.chip-link::after {
+    content: "";
+    position: absolute;
+    inset: -9px 0;
+  }
+}

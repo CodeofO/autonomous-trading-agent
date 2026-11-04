@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { get } from "./api/client";
-import type { LlmCosts, MarketIndicators, Portfolio, SystemInfo } from "./api/types";
+import type { LlmCosts, LlmProfiles, MarketIndicators, Portfolio, SystemInfo } from "./api/types";
 
 export const useSystem = () =>
   useQuery({ queryKey: ["system"], queryFn: () => get<SystemInfo>("/api/system"), refetchInterval: 5000 });
@@ -32,6 +32,10 @@ export const useLlmCosts = (months = 12) =>
     staleTime: 60_000,
     refetchOnWindowFocus: false,
   });
+
+// LLM 무료/유료 설정: 바꾸면 화면에서 직접 다시 받으므로 주기적으로 받지 않는다
+export const useLlmProfile = () =>
+  useQuery({ queryKey: ["llm-profile"], queryFn: () => get<LlmProfiles>("/api/llm/profile") });
 
 export const DEFAULT_PERSONA = { name: "알파", emoji: "🦉" };
 

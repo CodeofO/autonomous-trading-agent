@@ -64,6 +64,24 @@ export interface Portfolio {
   risk_limits: RiskConfig;
 }
 
+// LLM 무료/유료 전환 (GET·PUT /api/llm/profile) — 무료 = .env 의 LLM_TEST_*, 유료 = LLM_*
+export type LlmProfileName = "free" | "paid";
+
+export interface LlmProfileInfo {
+  label: string;
+  /** .env 에서 채울 키 묶음 (예: "LLM_TEST_*") */
+  env: string;
+  configured: boolean;
+  model: string | null;
+  api: "chat" | "responses" | null;
+  reasoning_effort: string | null;
+}
+
+export interface LlmProfiles {
+  active: LlmProfileName;
+  profiles: Record<LlmProfileName, LlmProfileInfo>;
+}
+
 export interface SystemInfo {
   trading_mode: string;
   data_source: string;
@@ -71,7 +89,7 @@ export interface SystemInfo {
   toss_issue: string | null;
   now: string;
   agent_interval_minutes: number;
-  llm: { configured: boolean; model: string | null; host: string | null; tool_mode: string };
+  llm: { configured: boolean; model: string | null; profile: LlmProfileName; tool_mode: string };
   research: { financials: string; news: string };
   engine_status: "RUNNING" | "PAUSED" | "KILLED";
   agent_running: boolean;
@@ -211,7 +229,14 @@ export type ToolGroup = "portfolio" | "market" | "research" | "decision";
 
 export interface AgentStructure {
   persona: { name: string; emoji: string };
-  llm: { configured: boolean; model: string | null; mode: string; max_steps: number; max_tokens: number };
+  llm: {
+    configured: boolean;
+    model: string | null;
+    profile: LlmProfileName;
+    mode: string;
+    max_steps: number;
+    max_tokens: number;
+  };
   sources: { name: string; ready: boolean }[];
   tools: { name: string; description: string; group: ToolGroup; source: string; ready: boolean }[];
   schedule: {
@@ -342,6 +367,8 @@ export interface LlmCosts {
   checked: string;
   sources: Partial<Record<LlmProvider, string>>;
   current_model: string | null;
+  /** 지금 쓰는 LLM 설정 (무료/유료) */
+  profile: LlmProfileName;
   usd_krw: number | null;
   /** 오래된 달 → 이번 달 */
   months: LlmUsageMonth[];

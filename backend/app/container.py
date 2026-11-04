@@ -16,7 +16,7 @@ from typing import Any
 
 from sqlalchemy import and_, delete, func, or_, select
 
-from app.agent.llm import LLMClient
+from app.agent.profiles import active_profile, build_llm
 from app.agent.runner import AgentRunner
 from app.agent.tools import ToolBox
 from app.brokers.base import TERMINAL
@@ -340,17 +340,9 @@ def build_container(
     _reset_on_source_change(db, kv, broker, hub, LIVE_SOURCE if settings.is_live else SOURCE)
     engine = TradingEngine(db, clock, cal, store, broker, hub, kv, toss=toss)
 
-    llm = None
-    if settings.has_llm:
-        assert settings.llm_api_key is not None
-        llm = LLMClient(
-            settings.llm_base_url,
-            settings.llm_model,
-            settings.llm_api_key.get_secret_value(),
-            temperature=settings.llm_temperature,
-            max_tokens=settings.llm_max_tokens,
-            timeout=settings.llm_timeout_sec,
-        )
+    llm = build_llm(
+        settings, active_profile(kv, settings)
+    )  # 무료(LLM_TEST_*)/유료(LLM_*) 중 화면에서 고른 것
     toolbox = ToolBox(engine.portfolio, store, research, clock, screener=toss.screen, quote=broker.get_quote)
     toolbox.toss = toss
     toolbox.trades = trades

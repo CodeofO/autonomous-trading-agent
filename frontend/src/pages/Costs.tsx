@@ -59,10 +59,15 @@ function CostsView({ data }: { data: LlmCosts }) {
           <span className="muted">가격 확인일 {data.checked}</span>
         </div>
         <p className="costs-intro">
-          {data.current_model ? (
+          {data.current_model && data.profile === "paid" ? (
             <>
-              지금 쓰는 모델 <b className="costs-model">{data.current_model}</b> — 자체 서버라{" "}
-              <b>지금은 API 요금 없음</b>.
+              지금 쓰는 모델 <span className="pill paid">유료</span>{" "}
+              <b className="costs-model">{data.current_model}</b> — <b>호출마다 실제 API 요금이 나가요</b>.
+            </>
+          ) : data.current_model ? (
+            <>
+              지금 쓰는 모델 {data.profile === "free" && <span className="pill">무료</span>}{" "}
+              <b className="costs-model">{data.current_model}</b> — 자체 서버라 <b>지금은 API 요금 없음</b>.
             </>
           ) : (
             <>

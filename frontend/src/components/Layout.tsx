@@ -7,11 +7,12 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth";
 import { useEvents } from "../events";
 import { useSystem } from "../hooks";
 import { isMobile, navIndex, prefersReducedMotion, useMobileViewport } from "../mobile";
+import { llmChipText } from "../utils/llm";
 import { KillSwitch } from "./KillSwitch";
 
 export function PaperBadge({ live = false }: { live?: boolean }) {
@@ -118,9 +119,14 @@ export function Layout() {
                 <span className={`chip ${sys.toss_ok ? "ok" : "warn"}`} title={sys.toss_issue ?? ""}>
                   {sys.toss_ok ? "토스 실시세 연결" : "토스 시세 연결 안 됨"}
                 </span>
-                <span className={`chip ${sys.llm.configured ? "ok" : "warn"}`}>
-                  {sys.llm.configured ? `LLM ${sys.llm.model}` : "LLM 미설정(규칙)"}
-                </span>
+                <Link
+                  to="/settings"
+                  className={`chip chip-link ${sys.llm.configured ? "ok" : "warn"}`}
+                  title="LLM 모델 바꾸기 (설정)"
+                  data-testid="llm-chip"
+                >
+                  <span>{llmChipText(sys.llm)}</span>
+                </Link>
                 <span
                   className={`status-pill ${sys.engine_status.toLowerCase()}`}
                   data-testid="engine-status"

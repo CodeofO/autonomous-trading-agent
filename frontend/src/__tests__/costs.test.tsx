@@ -93,6 +93,7 @@ function costs(over: Partial<LlmCosts> = {}): LlmCosts {
       google: "https://example.com/google-pricing",
     },
     current_model: "Qwen/Qwen3-32B",
+    profile: "free",
     usd_krw: 1343.8,
     months: MONTHS.map((m) => ({ ...zero(m), ...USAGE[m] })),
     models: Array.from({ length: 12 }, (_, i) => model(i)),

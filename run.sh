@@ -6,6 +6,7 @@
 #   ./run.sh up       docker compose 를 백그라운드로 실행 (터미널을 닫아도 유지)
 #   ./run.sh down     백그라운드 실행 중지
 #   ./run.sh test     백엔드 + 프론트 테스트
+#   ./run.sh llm-check [--live]  LLM 연결 점검 (기본: .env 의 LLM_TEST_* 테스트용 엔드포인트, --live 는 실서비스·실제 과금)
 # 포트: .env 의 FRONTEND_PORT(기본 15173) / BACKEND_PORT(기본 18000)
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -175,12 +176,21 @@ run_tests() {
   (cd frontend && { [[ -f node_modules/.package-lock.json && ! package-lock.json -nt node_modules/.package-lock.json ]] || npm ci --no-audit --no-fund >/dev/null; } && npm test)
 }
 
+run_llm_check() {
+  if docker_ok && docker compose ps --status running --services 2>/dev/null | grep -qx backend; then
+    docker compose exec -T backend python -m app.agent.llm_check "$@"
+  else
+    (cd backend && uv run python -m app.agent.llm_check "$@")
+  fi
+}
+
 case "$MODE" in
   docker) run_docker ;;
   up) run_up ;;
   down) docker compose down ;;
   local) run_local ;;
   test) run_tests ;;
+  llm-check) run_llm_check "${@:2}" ;;
   auto) if docker_ok; then run_docker; else warn "Docker 가 꺼져 있어 로컬 모드로 실행합니다"; run_local; fi ;;
-  *) die "사용법: ./run.sh [auto|docker|up|down|local|test]" ;;
+  *) die "사용법: ./run.sh [auto|docker|up|down|local|test|llm-check]" ;;
 esac

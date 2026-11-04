@@ -55,6 +55,19 @@ class Settings(BaseSettings):
     llm_max_tokens: int = 8192
     llm_max_steps: int = Field(default=24, ge=2, le=80)
     llm_timeout_sec: float = 180.0
+    # chat: /chat/completions | responses: OpenAI /responses (추론+도구) | auto: api.openai.com 이면 responses
+    llm_api: Literal["auto", "chat", "responses"] = "auto"
+    # 추론 강도 (none·minimal·low·medium·high·xhigh·max 중 모델이 지원하는 값). 비우면 모델 기본값
+    llm_reasoning_effort: str = ""
+
+    # --- 테스트용 LLM (D-42) ------------------------------------------------
+    # 코드를 고친 뒤 실제 호출로 확인할 때만 쓰는 별도 엔드포인트. 앱(판단·답장)은 위 LLM_* 만 쓴다.
+    # 비우면 점검 명령(./run.sh llm-check)이 실행되지 않는다. 실서비스 키로 점검하려면 --live 를 붙인다.
+    llm_test_base_url: str = ""
+    llm_test_model: str = ""
+    llm_test_api_key: SecretStr | None = None
+    llm_test_api: Literal["auto", "chat", "responses"] = "auto"
+    llm_test_reasoning_effort: str = ""
 
     # --- 휴대폰 알림 (Web Push, D-39) ----------------------------------------
     # VAPID 개인키(P-256, base64url). ./run.sh 가 비어 있으면 만들어 .env 에 넣는다. 비우면 알림 꺼짐
@@ -125,6 +138,12 @@ class Settings(BaseSettings):
         return _filled(self.naver_client_id) and _filled(self.naver_client_secret)
 
     @property
+    def has_test_llm(self) -> bool:
+        return bool(
+            self.llm_test_base_url.strip() and self.llm_test_model.strip() and _filled(self.llm_test_api_key)
+        )
+
+    @property
     def has_push(self) -> bool:
         return _filled(self.vapid_private_key)
 
@@ -151,6 +170,7 @@ class Settings(BaseSettings):
             self.llm_api_key,
             self.app_secret_key,
             self.vapid_private_key,
+            self.llm_test_api_key,
         ):
             if _filled(s):
                 assert s is not None

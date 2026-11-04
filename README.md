@@ -48,7 +48,8 @@ cp .env.example .env
 |---|---|---|---|
 | `TRADING_MODE` | 고정 | 반드시 `paper` (다른 값이면 기동 거부) | — |
 | `TOSS_CLIENT_ID` · `TOSS_CLIENT_SECRET` | **필수** | 실시간 현재가·일봉·종목·랭킹·수급·장 운영 캘린더 (**조회만**) | 토스증권 WTS → 설정 > Open API (토스증권 계좌 필요) |
-| `LLM_BASE_URL` · `LLM_MODEL` · `LLM_API_KEY` | 권장 | 매니저의 두뇌 (OpenAI 호환 Chat Completions) | 사용하는 LLM 제공자 |
+| `LLM_BASE_URL` · `LLM_MODEL` · `LLM_API_KEY` | 권장 | 매니저의 두뇌 (OpenAI 호환 Chat Completions, `api.openai.com` 이면 Responses API) | 사용하는 LLM 제공자 |
+| `LLM_TEST_BASE_URL` · `LLM_TEST_MODEL` · `LLM_TEST_API_KEY` | 선택 | **무료** 모델(테스트용, 예: 자체 서버). 설정 화면에서 무료/유료를 바꿔 쓰고, `./run.sh llm-check` 점검도 이 값으로 함 | 실서비스와 다른 키 권장 |
 | `DART_API_KEY` | 선택 | 재무제표·공시 | [OpenDART](https://opendart.fss.or.kr) |
 | `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` | 선택 | 뉴스 검색 | [네이버 개발자센터](https://developers.naver.com) (검색 API) |
 | `AGENT_INTERVAL_MINUTES` | 선택 | 장중 판단 간격(분). 기본 60 | — |

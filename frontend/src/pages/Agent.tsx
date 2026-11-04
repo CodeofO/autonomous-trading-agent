@@ -4,6 +4,7 @@ import { get } from "../api/client";
 import type { AgentStructure, ToolGroup } from "../api/types";
 import { Loading } from "../components/Loading";
 import { fmtWon } from "../utils/format";
+import { profileModel } from "../utils/llm";
 
 const GROUPS: { key: ToolGroup; label: string; icon: string }[] = [
   { key: "portfolio", label: "내 계좌", icon: "📒" },
@@ -46,7 +47,8 @@ export function AgentPage() {
           <div>
             <h2>{st.persona.name} 매니저</h2>
             <p className="muted">
-              {llm.model ?? "LLM 미설정"} · {MODE_KO[llm.mode] ?? llm.mode}
+              {llm.model ? profileModel(llm.profile, llm.model) : "LLM 미설정"} ·{" "}
+              {MODE_KO[llm.mode] ?? llm.mode}
             </p>
           </div>
         </div>

@@ -19,7 +19,7 @@ from sqlalchemy import select
 
 from app.agent.activity import preview, result_line, tool_source
 from app.agent.costs import record_usage
-from app.agent.llm import LLMClient, LLMError, ToolsUnsupportedError, extract_json
+from app.agent.llm import RAW_KEY, ChatResult, LLMClient, LLMError, ToolsUnsupportedError, extract_json
 from app.agent.prompts import (
     ACCOUNT_DESC,
     CHAT_SYSTEM_PROMPT,
@@ -322,7 +322,7 @@ class AgentRunner:
                     force_submit = True  # 재촉에도 응하지 않으면 다음 요청에서 제출 도구를 강제
                     continue
                 nudged = True
-                messages.append({"role": "assistant", "content": res.content or ""})
+                messages.append({"role": "assistant", "content": res.content or "", **_raw(res)})
                 messages.append(
                     {
                         "role": "user",
@@ -345,6 +345,7 @@ class AgentRunner:
                         }
                         for c in res.tool_calls
                     ],
+                    **_raw(res),
                 }
             )
             if res.finish_reason == "length":
@@ -783,6 +784,11 @@ def normalize_decisions(raw: Any, lookup: dict[str, str]) -> list[dict[str, Any]
         action = {"매수": "BUY", "매도": "SELL", "유지": "HOLD", "보유": "HOLD"}.get(action, action)
         out.append({**d, "symbol": sym, "action": action})
     return out
+
+
+def _raw(res: ChatResult) -> dict[str, Any]:
+    """Responses API 원본 항목(추론 포함)을 대화에 붙여 다음 요청에 되돌려 보낸다."""
+    return {RAW_KEY: res.raw_output} if res.raw_output else {}
 
 
 def _acc(total: dict[str, int], u: dict[str, int]) -> None:

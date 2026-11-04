@@ -23,6 +23,8 @@ export function mockFetch(routes: Record<string, Handler | unknown>) {
     if (!key) return new Response(JSON.stringify({ detail: "not mocked" }), { status: 404 });
     const v = routes[key];
     const body = typeof v === "function" ? (v as Handler)(url, init) : v;
+    // 오류 응답 등은 핸들러가 Response 를 그대로 돌려준다 (예: apiError(409, "..."))
+    if (body instanceof Response) return body;
     return new Response(JSON.stringify(body), {
       status: 200,
       headers: { "Content-Type": "application/json" },
@@ -32,6 +34,10 @@ export function mockFetch(routes: Record<string, Handler | unknown>) {
   return fn;
 }
 
+/** FastAPI 오류 응답 모양 ({ detail }) */
+export const apiError = (status: number, detail: string) =>
+  new Response(JSON.stringify({ detail }), { status, headers: { "Content-Type": "application/json" } });
+
 export const SYSTEM = {
   trading_mode: "paper",
   data_source: "toss",
@@ -39,7 +45,7 @@ export const SYSTEM = {
   toss_issue: null,
   agent_interval_minutes: 60,
   now: "2026-11-02T10:00:00+09:00",
-  llm: { configured: false, model: null, host: null, tool_mode: "auto" },
+  llm: { configured: false, model: null, profile: "free", tool_mode: "auto" },
   research: { financials: "MOCK", news: "MOCK" },
   engine_status: "RUNNING",
   agent_running: false,

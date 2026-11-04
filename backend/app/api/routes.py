@@ -6,7 +6,6 @@ import asyncio
 import logging
 from datetime import UTC, date, datetime, timedelta
 from typing import Annotated, Any, Literal
-from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field, ValidationError
@@ -14,6 +13,9 @@ from sqlalchemy import func, select
 
 from app.agent.activity import TOOL_GROUPS
 from app.agent.costs import summary
+from app.agent.profiles import active_profile, build_llm
+from app.agent.profiles import configured as profile_configured
+from app.agent.profiles import info as profile_info
 from app.agent.prompts import DEFAULT_PERSONA, DEFAULT_POLICY
 from app.agent.tools import openai_tools
 from app.api.auth import hash_password, issue_token, verify_password, verify_token
@@ -33,6 +35,7 @@ from app.db.models import (
     User,
     WatchlistItem,
 )
+from app.engine.events import SYSTEM
 from app.engine.orders import order_dict
 from app.engine.scheduler import session_times
 from app.risk.rules import RiskConfig
@@ -145,7 +148,6 @@ def auth_me(user: U) -> dict[str, Any]:
 @router.get("/system")
 def system(c: C, _: U) -> dict[str, Any]:
     s = c.settings
-    llm_host = urlsplit(s.llm_base_url).hostname if s.has_llm else None
     return {
         "trading_mode": s.trading_mode,
         "data_source": "toss",
@@ -154,9 +156,9 @@ def system(c: C, _: U) -> dict[str, Any]:
         "now": c.clock.now().isoformat(),
         "agent_interval_minutes": c.settings.agent_interval_minutes,
         "llm": {
-            "configured": s.has_llm,
-            "model": s.llm_model if s.has_llm else None,
-            "host": llm_host,
+            "configured": c.runner.llm is not None,
+            "model": c.runner.llm.model if c.runner.llm else None,
+            "profile": active_profile(c.kv, s),
             "tool_mode": s.llm_tool_mode,
         },
         "research": c.research.sources,
@@ -426,8 +428,50 @@ async def llm_costs(c: C, _: U, months: int = Query(12, ge=1, le=36)) -> dict[st
     out = summary(c.db, c.clock.now(), c.cal, months, sessions_per_day=per_day)
     fx = next((i for i in (await c.indicators.snapshot())["items"] if i["key"] == "USDKRW"), None)
     out["usd_krw"] = fx["price"] if fx else None
-    out["current_model"] = c.settings.llm_model if c.settings.has_llm else None
+    out["current_model"] = c.runner.llm.model if c.runner.llm else None
+    out["profile"] = active_profile(c.kv, c.settings)
     return out
+
+
+class LlmProfileBody(BaseModel):
+    active: Literal["free", "paid"]
+
+
+@router.get("/llm/profile")
+def llm_profile(c: C, _: U) -> dict[str, Any]:
+    """무료(LLM_TEST_*)/유료(LLM_*) 중 지금 쓰는 LLM (D-43)."""
+    return profile_info(c.settings, active_profile(c.kv, c.settings))
+
+
+@router.put("/llm/profile")
+def set_llm_profile(body: LlmProfileBody, c: C, _: U) -> dict[str, Any]:
+    prev = active_profile(c.kv, c.settings)
+    if body.active == prev:
+        return profile_info(c.settings, prev)
+    if not profile_configured(c.settings, body.active):
+        env = "LLM_TEST_*" if body.active == "free" else "LLM_*"
+        raise HTTPException(400, f".env 에 {env} 를 채우고 다시 시작해야 쓸 수 있어요")
+    p = c.runner.progress
+    if p.get("active") or p.get("replying"):
+        raise HTTPException(409, "판단 세션이나 답장이 진행 중이에요. 끝난 뒤에 바꿔 주세요")
+    llm = build_llm(c.settings, body.active)
+    c.runner.llm = llm
+    c.kv.set("llm_profile", {"active": body.active})
+    name = {"free": "무료", "paid": "유료"}
+    model = llm.model if llm else "-"
+    c.hub.audit(
+        "CONFIG",
+        f"LLM 전환: {name[prev]} → {name[body.active]} ({model})",
+        None,
+        profile=body.active,
+        model=model,
+    )
+    c.hub.chat(
+        SYSTEM,
+        "text",
+        f"🔄 LLM 을 {name[body.active]} 모델({model})로 바꿨어요. 다음 판단·답장부터 적용돼요.",
+    )
+    return profile_info(c.settings, body.active)
 
 
 @router.get("/agent/structure")
@@ -455,12 +499,13 @@ def agent_structure(c: C, _: U) -> dict[str, Any]:
                 "ready": ready.get(source, False),
             }
         )
-    mode = s.llm_tool_mode if s.has_llm else "rules"
+    mode = s.llm_tool_mode if c.runner.llm else "rules"
     return {
         "persona": c.runner.persona(),
         "llm": {
-            "configured": s.has_llm,
-            "model": s.llm_model if s.has_llm else None,
+            "configured": c.runner.llm is not None,
+            "model": c.runner.llm.model if c.runner.llm else None,
+            "profile": active_profile(c.kv, s),
             "mode": mode,
             "max_steps": s.llm_max_steps,
             "max_tokens": s.llm_max_tokens,

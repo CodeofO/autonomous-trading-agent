@@ -219,7 +219,15 @@ def test_secrets_never_exposed(tmp_path: Path) -> None:
     with _client(tmp_path, llm_base_url="https://llm.example.com/v1", llm_model="m", llm_api_key=key) as c:
         h = _login(c)
         body = c.get("/api/system", headers=h).text
-        assert key not in body and "llm.example.com" in body
+        # 키도 LLM 서버 주소(내부 IP 일 수 있음)도 화면 API 에 내보내지 않는다. 모델 이름과 무료/유료만
+        assert key not in body and "llm.example.com" not in body
+        assert c.get("/api/system", headers=h).json()["llm"] == {
+            "configured": True,
+            "model": "m",
+            "profile": "paid",
+            "tool_mode": "auto",
+        }
+        assert "llm.example.com" not in c.get("/api/llm/profile", headers=h).text
         assert key not in c.get("/api/agent/structure", headers=h).text
         assert key not in c.get("/api/openapi.json").text
 

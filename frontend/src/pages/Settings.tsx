@@ -1,8 +1,10 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { del, errorText, get, post, put } from "../api/client";
+import { ApiError, del, errorText, get, post, put } from "../api/client";
 import type {
+  LlmProfileName,
+  LlmProfiles,
   PushPrefs,
   PushStatus,
   PushSubscribeResult,
@@ -23,7 +25,10 @@ import {
   subscribePush,
   unsubscribePush,
 } from "../push";
+import { Modal } from "../components/Modal";
+import { useLlmProfile, useSystem } from "../hooks";
 import { fmtDateTime } from "../utils/format";
+import { apiLabel, PROFILE_KO } from "../utils/llm";
 
 export function Settings() {
   return (
@@ -34,6 +39,7 @@ export function Settings() {
           지금 사용량을 OpenAI·Google·Anthropic 요금으로 바꾸면 한 달에 얼마인지
         </small>
       </Link>
+      <LlmProfileSettings />
       <PushSettings />
       <AgentSettings />
       <RiskSettings />
@@ -42,6 +48,132 @@ export function Settings() {
         <Watchlist />
       </div>
     </div>
+  );
+}
+
+const PROFILE_ORDER: LlmProfileName[] = ["free", "paid"];
+
+function switchErrorText(e: unknown): string {
+  const text = errorText(e);
+  if (e instanceof ApiError && e.status === 409) return `${text} — 잠시 후 다시 시도해 주세요.`;
+  return text;
+}
+
+/** LLM 무료(.env LLM_TEST_*) / 유료(LLM_*) 전환. 유료로 바꿀 때만 한 번 더 확인 */
+export function LlmProfileSettings() {
+  const qc = useQueryClient();
+  const q = useLlmProfile();
+  const { data: sys } = useSystem();
+  const [confirm, setConfirm] = useState(false);
+  const change = useMutation({
+    mutationFn: (active: LlmProfileName) => put<LlmProfiles>("/api/llm/profile", { active }),
+    onSuccess: (data) => {
+      setConfirm(false);
+      qc.setQueryData(["llm-profile"], data);
+      for (const key of ["system", "llm-profile", "agent-structure", "llm-costs"])
+        qc.invalidateQueries({ queryKey: [key] });
+    },
+  });
+
+  const data = q.data;
+  const pick = (p: LlmProfileName) => {
+    if (!data || p === data.active || change.isPending) return;
+    change.reset();
+    if (p === "paid") setConfirm(true);
+    else change.mutate(p);
+  };
+  const paid = data?.profiles.paid;
+  const interval = sys?.agent_interval_minutes ?? 0;
+  const done = change.isSuccess ? change.data.profiles[change.data.active] : null;
+
+  return (
+    <section className="card llm-card">
+      <h2>🤖 LLM 모델</h2>
+      <p className="muted">
+        매니저가 판단·대화에 쓰는 모델이에요. 무료는 .env 의 LLM_TEST_*, 유료는 LLM_* 설정을 써요. 바꾸면 다음
+        판단·답장부터 적용돼요.
+      </p>
+      {q.isLoading && <p className="muted">불러오는 중…</p>}
+      {q.isError && <p className="error">{errorText(q.error)}</p>}
+      {data && (
+        <div className="seg llm-seg" role="group" aria-label="LLM 모델 선택">
+          {PROFILE_ORDER.map((key) => {
+            const p = data.profiles[key];
+            const on = data.active === key;
+            const api = apiLabel(p.api);
+            return (
+              <button
+                key={key}
+                type="button"
+                className={on ? `active ${key}` : key}
+                aria-pressed={on}
+                disabled={!p.configured || change.isPending}
+                onClick={() => pick(key)}
+              >
+                <b>{p.label || PROFILE_KO[key]}</b>
+                {p.configured ? (
+                  <>
+                    <span className="llm-seg-model">{p.model ?? "-"}</span>
+                    {api && <small className="muted">{api}</small>}
+                  </>
+                ) : (
+                  <small className="muted">미설정 — .env 의 {p.env} 를 채우세요</small>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <div className="llm-status" aria-live="polite">
+        {change.isPending && !confirm && <p className="muted">바꾸는 중…</p>}
+        {done && (
+          <p className="ok">
+            {PROFILE_KO[change.data!.active]} 모델({done.model ?? "-"})로 바꿨어요 ✓ 다음 판단·답장부터
+            적용돼요.
+          </p>
+        )}
+        {change.isError && !confirm && <p className="error">{switchErrorText(change.error)}</p>}
+        {data?.active === "paid" && !done && (
+          <p className="push-note warn">유료 모델을 쓰는 중이에요 — 호출마다 요금이 나가요.</p>
+        )}
+      </div>
+      {confirm && paid && (
+        <Modal
+          title="유료 모델로 바꿀까요?"
+          tone="danger"
+          onClose={() => !change.isPending && setConfirm(false)}
+          actions={
+            <>
+              <button className="btn ghost" onClick={() => setConfirm(false)} disabled={change.isPending}>
+                취소
+              </button>
+              <button
+                className="btn primary"
+                onClick={() => change.mutate("paid")}
+                disabled={change.isPending}
+              >
+                {change.isPending ? "바꾸는 중…" : "유료로 바꾸기"}
+              </button>
+            </>
+          }
+        >
+          <p>
+            유료 모델은 호출마다 실제 요금이 나가요.{" "}
+            {interval > 0
+              ? `지금 일정(장중 ${interval}분마다 판단)이면 판단 세션과 채팅 답장마다 호출돼요.`
+              : "판단 세션과 채팅 답장마다 호출돼요."}
+          </p>
+          <p className="muted">
+            {paid.model ?? "-"}
+            {apiLabel(paid.api) ? ` · ${apiLabel(paid.api)}` : ""} — 언제든 다시 무료로 돌릴 수 있어요.
+          </p>
+          <p>
+            <Link to="/costs">LLM 비용 예상 보기 →</Link>
+          </p>
+          {change.isError && <p className="error">{switchErrorText(change.error)}</p>}
+        </Modal>
+      )}
+    </section>
   );
 }
 

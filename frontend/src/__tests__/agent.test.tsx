@@ -7,7 +7,14 @@ afterEach(() => vi.unstubAllGlobals());
 
 const STRUCTURE = {
   persona: { name: "알파", emoji: "🦉" },
-  llm: { configured: true, model: "test-model", mode: "auto", max_steps: 24, max_tokens: 8192 },
+  llm: {
+    configured: true,
+    model: "test-model",
+    profile: "paid",
+    mode: "auto",
+    max_steps: 24,
+    max_tokens: 8192,
+  },
   sources: [
     { name: "토스증권", ready: true },
     { name: "DART", ready: true },
