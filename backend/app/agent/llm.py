@@ -222,16 +222,20 @@ class LLMClient:
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None,
         tool_choice: str | dict[str, Any] | None = None,
+        *,
+        max_tokens: int | None = None,
     ) -> ChatResult:
+        """`max_tokens`: 이 요청만의 출력 한도 (없으면 설정값). 추론형 모델의 답이 잘렸을 때 늘려 다시 묻는 데 쓴다."""
+        limit = self.max_tokens if max_tokens is None else max_tokens
         if self.api == "responses":
-            return await self._responses(messages, tools, tool_choice)
+            return await self._responses(messages, tools, tool_choice, limit)
         messages = [{k: v for k, v in m.items() if k != RAW_KEY} for m in messages]
         for _ in range(3):
             body: dict[str, Any] = {"model": self.model, "messages": messages}
             if self._send_temperature:
                 body["temperature"] = self.temperature
-            if self.max_tokens > 0:
-                body[self._token_param] = self.max_tokens
+            if limit > 0:
+                body[self._token_param] = limit
             if tools:
                 body["tools"] = tools
                 body["tool_choice"] = tool_choice or "auto"
@@ -279,6 +283,7 @@ class LLMClient:
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None,
         tool_choice: str | dict[str, Any] | None,
+        limit: int,
     ) -> ChatResult:
         """OpenAI Responses API (POST /responses). 추론형 모델이 추론과 도구를 함께 쓰는 경로 (D-42)."""
         for _ in range(3):
@@ -290,8 +295,8 @@ class LLMClient:
             }
             if self._send_temperature:
                 body["temperature"] = self.temperature
-            if self.max_tokens > 0:
-                body["max_output_tokens"] = self.max_tokens
+            if limit > 0:
+                body["max_output_tokens"] = limit
             if self.reasoning_effort:
                 body["reasoning"] = {"effort": self.reasoning_effort}
             if tools:

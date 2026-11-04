@@ -248,6 +248,22 @@ async def test_old_edition_without_impact_is_filled_on_read() -> None:
         assert "impact" not in s.query(NewsEdition).one().payload["sections"][0]
 
 
+SECTION_REPLIES = {
+    # 코드 블록·엉뚱한 키·4번째 줄·틀린 기사 번호가 섞여 와도 걸러 쓴다
+    "world": '```json\n{"sections": {"world": "미중 정상이 만나 관세를 논의했다.", "x": "무시"}, '
+    '"impact": {"world": [{"text": "관세 협상 진전 — 수출주 관심", "ref": 1}, '
+    '{"text": "유럽 선거 결과", "ref": "2"}, {"text": "근거 기사 번호가 틀린 줄", "ref": 9}, '
+    '{"text": "네 번째 줄은 버린다", "ref": 1}], "x": [{"text": "무시"}]}}\n```',
+    "global_econ": '{"sections": {"global_econ": ""}, "impact": {"global_econ": []}}',  # 비어 있음 → 규칙 기반
+    "kr_market": '{"sections": {"kr_market": "코스피가 올랐다."}, "impact": {"kr_market": ["외국인 매수 지속 여부"]}}',
+    "kr_issues": '{"sections": {"kr_issues": ""}}',
+}
+
+
+def section_of(prompt: str) -> str | None:
+    return next((k for k in SECTION_REPLIES if f"## {k} —" in prompt), None)
+
+
 @respx.mock
 async def test_refresh_with_active_llm_summary_and_usage() -> None:
     respx.get(naver.HUB_URL).mock(side_effect=naver_handler(NOW))
@@ -256,15 +272,12 @@ async def test_refresh_with_active_llm_summary_and_usage() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         import json
 
-        seen.append(json.loads(request.content))
-        return llm_reply(
-            '```json\n{"headline": "미중 정상회담이 시장의 중심", "sections": '
-            '{"world": "미중 정상이 만나 관세를 논의했다.", "kr_market": "코스피가 올랐다.", "x": "무시"}, '
-            '"impact": {"world": [{"text": "관세 협상 진전 — 수출주 관심", "ref": 1}, '
-            '{"text": "유럽 선거 결과", "ref": "2"}, {"text": "근거 기사 번호가 틀린 줄", "ref": 9}, '
-            '{"text": "네 번째 줄은 버린다", "ref": 1}], '
-            '"kr_market": ["외국인 매수 지속 여부"], "global_econ": [], "x": [{"text": "무시"}]}}\n```'
-        )
+        body = json.loads(request.content)
+        seen.append(body)
+        key = section_of(body["messages"][1]["content"])
+        if key is None:  # 헤드라인: 섹션 요약만 보고 한 문장
+            return llm_reply('{"headline": "미중 정상회담이 시장의 중심"}')
+        return llm_reply(SECTION_REPLIES[key])
 
     respx.post(f"{LLM_BASE}/chat/completions").mock(side_effect=handler)
     r, db = room(SimulatedClock(NOW), llm=fast_llm())
@@ -273,10 +286,16 @@ async def test_refresh_with_active_llm_summary_and_usage() -> None:
     by = {s["key"]: s for s in ed["sections"]}
     assert by["world"]["summary"] == "미중 정상이 만나 관세를 논의했다."
     assert by["global_econ"]["summary"] is None and ed["summary_error"] is None
-    prompt = seen[0]["messages"][1]["content"]
-    assert "미중 정상회담 개최…관세 협상 진전" in prompt and "2026-11-05 07:00 KST" in prompt
-    assert '"impact"' in prompt and "증시" in prompt  # 같은 호출에서 증시 영향 3줄도 받는다 (D-59)
-    assert len(seen) == 1
+    # 섹션마다 따로 묻는다 (한 번에 묻으면 추론형 무료 모델의 답이 잘렸다) + 헤드라인 한 번
+    prompts = [b["messages"][1]["content"] for b in seen]
+    world = next(p for p in prompts if section_of(p) == "world")
+    assert "미중 정상회담 개최…관세 협상 진전" in world and "2026-11-05 07:00 KST" in world
+    assert '"impact"' in world and "증시" in world and '"headline"' not in world
+    assert "## kr_market —" not in world  # 그 섹션 기사만
+    assert sorted(filter(None, map(section_of, prompts))) == sorted(SECTION_REPLIES)
+    head = next(p for p in prompts if section_of(p) is None)
+    assert "미중 정상이 만나 관세를 논의했다." in head and "코스피가 올랐다." in head
+    assert len(seen) == len(SECTION_REPLIES) + 1
     # 증시 영향: AI 줄은 기사 번호로 링크를 붙이고 3줄까지, 빠뜨린 섹션은 규칙 기반 ('AI 요약 아님')
     assert by["world"]["impact"] == {
         "source": "ai",
@@ -311,15 +330,59 @@ async def test_refresh_with_active_llm_summary_and_usage() -> None:
     }
     # 판에 저장된다 — 화면을 열 때 LLM 을 다시 부르지 않는다
     assert r.view(auto=True)["edition"]["sections"][0]["impact"]["source"] == "ai"
-    assert len(seen) == 1
+    assert len(seen) == len(SECTION_REPLIES) + 1
     with db.session() as s:
-        usage = s.query(LlmUsage).one()
-        assert (usage.kind, usage.model, usage.input_tokens, usage.run_id) == (
-            "newsroom",
-            "news-model",
-            1500,
-            None,
-        )
+        rows = s.query(LlmUsage).all()
+        assert len(rows) == len(seen)  # 호출마다 사용량 기록
+        assert {(u.kind, u.model, u.input_tokens, u.run_id) for u in rows} == {
+            ("newsroom", "news-model", 1500, None)
+        }
+
+
+def cut_reply(content: str) -> httpx.Response:
+    """출력 한도에서 잘린 답 (추론형 모델이 생각에 토큰을 다 쓴 경우)."""
+    return httpx.Response(
+        200,
+        json={
+            "choices": [{"message": {"content": content}, "finish_reason": "length"}],
+            "usage": {"prompt_tokens": 900, "completion_tokens": 8192, "total_tokens": 9092},
+        },
+    )
+
+
+@respx.mock
+async def test_cut_off_answer_is_retried_and_failed_sections_fall_back_to_rules() -> None:
+    respx.get(naver.HUB_URL).mock(side_effect=naver_handler(NOW))
+    tries: dict[str | None, int] = {}
+    budgets: dict[str | None, list[int | None]] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        import json
+
+        body = json.loads(request.content)
+        key = section_of(body["messages"][1]["content"])
+        tries[key] = tries.get(key, 0) + 1
+        budgets.setdefault(key, []).append(body.get("max_tokens"))
+        if key == "world" and tries[key] == 1:
+            return cut_reply('{"sections": {"world": "미중 정상이 만나')  # 잘림 → 한 번 더
+        if key == "kr_market":
+            return cut_reply("")  # 두 번 다 생각만 하다 끝남 → 이 섹션은 규칙 기반
+        if key is None:
+            return llm_reply('{"headline": "관세 논의가 오늘의 흐름"}')
+        return llm_reply(SECTION_REPLIES[key])
+
+    respx.post(f"{LLM_BASE}/chat/completions").mock(side_effect=handler)
+    r, _db = room(SimulatedClock(NOW), llm=fast_llm())
+    ed = await r.refresh("manual")
+    by = {s["key"]: s for s in ed["sections"]}
+    assert tries["world"] == 2 and tries["kr_market"] == 2
+    # 잘려서 다시 물을 때는 출력 한도를 두 배로
+    assert budgets["world"] == [4096, 8192] and budgets["kr_issues"] == [4096]
+    assert by["world"]["summary"] == "미중 정상이 만나 관세를 논의했다."
+    assert by["world"]["impact"]["source"] == "ai"
+    assert by["kr_market"]["summary"] is None and by["kr_market"]["impact"]["source"] == "rule"
+    assert ed["headline"] == "관세 논의가 오늘의 흐름" and ed["summary_model"] == "news-model"
+    assert ed["summary_error"] and "일부 섹션 요약 실패 (1/4)" in ed["summary_error"]
 
 
 @respx.mock

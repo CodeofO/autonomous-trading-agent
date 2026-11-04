@@ -243,7 +243,7 @@ SUMMARY_SYSTEM = (
 SUMMARY_PROMPT = (
     "아래는 {when} 기준 섹션별 주요 기사다 (각 기사 앞 숫자가 그 섹션의 기사 번호).\n"
     "다음 형식의 JSON 으로 답하라:\n{schema}\n"
-    "- headline: 세계와 한국의 오늘 흐름 한 문장(80자 이내)\n"
+    "{headline_rule}"
     "- sections: 섹션 요약 각각 2~3문장, 200자 이내, 핵심 사건 위주. 기사가 없는 섹션은 빈 문자열\n"
     "- impact: 섹션마다 주식시장(국내·미국 증시)에 영향이 가장 클 것 같은 이슈 3개를 영향이 큰 순서로, "
     "각각 한 줄(60자 이내). ref 는 근거 기사 번호. 기사가 없는 섹션은 빈 배열. "
@@ -251,15 +251,25 @@ SUMMARY_PROMPT = (
 )
 
 
-def summary_prompt(sections: list[dict[str, Any]], when: datetime) -> str:
-    schema = json.dumps(
-        {
-            "headline": "…",
-            "sections": {s["key"]: f"{s['title']} 요약" for s in sections},
-            "impact": {s["key"]: [{"text": "증시 영향 한 줄", "ref": 1}] for s in sections},
-        },
-        ensure_ascii=False,
-    )
+HEADLINE_RULE = "- headline: 세계와 한국의 오늘 흐름 한 문장(80자 이내)\n"
+HEADLINE_PROMPT = (
+    "아래는 {when} 기준 섹션별 뉴스 요약이다. 세계와 한국의 오늘 흐름을 한 문장(80자 이내)으로 써라. "
+    '요약에 없는 사실은 쓰지 말 것. JSON {{"headline": "…"}} 하나만 답한다.\n\n{body}'
+)
+# 섹션마다 따로 요약한다: 한 번에 4섹션을 맡기면 추론형 무료 모델(Qwen 등)이 생각에 출력 한도를 거의 다 써서
+# 답(JSON)이 잘렸다 (2026-11-05 실측: 8,192 토큰 중 ~7,900 이 생각, 답 663자에서 끊김 → 섹션별은 3~4.5천 토큰에 끝남)
+SECTION_TRIES = 2  # 답이 잘리거나 JSON 이 아니면 한 번 더
+RETRY_TOKENS_FACTOR = (
+    2  # 잘려서 다시 물을 때 출력 한도를 이만큼 늘린다 (생각 길이가 매번 달라 8,192 를 넘기기도 함)
+)
+SUMMARY_CONCURRENCY = 4
+
+
+def summary_prompt(sections: list[dict[str, Any]], when: datetime, *, headline: bool = True) -> str:
+    shape: dict[str, Any] = {"headline": "…"} if headline else {}
+    shape["sections"] = {s["key"]: f"{s['title']} 요약" for s in sections}
+    shape["impact"] = {s["key"]: [{"text": "증시 영향 한 줄", "ref": 1}] for s in sections}
+    schema = json.dumps(shape, ensure_ascii=False)
     parts: list[str] = []
     for s in sections:
         parts.append(f"## {s['key']} — {s['title']}")
@@ -268,13 +278,33 @@ def summary_prompt(sections: list[dict[str, Any]], when: datetime) -> str:
             parts.append(f"{i}. {it['title']}" + (f" — {desc}" if desc else ""))
         if not s["items"]:
             parts.append("(기사 없음)")
-    return SUMMARY_PROMPT.format(when=f"{when:%Y-%m-%d %H:%M} KST", schema=schema, body="\n".join(parts))
+    return SUMMARY_PROMPT.format(
+        when=f"{when:%Y-%m-%d %H:%M} KST",
+        schema=schema,
+        headline_rule=HEADLINE_RULE if headline else "",
+        body="\n".join(parts),
+    )
+
+
+class TruncatedError(ValueError):
+    """LLM 답이 출력 한도에서 잘림 (추론형 모델이 생각에 한도를 다 씀)."""
+
+
+def headline_prompt(sections: list[dict[str, Any]], summaries: dict[str, str], when: datetime) -> str:
+    body = "\n".join(f"- {s['title']}: {summaries[s['key']]}" for s in sections if summaries.get(s["key"]))
+    return HEADLINE_PROMPT.format(when=f"{when:%Y-%m-%d %H:%M} KST", body=body)
+
+
+def parse_headline(text: str) -> str | None:
+    data = extract_json(text or "")
+    head = data.get("headline") if data else None
+    return str(head).strip()[:HEADLINE_MAX] if isinstance(head, str) and head.strip() else None
 
 
 def parse_summary(
-    text: str, sections: list[dict[str, Any]]
+    text: str, sections: list[dict[str, Any]], *, allow_empty: bool = False
 ) -> tuple[str | None, dict[str, str], dict[str, list[dict[str, Any]]]]:
-    """(headline, 섹션 요약, 증시 영향 줄). 쓸 내용이 하나도 없으면 ValueError."""
+    """(headline, 섹션 요약, 증시 영향 줄). JSON 이 아니면 ValueError, 쓸 내용이 없으면(allow_empty 아니면) ValueError."""
     keys = [s["key"] for s in sections]
     data = extract_json(text or "")
     if data is None:
@@ -289,7 +319,7 @@ def parse_summary(
         if isinstance(secs.get(k), str) and secs[k].strip()
     }
     impact = parse_impact(data.get("impact"), sections)
-    if headline is None and not out and not impact:
+    if headline is None and not out and not impact and not allow_empty:
         raise ValueError("요약 응답에 내용이 없어요")
     return headline, out, impact
 
@@ -532,29 +562,70 @@ class NewsRoom:
     async def _summarize(
         self, sections: list[dict[str, Any]], now: datetime
     ) -> tuple[str | None, str | None, str | None]:
-        """(headline, 모델, 오류). 끔·LLM 없음이면 (None, None, None). 실패해도 예외를 내지 않는다."""
+        """(headline, 모델, 오류). 끔·LLM 없음이면 (None, None, None). 실패해도 예외를 내지 않는다.
+
+        섹션마다 따로(동시에) 요약·증시 영향 3줄을 받고, 받은 섹션 요약으로 헤드라인 한 문장을 따로 받는다.
+        실패한 섹션은 기사 목록 + 규칙 기반 영향 줄로 남는다.
+        """
         if not self.settings()["summary"]:
             return None, None, None
         llm = self.llm()
         if llm is None:
             return None, None, None
-        try:
-            res = await llm.chat(
-                [
-                    {"role": "system", "content": SUMMARY_SYSTEM},
-                    {"role": "user", "content": summary_prompt(sections, now.astimezone(KST))},
-                ]
-            )
+        when = now.astimezone(KST)
+        gate = asyncio.Semaphore(SUMMARY_CONCURRENCY)
+
+        async def ask(prompt: str, max_tokens: int | None = None) -> str:
+            async with gate:
+                res = await llm.chat(
+                    [{"role": "system", "content": SUMMARY_SYSTEM}, {"role": "user", "content": prompt}],
+                    max_tokens=max_tokens,
+                )
             record_usage(self.db, self.clock.now(), "newsroom", None, llm.model, res.usage)
-            headline, by_key, impact = parse_summary(res.content, sections)
-        except Exception as e:
-            log.warning("뉴스 룸 요약 실패(%s): %s", llm.model, str(e)[:200])
-            return None, None, f"요약 실패 — 기사 목록만 보여 줘요 ({str(e)[:120]})"
-        for s in sections:
-            s["summary"] = by_key.get(s["key"]) or None
-            if s["key"] in impact:
-                s["impact"] = {"source": "ai", "lines": impact[s["key"]]}
-        return headline, llm.model, None
+            if res.finish_reason == "length" and extract_json(res.content or "") is None:
+                raise TruncatedError("답이 출력 한도에서 잘렸어요")
+            return res.content
+
+        async def one(sec: dict[str, Any]) -> str | None:
+            """섹션 하나 요약. 성공하면 None, 실패하면 오류 문구."""
+            error = ""
+            budget: int | None = None
+            for _ in range(SECTION_TRIES):
+                try:
+                    _h, by_key, impact = parse_summary(
+                        await ask(summary_prompt([sec], when, headline=False), budget),
+                        [sec],
+                        allow_empty=True,
+                    )
+                except Exception as e:  # 잘림·JSON 아님·일시 오류 → 한 번 더 (잘렸으면 출력 한도를 늘려서)
+                    error = str(e)[:120]
+                    if isinstance(e, TruncatedError) and llm.max_tokens > 0:
+                        budget = llm.max_tokens * RETRY_TOKENS_FACTOR
+                    continue
+                sec["summary"] = by_key.get(sec["key"]) or None
+                if sec["key"] in impact:
+                    sec["impact"] = {"source": "ai", "lines": impact[sec["key"]]}
+                return None
+            log.warning("뉴스 룸 요약 실패(%s, %s): %s", llm.model, sec["key"], error)
+            return error
+
+        asked = [s for s in sections if s["items"]]
+        errors = [e for e in await asyncio.gather(*(one(s) for s in asked)) if e is not None]
+        if asked and len(errors) == len(asked):
+            return None, None, f"요약 실패 — 기사 목록만 보여 줘요 ({errors[0]})"
+        summaries = {s["key"]: s["summary"] for s in sections if s.get("summary")}
+        headline = None
+        if summaries:
+            try:
+                headline = parse_headline(await ask(headline_prompt(sections, summaries, when)))
+            except Exception as e:  # 헤드라인이 없어도 섹션 요약은 그대로 쓴다
+                log.warning("뉴스 룸 헤드라인 실패(%s): %s", llm.model, str(e)[:200])
+        note = (
+            f"일부 섹션 요약 실패 ({len(errors)}/{len(asked)}) — 그 섹션은 기사 목록과 규칙 기반 줄로 보여 줘요"
+            if errors
+            else None
+        )
+        return headline, llm.model, note
 
 
 def _iso(t: datetime) -> str:
