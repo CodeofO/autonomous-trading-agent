@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Indicator, MarketIndicators } from "../api/types";
 import { IndicatorStrip } from "../components/IndicatorStrip";
@@ -225,5 +225,61 @@ describe("주요 지표 줄", () => {
     const strip = screen.getByRole("region", { name: "주요 지표" });
     const kpis = screen.getByText("총자산").closest(".kpis")!;
     expect(strip.compareDocumentPosition(kpis) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
+
+describe("지표를 누르면 차트 (D-63)", () => {
+  const bars = [
+    { time: "2026-11-03", open: 1, high: 2, low: 0.5, close: 1.5, volume: 10 },
+    { time: "2026-11-04", open: 1.5, high: 2, low: 1, close: 1.8, volume: 10 },
+  ];
+  const chart = (interval: string, minutes = true) => ({
+    interval,
+    intraday: interval.endsWith("m") && interval !== "1M",
+    intervals: ["1m", "5m", "15m", "30m", "60m", "1d", "1w", "1M"].map((key) => ({
+      key,
+      label: key,
+      intraday: key.endsWith("m") && key !== "1M",
+      enabled: minutes || !(key.endsWith("m") && key !== "1M"),
+    })),
+    bars,
+    markers: [],
+  });
+
+  it("코스피를 누르면 시트에 일봉 차트, 5분을 고르면 5분봉을 받는다", async () => {
+    const asked: string[] = [];
+    mockFetch({
+      "/api/market/indicators/KOSPI/chart": (u: string) => {
+        asked.push(u);
+        return chart(new URL(u, "http://x").searchParams.get("interval") ?? "1d");
+      },
+      "/api/market/indicators": PAYLOAD,
+    });
+    renderWithProviders(<IndicatorStrip />);
+    fireEvent.click(await screen.findByRole("button", { name: "코스피 차트 보기" }));
+    const sheet = await screen.findByRole("dialog", { name: "코스피 차트" });
+    await waitFor(() => expect(asked).toEqual(["/api/market/indicators/KOSPI/chart?interval=1d"]));
+    fireEvent.click(within(sheet).getByRole("button", { name: "5m" }));
+    await waitFor(() => expect(asked.at(-1)).toBe("/api/market/indicators/KOSPI/chart?interval=5m"));
+    expect(within(sheet).getByRole("button", { name: "5m" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("국고채는 분 단위를 고를 수 없고, 환율은 차트가 없다고 알린다", async () => {
+    mockFetch({
+      "/api/market/indicators/KR_BOND_10Y/chart": chart("1d", false),
+      "/api/market/indicators": PAYLOAD,
+    });
+    renderWithProviders(<IndicatorStrip />);
+    fireEvent.click(await screen.findByRole("button", { name: "국고채 10년 차트 보기" }));
+    const sheet = await screen.findByRole("dialog", { name: "국고채 10년 차트" });
+    await waitFor(() => expect(within(sheet).getByRole("button", { name: "1m" })).toBeDisabled());
+    expect(within(sheet).getByRole("button", { name: "1w" })).toBeEnabled();
+  });
+
+  it("환율 카드는 차트 대신 안내", async () => {
+    mockFetch({ "/api/market/indicators": PAYLOAD });
+    renderWithProviders(<IndicatorStrip />);
+    fireEvent.click(await screen.findByRole("button", { name: "원/달러 차트 보기" }));
+    expect(await screen.findByText(/환율 차트\(봉\)가 없어/)).toBeInTheDocument();
   });
 });

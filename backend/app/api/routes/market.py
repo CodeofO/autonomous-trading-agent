@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
@@ -11,6 +12,7 @@ from sqlalchemy import select
 from app.api.routes.common import C, U
 from app.container import Container
 from app.db.models import AgentDecision, Fill
+from app.market import chart as ch
 
 router = APIRouter()
 
@@ -20,6 +22,38 @@ router = APIRouter()
 async def market_indicators(c: C, _: U) -> dict[str, Any]:
     """대시보드 상단 주요 지표 (1분 캐시, D-40)."""
     return await c.indicators.snapshot()
+
+
+@router.get("/market/indicators/{key}/chart")
+async def indicator_chart(key: str, c: C, _: U, interval: str = Query("1d", max_length=4)) -> dict[str, Any]:
+    """주요 지표 차트 (D-63): 코스피·코스닥(분·일), 국고채(일만), 나스닥100·S&P500(QQQ·SPY ETF, 분·일).
+    환율은 Open API 에 봉이 없어 404."""
+    if key in ch.NO_CHART:
+        raise HTTPException(404, ch.NO_CHART[key])
+    src = ch.INDEX_SOURCES.get(key)
+    if src is None:
+        raise HTTPException(404, "차트를 볼 수 없는 지표예요")
+    try:
+        iv = ch.get(interval)
+    except ch.ChartError as e:
+        raise HTTPException(400, str(e)) from e
+    if iv.base == "1m" and not src["minutes"]:
+        raise HTTPException(400, "국고채 금리는 일·주·월 봉만 있어요")
+    client = c.toss.client
+    fetch = (ch.index_fetch if src["kind"] == "index" else ch.stock_fetch)(client, key, iv)
+    try:
+        bars = await ch.bars(("ind", key, iv.key), iv, src["tz"], fetch, end_stamped=src["kind"] == "stock")
+    except Exception as e:
+        raise HTTPException(503, f"토스증권 차트를 불러오지 못했어요: {type(e).__name__}") from e
+    return {
+        "key": key,
+        "interval": iv.key,
+        "intraday": iv.base == "1m",
+        "currency": src["currency"],
+        "intervals": ch.catalog(minutes=bool(src["minutes"])),
+        "bars": bars,
+        "markers": [],
+    }
 
 
 @router.get("/market/search")
@@ -90,6 +124,55 @@ async def candles(symbol: str, c: C, _: U, days: int = Query(180, ge=20, le=1000
             for b in bars
         ],
         "markers": [m for m in markers if m["time"]],
+    }
+
+
+@router.get("/market/{symbol}/chart")
+async def stock_chart(symbol: str, c: C, _: U, interval: str = Query("1d", max_length=4)) -> dict[str, Any]:
+    """종목 차트 (D-63): 1·5·15·30·60분, 일·주·월 봉 + 체결·AI 결정 표시."""
+    try:
+        iv = ch.get(interval)
+    except ch.ChartError as e:
+        raise HTTPException(400, str(e)) from e
+    tz = c.cal.tz
+    fetch = ch.stock_fetch(c.toss.client, symbol, iv)
+    try:
+        bars = await ch.bars((c.code, symbol, iv.key), iv, tz, fetch, end_stamped=True)
+    except Exception as e:
+        raise HTTPException(503, f"토스증권 차트를 불러오지 못했어요: {type(e).__name__}") from e
+    keys = {b["time"] for b in bars}
+    with c.db.session() as s:
+        fl = list(s.scalars(select(Fill).where(Fill.symbol == symbol)))
+        decs = list(
+            s.scalars(
+                select(AgentDecision).where(AgentDecision.symbol == symbol, AgentDecision.action != "HOLD")
+            )
+        )
+    marks = [
+        (
+            f.filled_at,
+            f.side,
+            "fill",
+            f"{'매수' if f.side == 'BUY' else '매도'} {f.quantity}@{_px(c, f.price)}",
+        )
+        for f in fl
+    ] + [(d.created_at, d.action, "decision", f"AI {d.action} ({d.confidence:.0%})") for d in decs]
+    markers = []
+    for at, side, kind, text in marks:
+        if at is None:
+            continue
+        k = ch.bucket(at if at.tzinfo else at.replace(tzinfo=UTC), iv, tz)
+        if k in keys:
+            markers.append({"time": k, "side": side, "kind": kind, "text": text})
+    return {
+        "symbol": symbol,
+        "name": c.store.name_of(symbol) or symbol,
+        "currency": c.market.currency if c.market else "KRW",
+        "interval": iv.key,
+        "intraday": iv.base == "1m",
+        "intervals": ch.catalog(),
+        "bars": bars,
+        "markers": markers,
     }
 
 

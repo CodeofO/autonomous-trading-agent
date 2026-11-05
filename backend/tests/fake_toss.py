@@ -426,6 +426,11 @@ class FakeTossClient:
             for i, d in enumerate(days)
         ]
 
+    async def index_candles_page(
+        self, symbol: str, interval: str = "1d", count: int = 200, before: datetime | None = None
+    ) -> tuple[list[dict[str, Any]], str | None]:
+        return await self.index_candles(symbol, count), None
+
     async def index_investor_trading(self, symbol: str, count: int = 5) -> list[dict[str, Any]]:
         self._check("index_investor")
         return [

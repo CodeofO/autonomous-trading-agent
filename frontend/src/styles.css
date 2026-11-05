@@ -4425,3 +4425,63 @@ kbd,
   text-align: center;
   width: 2.5em;
 }
+
+/* ---------- 차트 봉 단위 고르기 · 지표 누르면 차트 (D-63) ---------- */
+button.ind-card {
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+button.ind-card:hover {
+  border-color: var(--accent);
+}
+button.ind-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.chart-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.chart-intervals {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  max-width: 100%;
+  align-self: flex-start;
+}
+.chart-intervals::-webkit-scrollbar {
+  display: none;
+}
+.chart-intervals button {
+  flex: none;
+  min-width: 40px;
+  font-variant-numeric: tabular-nums;
+}
+.chart-intervals button.gap {
+  margin-left: 6px;
+}
+.chart-intervals button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.chart-stale {
+  opacity: 0.6;
+  transition: opacity 0.15s ease;
+}
+.chart-empty {
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  margin: 0;
+}
+.ind-chart-sheet .chart {
+  height: 300px;
+}

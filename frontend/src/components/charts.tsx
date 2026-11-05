@@ -35,6 +35,11 @@ const priceFormatter = (currency: Currency) => (p: number) =>
 const pricePrecision = (currency: Currency) =>
   currency === "USD" ? { precision: 2, minMove: 0.01 } : { precision: 0, minMove: 1 };
 
+const fixedFormatter = (digits: number) => {
+  const f = new Intl.NumberFormat("ko-KR", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  return (p: number) => f.format(p);
+};
+
 function baseOptions(currency: Currency = "KRW") {
   return {
     autoSize: true,
@@ -89,10 +94,16 @@ export const CandleChart = memo(function CandleChart({
   bars,
   markers,
   currency = "KRW",
+  intraday = false,
+  digits,
 }: {
   bars: Bar[];
   markers: Marker[];
   currency?: Currency;
+  /** 분 단위 봉 — 가로축에 시각까지 (D-63) */
+  intraday?: boolean;
+  /** 지수·금리처럼 통화가 아닌 값의 소수 자릿수 (주면 currency 대신) */
+  digits?: number;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const api = useRef<{
@@ -106,7 +117,9 @@ export const CandleChart = memo(function CandleChart({
 
   useEffect(() => {
     if (!ref.current) return;
-    const chart = createChart(ref.current, baseOptions(currency));
+    const opts = baseOptions(currency);
+    if (digits != null) opts.localization.priceFormatter = fixedFormatter(digits);
+    const chart = createChart(ref.current, opts);
     const candles = chart.addSeries(CandlestickSeries, {
       upColor: UP,
       downColor: DOWN,
@@ -114,16 +127,30 @@ export const CandleChart = memo(function CandleChart({
       borderDownColor: DOWN,
       wickUpColor: UP,
       wickDownColor: DOWN,
-      priceFormat: { type: "price", ...pricePrecision(currency) },
+      priceFormat: {
+        type: "price",
+        ...(digits != null ? { precision: digits, minMove: 1 / 10 ** digits } : pricePrecision(currency)),
+      },
     });
-    const vol = chart.addSeries(HistogramSeries, { priceScaleId: "vol", priceFormat: { type: "volume" } });
+    // 거래량 마지막 값은 가격 눈금에 표시하지 않는다 (가격처럼 읽히지 않게)
+    const vol = chart.addSeries(HistogramSeries, {
+      priceScaleId: "vol",
+      priceFormat: { type: "volume" },
+      lastValueVisible: false,
+      priceLineVisible: false,
+    });
     chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
     api.current = { chart, candles, vol, markers: undefined, bars: null, marks: null };
     return () => {
       chart.remove();
       api.current = null;
     };
-  }, [currency]);
+  }, [currency, digits]);
+
+  // 분 단위 봉이면 가로축에 시:분까지
+  useEffect(() => {
+    api.current?.chart.applyOptions({ timeScale: { timeVisible: intraday, secondsVisible: false } });
+  }, [intraday, currency, digits]);
 
   useEffect(() => {
     const a = api.current;
@@ -144,7 +171,7 @@ export const CandleChart = memo(function CandleChart({
       const days = new Set(bars.map((b) => b.time));
       const ms: SeriesMarker<Time>[] = markers
         .filter((m) => days.has(m.time))
-        .sort((x, y) => x.time.localeCompare(y.time))
+        .sort((x, y) => String(x.time).padStart(12, "0").localeCompare(String(y.time).padStart(12, "0")))
         .map((m) => {
           const buy = m.side === "BUY";
           return {
@@ -160,7 +187,7 @@ export const CandleChart = memo(function CandleChart({
       a.marks = markers;
     }
     if (barsChanged) a.chart.timeScale().fitContent();
-  }, [bars, markers, currency]);
+  }, [bars, markers, currency, digits]);
 
   return <div className="chart" ref={ref} data-testid="candle-chart" />;
 });

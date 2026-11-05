@@ -72,6 +72,8 @@
   - `before` 의 `+` 는 `%2B` 로 인코딩
   - 1분봉 과거 데이터: 국내 2022-11-23 이후만 제공
   - 체결 없는 국내 1분봉은 직전가로 채운 거래량 0 봉
+  - `interval` 은 `1m`·`1d` 두 값뿐 (OpenAPI 1.2.28 enum, 2026-11-05 확인). 5·15·30·60분·주·월 봉은 앱이 모아서 만든다 (D-63)
+- `GET /api/v1/market-indicators/{symbol}/candles` → 같은 모양(`candles[]`, `nextBefore`, `before` 지원). timestamp 는 **봉 시작 시각**. `1m` 은 KOSPI·KOSDAQ 만, 국채(`KR_BOND_*`)는 `1d` 만(분봉 요청 시 400). 환율 봉 API 는 없다
 - `GET /api/v1/market-calendar/KR` → `result.today|previousBusinessDay|nextBusinessDay` 각 `{date, integrated}`;
   `integrated` 가 `null` 이면 **휴장일**. `integrated.preMarket|regularMarket|afterMarket` 각 `{startTime, singlePriceAuctionStartTime|EndTime, endTime}` (세션 휴장 시 `null`).
   예시: 정규장 09:00~15:30, 종가 단일가 15:20 시작, 프리마켓 08:00~09:00, 애프터마켓 15:30~20:00 (KRX+NXT 통합).

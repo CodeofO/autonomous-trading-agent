@@ -43,7 +43,7 @@ export function swipeDirection(dx: number, dy: number, ms: number): SwipeDir | n
 }
 
 const NO_SWIPE =
-  'input, textarea, select, [contenteditable="true"], [data-no-swipe], .recharts-wrapper, .sheet';
+  'input, textarea, select, [contenteditable="true"], [data-no-swipe], .recharts-wrapper, .chart, .sheet';
 
 /** 손가락 아래에 넘기기보다 먼저인 것(가로 스크롤 상자·입력칸·차트·시트)이 있는지 */
 export function blocksSwipe(target: EventTarget | null, root: HTMLElement): boolean {

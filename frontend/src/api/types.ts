@@ -277,7 +277,8 @@ export interface AuditEvent {
 }
 
 export interface Bar {
-  time: string;
+  /** 일·주·월 봉 "YYYY-MM-DD" (시장 날짜) / 분 단위 봉: 한국 시각 벽시계 초 (D-63) */
+  time: string | number;
   open: number;
   high: number;
   low: number;
@@ -286,7 +287,7 @@ export interface Bar {
 }
 
 export interface Marker {
-  time: string;
+  time: string | number;
   side: string;
   kind: "fill" | "decision";
   text: string;
@@ -865,4 +866,24 @@ export interface LabDetail {
     market_view: string;
   }[];
   equity: { ts: string | null; equity: number }[];
+}
+
+// ---------- 차트 (GET /api/market/{symbol}/chart, /api/market/indicators/{key}/chart — D-63) ----------
+
+export interface ChartInterval {
+  key: string;
+  label: string;
+  intraday: boolean;
+  /** false 면 고를 수 없음 (국고채 분봉) */
+  enabled: boolean;
+}
+
+export interface ChartData {
+  interval: string;
+  intraday: boolean;
+  currency?: Currency | null;
+  intervals: ChartInterval[];
+  bars: Bar[];
+  markers: Marker[];
+  name?: string;
 }

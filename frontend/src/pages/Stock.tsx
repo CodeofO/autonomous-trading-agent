@@ -1,7 +1,7 @@
 import { useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Bar, Currency, Decision, Marker } from "../api/types";
-import { CandleChart, ChartPlaceholder } from "../components/LazyCharts";
+import type { Bar, ChartData, Currency, Decision, Marker } from "../api/types";
+import { ChartPanel } from "../components/ChartPanel";
 import { SkeletonLines } from "../components/Skeleton";
 import { errorText } from "../api/client";
 import { useApi, useCurrency } from "../market";
@@ -175,10 +175,11 @@ export function Stock() {
   const qc = useQueryClient();
   const api = useApi();
   const cur = useCurrency();
+  // 일봉은 이름·종가 표시에, 차트는 아래 ChartPanel 이 고른 봉 단위로 따로 받는다 (D-63)
   const candles = useQuery({
     queryKey: api.key("candles", symbol),
     queryFn: () =>
-      api.get<{ name: string; bars: Bar[]; markers: Marker[] }>(`/api/market/${symbol}/candles?days=180`),
+      api.get<{ name: string; bars: Bar[]; markers: Marker[] }>(`/api/market/${symbol}/candles?days=30`),
   });
   const research = useQuery({
     queryKey: api.key("research", symbol),
@@ -227,13 +228,14 @@ export function Stock() {
             </button>
           </div>
         </div>
-        {/* 일봉을 받는 동안에도 차트 자리를 잡아 둔다 (도착하면서 아래 내용이 밀리지 않게) */}
-        {candles.data ? (
-          <CandleChart bars={candles.data.bars} markers={candles.data.markers} currency={cur} />
-        ) : (
-          candles.isPending && <ChartPlaceholder />
-        )}
-        <p className="muted legend">▲▼ 체결 · ● AI 결정 (빨강=상승/매수, 파랑=하락/매도)</p>
+        {/* 증권사처럼 봉 단위를 골라 본다 (1·5·15·30분·1시간 / 일·주·월) */}
+        <ChartPanel
+          queryKey={api.key("stock", symbol)}
+          load={(iv) => api.get<ChartData>(`/api/market/${symbol}/chart?interval=${iv}`)}
+          currency={cur}
+          storageKey="chart.interval.stock"
+          legend={<p className="muted legend">▲▼ 체결 · ● AI 결정 (빨강=상승/매수, 파랑=하락/매도)</p>}
+        />
       </section>
 
       {research.data ? (

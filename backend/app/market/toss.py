@@ -290,6 +290,16 @@ class TossClient:
         )
         return list((res or {}).get("candles") or [])
 
+    async def index_candles_page(
+        self, symbol: str, interval: str = "1d", count: int = 200, before: datetime | None = None
+    ) -> tuple[list[dict[str, Any]], str | None]:
+        """지표 봉 한 페이지 (차트, D-63). 분봉(1m)은 KOSPI·KOSDAQ 만, 국채는 일봉만 (공식 명세)."""
+        params: dict[str, Any] = {"interval": interval, "count": max(1, min(200, count))}
+        if before is not None:
+            params["before"] = before.isoformat()
+        res = await self._get("MARKET_INDICATOR_CHART", f"/api/v1/market-indicators/{symbol}/candles", params)
+        return list((res or {}).get("candles") or []), (res or {}).get("nextBefore")
+
     async def index_investor_trading(self, symbol: str, count: int = 5) -> list[dict[str, Any]]:
         res = await self._get(
             "MARKET_INDICATOR",
