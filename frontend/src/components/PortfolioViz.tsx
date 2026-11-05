@@ -27,7 +27,7 @@ import { HoldingsTable } from "./HoldingsTable";
 import "./PortfolioViz.css";
 
 /*
- * 포트폴리오 시각화 (D-68): 보유 종목을 표 · 비중(도넛) · 모자이크(트리맵)로.
+ * 포트폴리오 시각화 (D-69): 보유 종목을 표 · 비중(도넛) · 모자이크(트리맵)로.
  * 차트 라이브러리 없이 SVG·HTML 만 — 처음 받는 조각이 커지지 않는다.
  */
 

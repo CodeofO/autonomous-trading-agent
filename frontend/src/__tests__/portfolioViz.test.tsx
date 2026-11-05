@@ -134,7 +134,7 @@ function memoryStorage(): Storage {
   };
 }
 
-describe("보유 종목 카드: 표 · 비중 · 모자이크 (D-68)", () => {
+describe("보유 종목 카드: 표 · 비중 · 모자이크 (D-69)", () => {
   beforeEach(() => vi.stubGlobal("localStorage", memoryStorage()));
   afterEach(() => vi.unstubAllGlobals());
 

@@ -349,7 +349,7 @@ function PortfolioAll({ markets }: { markets: MarketCode[] }) {
     [krDec.data, usDec.data],
   );
 
-  // 전체 비중 (D-68): 미장은 토스 원/달러 환율로 원화로 바꿔 한 그림에. 환율이 없으면 합치지 않는다
+  // 전체 비중 (D-69): 미장은 토스 원/달러 환율로 원화로 바꿔 한 그림에. 환율이 없으면 합치지 않는다
   const fx = overview.data?.fx.usdkrw ?? null;
   const allocSources = useMemo<AllocSource[]>(() => {
     const out: AllocSource[] = [];
