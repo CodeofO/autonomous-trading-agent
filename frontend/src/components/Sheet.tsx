@@ -20,6 +20,8 @@ interface Props {
   actions?: ReactNode;
   tone?: "danger" | "default";
   className?: string;
+  /** wide: 넓은 화면에서는 가운데 큰 창(여러 차트를 한 번에), 휴대폰에서는 화면 높이 가득 */
+  size?: "default" | "wide";
 }
 
 /**
@@ -28,7 +30,16 @@ interface Props {
  * - 열리면 시트 안으로 초점을 옮기고, 닫히면 열기 전 자리로 돌려준다
  * - 홈 표시줄(safe-area)만큼 아래 여백을 둔다. '동작 줄이기'면 미끄러지지 않고 바로 나타난다
  */
-export function Sheet({ label, title, children, onClose, actions, tone = "default", className = "" }: Props) {
+export function Sheet({
+  label,
+  title,
+  children,
+  onClose,
+  actions,
+  tone = "default",
+  className = "",
+  size = "default",
+}: Props) {
   const panel = useRef<HTMLDivElement>(null);
   const [closing, setClosing] = useState(false);
   const [drag, setDrag] = useState(0);
@@ -110,10 +121,10 @@ export function Sheet({ label, title, children, onClose, actions, tone = "defaul
   };
 
   return createPortal(
-    <div className={`sheet-backdrop ${closing ? "closing" : ""}`} onClick={close}>
+    <div className={`sheet-backdrop ${size} ${closing ? "closing" : ""}`.trim()} onClick={close}>
       <div
         ref={panel}
-        className={`sheet ${tone} ${closing ? "closing" : ""} ${dragging && drag ? "dragging" : ""} ${className}`.trim()}
+        className={`sheet ${tone} ${size === "wide" ? "wide" : ""} ${closing ? "closing" : ""} ${dragging && drag ? "dragging" : ""} ${className}`.trim()}
         role="dialog"
         aria-modal="true"
         aria-label={label}

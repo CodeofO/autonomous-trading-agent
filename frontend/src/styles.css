@@ -4482,6 +4482,120 @@ button.ind-card:focus-visible {
   text-align: center;
   margin: 0;
 }
-.ind-chart-sheet .chart {
-  height: 300px;
+/* 주요 지수 차트 창 (D-65): 지표 전부를 한 창에 — 넓은 화면 3열, 태블릿 2열, 휴대폰 1열.
+   제목·봉 단위 줄은 고정하고 차트 격자만 스크롤한다 (내려도 봉 단위를 바로 바꿀 수 있게) */
+.sheet.ind-board {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.ind-board .sheet-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ind-board .chart-intervals {
+  flex: none;
+  margin-bottom: 10px;
+}
+.ind-board-grid {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+  margin: 0;
+  padding: 2px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-content: start;
+  gap: 12px;
+}
+.ind-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--panel-2);
+}
+.ind-tile.focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.ind-tile-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+.ind-tile-name {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.ind-tile-name b {
+  font-size: 16px;
+}
+.ind-tile-name small {
+  font-size: 12px;
+}
+.ind-tile-price {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  gap: 1px;
+}
+.ind-tile-price b {
+  font-size: 20px;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+.ind-tile-price b.up {
+  color: var(--up);
+}
+.ind-tile-price b.down {
+  color: var(--down);
+}
+.ind-tile-price .ind-chg {
+  font-size: 13px;
+}
+/* 두 줄이 창 하나에 들어오게 (창 92dvh - 제목·봉 단위 줄, 칸마다 머리줄·안내·여백) */
+.ind-tile .chart,
+.ind-tile .chart-empty,
+.ind-tile-none {
+  height: clamp(240px, calc((92dvh - 200px) / 2 - 90px), 420px);
+}
+.ind-tile-none {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  margin: 0;
+  padding: 0 12px;
+}
+.ind-tile .legend {
+  margin: 0;
+}
+@media (max-width: 1279px) {
+  .ind-board-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 760px) {
+  .ind-board-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ind-tile .chart,
+  .ind-tile .chart-empty {
+    height: 260px;
+  }
+  .ind-tile-none {
+    height: 120px;
+  }
 }

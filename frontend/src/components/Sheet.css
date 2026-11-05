@@ -80,6 +80,34 @@ html.sheet-open .page-scroll {
   font-size: 16px;
   border-radius: 14px;
 }
+/* 큰 창 (size="wide") — 넓은 화면은 가운데 큰 창, 휴대폰은 화면 높이 가득 (주요 지수 차트, D-65) */
+.sheet.wide {
+  max-width: min(1480px, 100%);
+}
+@media (max-width: 760px) {
+  .sheet.wide {
+    height: calc(var(--vvh, 100dvh) - 12px);
+    max-height: calc(var(--vvh, 100dvh) - 12px);
+  }
+}
+@media (min-width: 761px) {
+  .sheet-backdrop.wide {
+    align-items: center;
+  }
+  .sheet.wide {
+    width: min(1480px, 96vw);
+    height: 92dvh;
+    max-height: 92dvh;
+    padding-left: 20px;
+    padding-right: 20px;
+    padding-bottom: 20px;
+    border-radius: 20px;
+    animation: fade-in 0.2s ease-out;
+  }
+  .sheet.wide.closing {
+    animation: fade-out 0.18s ease-in forwards;
+  }
+}
 @keyframes sheet-up {
   from {
     transform: translateY(100%);

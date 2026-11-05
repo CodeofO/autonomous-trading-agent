@@ -228,7 +228,7 @@ describe("주요 지표 줄", () => {
   });
 });
 
-describe("지표를 누르면 차트 (D-63)", () => {
+describe("지표를 누르면 주요 지수 차트 창 (D-63, D-65)", () => {
   const bars = [
     { time: "2026-11-03", open: 1, high: 2, low: 0.5, close: 1.5, volume: 10 },
     { time: "2026-11-04", open: 1.5, high: 2, low: 1, close: 1.8, volume: 10 },
@@ -245,41 +245,57 @@ describe("지표를 누르면 차트 (D-63)", () => {
     bars,
     markers: [],
   });
+  const CHARTED = ["KOSPI", "KOSDAQ", "QQQ", "SPY", "KR_BOND_10Y"];
 
-  it("코스피를 누르면 시트에 일봉 차트, 5분을 고르면 5분봉을 받는다", async () => {
-    const asked: string[] = [];
-    mockFetch({
-      "/api/market/indicators/KOSPI/chart": (u: string) => {
-        asked.push(u);
-        return chart(new URL(u, "http://x").searchParams.get("interval") ?? "1d");
-      },
-      "/api/market/indicators": PAYLOAD,
-    });
+  /** 지표마다 차트 주소를 받아 두고, 받은 봉 단위를 기록한다 (차트 주소가 지표 목록 주소보다 먼저 맞아야 한다) */
+  function mockBoard() {
+    const asked: Record<string, string[]> = {};
+    const routes: Record<string, unknown> = {};
+    for (const key of CHARTED) {
+      asked[key] = [];
+      routes[`/api/market/indicators/${key}/chart`] = (u: string) => {
+        const iv = new URL(u, "http://x").searchParams.get("interval") ?? "1d";
+        asked[key].push(iv);
+        return chart(iv, key !== "KR_BOND_10Y");
+      };
+    }
+    routes["/api/market/indicators"] = PAYLOAD;
+    mockFetch(routes);
+    return asked;
+  }
+
+  it("코스피를 누르면 지표 전부의 차트가 한 창에, 5분을 고르면 모두 5분봉(국고채는 일봉)", async () => {
+    const asked = mockBoard();
     renderWithProviders(<IndicatorStrip />);
     fireEvent.click(await screen.findByRole("button", { name: "코스피 차트 보기" }));
-    const sheet = await screen.findByRole("dialog", { name: "코스피 차트" });
-    await waitFor(() => expect(asked).toEqual(["/api/market/indicators/KOSPI/chart?interval=1d"]));
-    fireEvent.click(within(sheet).getByRole("button", { name: "5m" }));
-    await waitFor(() => expect(asked.at(-1)).toBe("/api/market/indicators/KOSPI/chart?interval=5m"));
-    expect(within(sheet).getByRole("button", { name: "5m" })).toHaveAttribute("aria-pressed", "true");
-  });
-
-  it("국고채는 분 단위를 고를 수 없고, 환율은 차트가 없다고 알린다", async () => {
-    mockFetch({
-      "/api/market/indicators/KR_BOND_10Y/chart": chart("1d", false),
-      "/api/market/indicators": PAYLOAD,
+    const board = await screen.findByRole("dialog", { name: "주요 지수 차트" });
+    await waitFor(() => {
+      for (const key of CHARTED) expect(asked[key]).toEqual(["1d"]);
     });
-    renderWithProviders(<IndicatorStrip />);
-    fireEvent.click(await screen.findByRole("button", { name: "국고채 10년 차트 보기" }));
-    const sheet = await screen.findByRole("dialog", { name: "국고채 10년 차트" });
-    await waitFor(() => expect(within(sheet).getByRole("button", { name: "1m" })).toBeDisabled());
-    expect(within(sheet).getByRole("button", { name: "1w" })).toBeEnabled();
+    // 누른 지표 칸을 강조하고, 지표마다 칸이 하나씩
+    expect(within(board).getByTestId("ind-tile-KOSPI")).toHaveClass("focus");
+    expect(within(board).getByTestId("ind-tile-QQQ")).not.toHaveClass("focus");
+    expect(within(board).getAllByRole("listitem")).toHaveLength(ITEMS.length);
+
+    fireEvent.click(within(board).getByRole("button", { name: "5분" }));
+    await waitFor(() => {
+      for (const key of ["KOSPI", "KOSDAQ", "QQQ", "SPY"]) expect(asked[key].at(-1)).toBe("5m");
+    });
+    expect(within(board).getByRole("button", { name: "5분" })).toHaveAttribute("aria-pressed", "true");
+    // 국고채는 Open API 가 일봉만 — 분 단위를 골라도 일봉 그대로, 그렇다고 알린다
+    expect(asked.KR_BOND_10Y).toEqual(["1d"]);
+    expect(within(within(board).getByTestId("ind-tile-KR_BOND_10Y")).getByText(/일봉만/)).toBeInTheDocument();
+    expect(within(within(board).getByTestId("ind-tile-QQQ")).getByText(/QQQ ETF로 보여/)).toBeInTheDocument();
   });
 
-  it("환율 카드는 차트 대신 안내", async () => {
-    mockFetch({ "/api/market/indicators": PAYLOAD });
+  it("환율 칸은 차트 대신 현재 환율과 안내", async () => {
+    mockBoard();
     renderWithProviders(<IndicatorStrip />);
     fireEvent.click(await screen.findByRole("button", { name: "원/달러 차트 보기" }));
-    expect(await screen.findByText(/환율 차트\(봉\)가 없어/)).toBeInTheDocument();
+    const board = await screen.findByRole("dialog", { name: "주요 지수 차트" });
+    const fx = within(board).getByTestId("ind-tile-USDKRW");
+    expect(fx).toHaveClass("focus");
+    expect(within(fx).getByText(/환율 차트\(봉\)가 없어/)).toBeInTheDocument();
+    expect(within(fx).getByText("1,344.5원")).toBeInTheDocument();
   });
 });

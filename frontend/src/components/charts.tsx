@@ -14,6 +14,7 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import type { Bar, Currency, Marker } from "../api/types";
+import { koCrosshair, koTick, type ChartPeriod } from "../utils/chartTime";
 
 // 한국 시장 관례: 상승 빨강 / 하락 파랑
 const UP = "#f04452";
@@ -40,10 +41,17 @@ const fixedFormatter = (digits: number) => {
   return (p: number) => f.format(p);
 };
 
-function baseOptions(currency: Currency = "KRW") {
+/** 십자선 시각을 한국식으로 (기본값은 "22 6월 '26" 처럼 미국식) */
+const timeFormatter = (period: ChartPeriod) => (t: Time) => koCrosshair(t, period);
+
+function baseOptions(currency: Currency = "KRW", period: ChartPeriod = "day") {
   return {
     autoSize: true,
-    localization: { locale: "ko-KR", priceFormatter: priceFormatter(currency) },
+    localization: {
+      locale: "ko-KR",
+      priceFormatter: priceFormatter(currency),
+      timeFormatter: timeFormatter(period),
+    },
     layout: {
       background: { type: ColorType.Solid, color: "transparent" },
       textColor: cssVar("--text-dim", "#8b95a1"),
@@ -54,7 +62,7 @@ function baseOptions(currency: Currency = "KRW") {
       horzLines: { color: cssVar("--grid", "rgba(128,128,128,0.12)") },
     },
     rightPriceScale: { borderVisible: false },
-    timeScale: { borderVisible: false },
+    timeScale: { borderVisible: false, tickMarkFormatter: (t: Time, type: number) => koTick(t, type) },
   };
 }
 
@@ -95,6 +103,7 @@ export const CandleChart = memo(function CandleChart({
   markers,
   currency = "KRW",
   intraday = false,
+  period,
   digits,
 }: {
   bars: Bar[];
@@ -102,6 +111,8 @@ export const CandleChart = memo(function CandleChart({
   currency?: Currency;
   /** 분 단위 봉 — 가로축에 시각까지 (D-63) */
   intraday?: boolean;
+  /** 봉 하나의 기간 — 십자선 글자 (월봉이면 "2026년 6월"). 없으면 intraday 로 분/일 */
+  period?: ChartPeriod;
   /** 지수·금리처럼 통화가 아닌 값의 소수 자릿수 (주면 currency 대신) */
   digits?: number;
 }) {
@@ -147,10 +158,14 @@ export const CandleChart = memo(function CandleChart({
     };
   }, [currency, digits]);
 
-  // 분 단위 봉이면 가로축에 시:분까지
+  // 분 단위 봉이면 가로축에 시:분까지, 십자선은 봉 기간에 맞춰 (분: 시각까지, 주: "…일 주", 월: "…년 …월")
+  const shown: ChartPeriod = period ?? (intraday ? "min" : "day");
   useEffect(() => {
-    api.current?.chart.applyOptions({ timeScale: { timeVisible: intraday, secondsVisible: false } });
-  }, [intraday, currency, digits]);
+    api.current?.chart.applyOptions({
+      localization: { timeFormatter: timeFormatter(shown) },
+      timeScale: { timeVisible: intraday, secondsVisible: false },
+    });
+  }, [intraday, shown, currency, digits]);
 
   useEffect(() => {
     const a = api.current;
@@ -225,10 +240,8 @@ export const EquityChart = memo(function EquityChart({
 
   useEffect(() => {
     if (!ref.current || !hasData) return;
-    const chart = createChart(ref.current, {
-      ...baseOptions(currency),
-      timeScale: { timeVisible: true, borderVisible: false },
-    });
+    const opts = baseOptions(currency, "min");
+    const chart = createChart(ref.current, { ...opts, timeScale: { ...opts.timeScale, timeVisible: true } });
     const series = chart.addSeries(AreaSeries, {
       lineColor: cssVar("--accent", "#3182f6"),
       topColor: "rgba(49,130,246,0.35)",

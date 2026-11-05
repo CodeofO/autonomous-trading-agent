@@ -1,25 +1,75 @@
-import { useState, type ReactNode } from "react";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import type { ReactNode } from "react";
+import type { UseQueryResult } from "@tanstack/react-query";
 import { errorText } from "../api/client";
 import type { ChartData, ChartInterval, Currency } from "../api/types";
-import { readStore, writeStore } from "../market";
+import { periodOf } from "../utils/chartTime";
+import { CHART_INTERVALS, useChartData, useChartInterval } from "./chartData";
 import { CandleChart, ChartPlaceholder } from "./LazyCharts";
 
-/** 서버가 주기 전(첫 응답 전)에 보여 줄 봉 단위 버튼 — 서버 목록(backend app/market/chart.py)과 같다 */
-const CHART_INTERVALS: ChartInterval[] = [
-  { key: "1m", label: "1분", intraday: true, enabled: true },
-  { key: "5m", label: "5분", intraday: true, enabled: true },
-  { key: "15m", label: "15분", intraday: true, enabled: true },
-  { key: "30m", label: "30분", intraday: true, enabled: true },
-  { key: "60m", label: "1시간", intraday: true, enabled: true },
-  { key: "1d", label: "일", intraday: false, enabled: true },
-  { key: "1w", label: "주", intraday: false, enabled: true },
-  { key: "1M", label: "월", intraday: false, enabled: true },
-];
-const KEYS = new Set(CHART_INTERVALS.map((x) => x.key));
-/** 분봉은 30초, 일·주·월은 5분마다 다시 받는다 (장 밖에서도 시간외·데이마켓 봉이 생긴다) */
-const MINUTE_POLL_MS = 30_000;
-const DAILY_POLL_MS = 300_000;
+/** 봉 단위 버튼 줄 (1·5·15·30분·1시간 | 일·주·월) */
+export function IntervalPicker({
+  value,
+  onPick,
+  options = CHART_INTERVALS,
+  minutes = true,
+}: {
+  value: string;
+  onPick: (k: string) => void;
+  options?: ChartInterval[];
+  /** false 면 분 단위 버튼을 막는다 (국고채) */
+  minutes?: boolean;
+}) {
+  const shown = options.map((x) => ({ ...x, enabled: x.enabled && (minutes || !x.intraday) }));
+  return (
+    <div className="seg chart-intervals" role="group" aria-label="봉 단위">
+      {shown.map((x, i) => (
+        <button
+          key={x.key}
+          type="button"
+          className={`${x.key === value ? "active" : ""}${i > 0 && !x.intraday && shown[i - 1].intraday ? " gap" : ""}`}
+          aria-pressed={x.key === value}
+          disabled={!x.enabled}
+          onClick={() => onPick(x.key)}
+        >
+          {x.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** 받은 차트 데이터를 그린다 (받는 중이면 같은 크기 빈 자리, 실패면 사유) */
+export function ChartView({
+  q,
+  currency,
+  digits,
+}: {
+  q: UseQueryResult<ChartData>;
+  currency?: Currency;
+  digits?: number;
+}) {
+  const data = q.data;
+  if (data) {
+    return (
+      <div className={q.isPlaceholderData ? "chart-stale" : undefined}>
+        {data.bars.length > 0 ? (
+          <CandleChart
+            bars={data.bars}
+            markers={data.markers}
+            currency={currency}
+            digits={digits}
+            intraday={data.intraday}
+            period={periodOf(data.interval, data.intraday)}
+          />
+        ) : (
+          <p className="muted chart-empty">이 단위로는 아직 봉이 없어요 (거래가 없었던 시간일 수 있어요).</p>
+        )}
+      </div>
+    );
+  }
+  if (q.isError) return <p className="error chart-empty">차트를 불러오지 못했어요: {errorText(q.error)}</p>;
+  return <ChartPlaceholder />;
+}
 
 /**
  * 봉 단위를 고르는 차트 (D-63) — 증권사 차트처럼 1·5·15·30분·1시간, 일·주·월.
@@ -45,64 +95,12 @@ export function ChartPanel({
   minutes?: boolean;
   legend?: ReactNode;
 }) {
-  const [interval, setIntervalKey] = useState(() => {
-    const saved = readStore(storageKey);
-    const ok = saved && KEYS.has(saved) && (minutes || !saved.endsWith("m") || saved === "1M");
-    return ok ? saved : "1d";
-  });
-  const pick = (k: string) => {
-    setIntervalKey(k);
-    writeStore(storageKey, k);
-  };
-  const intraday = CHART_INTERVALS.find((x) => x.key === interval)?.intraday ?? false;
-  const q = useQuery({
-    queryKey: [...queryKey, "chart", interval],
-    queryFn: () => load(interval),
-    refetchInterval: intraday ? MINUTE_POLL_MS : DAILY_POLL_MS,
-    placeholderData: keepPreviousData, // 단위를 바꾸는 동안 이전 차트를 그대로 (자리가 출렁이지 않게)
-  });
-  const options = (q.data?.intervals ?? CHART_INTERVALS).map((x) => ({
-    ...x,
-    enabled: x.enabled && (minutes || !x.intraday),
-  }));
-  const data = q.data;
+  const [interval, pick] = useChartInterval(storageKey, minutes);
+  const q = useChartData(queryKey, load, interval);
   return (
     <div className="chart-panel">
-      <div className="seg chart-intervals" role="group" aria-label="봉 단위">
-        {options.map((x, i) => (
-          <button
-            key={x.key}
-            type="button"
-            className={`${x.key === interval ? "active" : ""}${i > 0 && !x.intraday && options[i - 1].intraday ? " gap" : ""}`}
-            aria-pressed={x.key === interval}
-            disabled={!x.enabled}
-            onClick={() => pick(x.key)}
-          >
-            {x.label}
-          </button>
-        ))}
-      </div>
-      {data ? (
-        <div className={q.isPlaceholderData ? "chart-stale" : undefined}>
-          {data.bars.length > 0 ? (
-            <CandleChart
-              bars={data.bars}
-              markers={data.markers}
-              currency={currency}
-              digits={digits}
-              intraday={data.intraday}
-            />
-          ) : (
-            <p className="muted chart-empty">
-              이 단위로는 아직 봉이 없어요 (거래가 없었던 시간일 수 있어요).
-            </p>
-          )}
-        </div>
-      ) : q.isError ? (
-        <p className="error chart-empty">차트를 불러오지 못했어요: {errorText(q.error)}</p>
-      ) : (
-        <ChartPlaceholder />
-      )}
+      <IntervalPicker value={interval} onPick={pick} options={q.data?.intervals} minutes={minutes} />
+      <ChartView q={q} currency={currency} digits={digits} />
       {legend}
     </div>
   );

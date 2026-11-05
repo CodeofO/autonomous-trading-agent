@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { get } from "../api/client";
 import type { ChartData, Indicator } from "../api/types";
 import { useMarketIndicators } from "../hooks";
-import { ChartPanel } from "./ChartPanel";
+import { ChartView, IntervalPicker } from "./ChartPanel";
+import { isIntraday, useChartData, useChartInterval } from "./chartData";
 import { Sheet } from "./Sheet";
 import { fmtDateTime, fmtIndicator, fmtIndicatorChange, indicatorDirection } from "../utils/format";
 import { AnimatedNumber } from "./AnimatedNumber";
@@ -20,10 +21,11 @@ const formatFor = (unit: string) => {
   return f;
 };
 
-/** 대시보드 맨 위 '주요 지표' 한 줄. 넓은 화면은 한 줄 격자, 휴대폰은 옆으로 넘겨 보는 줄 */
+/** 대시보드 맨 위 '주요 지표' 한 줄. 넓은 화면은 한 줄 격자, 휴대폰은 옆으로 넘겨 보는 줄. 누르면 지표 전부의 차트 창 */
 export function IndicatorStrip() {
   const { data, isPending } = useMarketIndicators();
-  const [open, setOpen] = useState<Indicator | null>(null);
+  // 누른 지표 키 (보드에서 그 칸을 강조) — 열려 있는 동안에도 값은 최신 목록으로 그린다
+  const [open, setOpen] = useState<string | null>(null);
 
   if (isPending) {
     return (
@@ -49,49 +51,104 @@ export function IndicatorStrip() {
           <IndicatorCard key={it.key} item={it} asOf={data.as_of} onOpen={setOpen} />
         ))}
       </section>
-      {open && <IndicatorChartSheet item={open} onClose={() => setOpen(null)} />}
+      {open && (
+        <IndicatorBoard items={data.items} asOf={data.as_of} focus={open} onClose={() => setOpen(null)} />
+      )}
     </>
   );
 }
 
-/** 지표 차트 (D-63): 지수·ETF 는 분·일·주·월, 국고채는 일·주·월. 환율은 Open API 에 봉이 없다 */
-function IndicatorChartSheet({ item, onClose }: { item: Indicator; onClose: () => void }) {
-  const fx = item.kind === "fx";
+/** 주요 지수 차트 창 (D-65): 지표 전부를 한 창에 크게 — 봉 단위는 위에서 한 번 골라 모두에 적용한다 */
+function IndicatorBoard({
+  items,
+  asOf,
+  focus,
+  onClose,
+}: {
+  items: Indicator[];
+  asOf: string;
+  focus: string;
+  onClose: () => void;
+}) {
+  const [interval, pick] = useChartInterval("chart.interval.indicator");
   return (
     <Sheet
-      label={`${item.name} 차트`}
+      size="wide"
+      label="주요 지수 차트"
       title={
         <span>
-          {item.name} {item.note && <small className="muted">{item.note}</small>}{" "}
-          <b className="num">{fmtIndicator(item.price, item.unit)}</b>{" "}
-          <small className={`ind-chg ${indicatorDirection(item) ?? ""}`}>{fmtIndicatorChange(item)}</small>
+          주요 지수 차트 <small className="muted">{fmtDateTime(asOf)} 기준</small>
         </span>
       }
       onClose={onClose}
-      className="ind-chart-sheet"
+      className="ind-board"
     >
-      {fx ? (
-        <p className="muted">토스증권 Open API 에 환율 차트(봉)가 없어 현재 환율만 보여 줘요.</p>
-      ) : (
-        <ChartPanel
-          queryKey={["indicator", item.key]}
-          load={(iv) => get<ChartData>(`/api/market/indicators/${item.key}/chart?interval=${iv}`)}
-          currency={item.kind === "etf" ? "USD" : undefined}
-          digits={item.kind === "bond" ? 3 : item.kind === "etf" ? undefined : 2}
-          minutes={item.kind !== "bond"}
-          storageKey="chart.interval.indicator"
-          legend={
-            item.kind === "etf" ? (
-              <p className="muted legend">
-                미국 지수는 토스 Open API 에 없어 지수를 따라가는 {item.note}로 보여 줘요.
-              </p>
-            ) : item.kind === "bond" ? (
-              <p className="muted legend">국고채 금리는 토스 Open API 가 일봉만 줘요.</p>
-            ) : undefined
-          }
-        />
-      )}
+      <IntervalPicker value={interval} onPick={pick} />
+      <ul className="ind-board-grid">
+        {items.map((it) => (
+          <IndicatorTile key={it.key} item={it} interval={interval} focused={it.key === focus} />
+        ))}
+      </ul>
     </Sheet>
+  );
+}
+
+const loadIndicatorChart = (key: string) => (iv: string) =>
+  get<ChartData>(`/api/market/indicators/${key}/chart?interval=${iv}`);
+
+/** 보드의 지표 한 칸: 이름·값·등락 + 차트 (환율은 봉이 없어 값만) */
+function IndicatorTile({ item, interval, focused }: { item: Indicator; interval: string; focused: boolean }) {
+  const ref = useRef<HTMLLIElement>(null);
+  // 누른 칸이 보이게 — 연 순간 한 번만 (봉 단위를 바꿀 때마다 끌려가지 않게)
+  const scrollOnOpen = useRef(focused);
+  useEffect(() => {
+    if (scrollOnOpen.current) ref.current?.scrollIntoView?.({ block: "nearest" });
+  }, []);
+  const failed = item.error || item.price == null;
+  const dir = failed ? null : indicatorDirection(item);
+  return (
+    <li ref={ref} className={`ind-tile${focused ? " focus" : ""}`} data-testid={`ind-tile-${item.key}`}>
+      <div className="ind-tile-head">
+        <span className="ind-tile-name">
+          <b>{item.name}</b>
+          {item.note && <small className="muted">{item.note}</small>}
+        </span>
+        <span className="ind-tile-price">
+          <b className={`num ${dir ?? ""}`}>{failed ? "—" : fmtIndicator(item.price, item.unit)}</b>
+          <small className={`ind-chg ${dir ?? ""}`}>{failed ? "" : fmtIndicatorChange(item)}</small>
+        </span>
+      </div>
+      {item.kind === "fx" ? (
+        <p className="muted ind-tile-none">
+          토스증권 Open API 에 환율 차트(봉)가 없어 현재 환율만 보여 줘요.
+        </p>
+      ) : (
+        <TileChart item={item} interval={interval} />
+      )}
+    </li>
+  );
+}
+
+function TileChart({ item, interval }: { item: Indicator; interval: string }) {
+  // 국고채는 Open API 가 일봉만 준다 — 분 단위를 골랐으면 일봉으로
+  const dailyOnly = item.kind === "bond";
+  const iv = dailyOnly && isIntraday(interval) ? "1d" : interval;
+  const q = useChartData(["indicator", item.key], loadIndicatorChart(item.key), iv, { slow: true });
+  const note =
+    item.kind === "etf"
+      ? `미국 지수는 토스 Open API 에 없어 지수를 따라가는 ${item.note ?? "ETF"}로 보여 줘요.`
+      : dailyOnly && iv !== interval
+        ? "국고채는 일봉만 있어요."
+        : null;
+  return (
+    <>
+      <ChartView
+        q={q}
+        currency={item.kind === "etf" ? "USD" : undefined}
+        digits={item.kind === "bond" ? 3 : item.kind === "etf" ? undefined : 2}
+      />
+      {note && <p className="muted legend">{note}</p>}
+    </>
   );
 }
 
@@ -102,7 +159,7 @@ function IndicatorCard({
 }: {
   item: Indicator;
   asOf: string;
-  onOpen: (it: Indicator) => void;
+  onOpen: (key: string) => void;
 }) {
   const failed = item.error || item.price == null;
   const dir = failed ? null : indicatorDirection(item);
@@ -121,7 +178,7 @@ function IndicatorCard({
       className={`ind-card${dir ? ` ${dir}` : ""}${failed ? " failed" : ""}`}
       title={`${title}\n(눌러서 차트 보기)`}
       aria-label={`${item.name} 차트 보기`}
-      onClick={() => onOpen(item)}
+      onClick={() => onOpen(item.key)}
     >
       <span className="ind-head">
         <span className="ind-name">{item.name}</span>
