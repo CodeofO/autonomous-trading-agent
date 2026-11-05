@@ -400,6 +400,8 @@ async def test_equity_snapshots_every_10_minutes_in_enabled_extended_session(tmp
     assert await step(17, 15, "sync") == 0
     assert await step(17, 20, "intraday") == 1
     assert await step(17, 31, "sync") == 1
-    # 애프터마켓이 끝나면(20:00) 다시 기록하지 않는다
+    # 애프터마켓이 끝나면(20:00) 그 마감 자산을 한 번 남기고, 그 뒤로는 기록하지 않는다
+    assert await step(20, 0, "intraday") == 1
+    assert await step(20, 1, "intraday") == 0
     assert await step(20, 10, "intraday") == 0
     assert await step(21, 0, "sync") == 0

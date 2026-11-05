@@ -288,8 +288,13 @@ class TradingEngine:
         await self.check_exits()
         if s is None:
             # 켠 장외 세션(데이·프리·애프터마켓)에서도 시세가 움직이고 주문이 체결된다 — 10분마다 기록해
-            # 자산 추이가 실시간 총자산과 어긋나지 않게 한다 (장외 세션이 끝난 뒤 몇 분은 감시만)
-            if now.minute % 10 == 0 and self.cal.extended_at(now) is not None:
+            # 자산 추이가 실시간 총자산과 어긋나지 않게 한다. 세션이 끝난 뒤 몇 분(감시만 하는 구간)에는
+            # 그 세션 마감 자산을 한 번 남긴다 (정규장 마감 기록과 같은 규칙, D-68)
+            assert ext is not None
+            if self.cal.extended_at(now) is not None:
+                if now.minute % 10 == 0:
+                    await self.snapshot_equity()
+            elif now >= ext.end and not self._has_snapshot(ext.end, now + timedelta(seconds=1)):
                 await self.snapshot_equity()
             return
         # 장중 10분마다 + 마감 뒤 첫 감시 때 한 번(그날 마감 자산)
