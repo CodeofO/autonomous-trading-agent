@@ -8,8 +8,11 @@ import type {
   MemoCardPatch,
   MemoCards,
   MemoKind,
+  MemoryTopic,
+  MemoryTopics,
   MemoSettings,
   StockSearchItem,
+  TopicPin,
 } from "../api/types";
 import { Loading } from "../components/Loading";
 import { Modal } from "../components/Modal";
@@ -23,15 +26,20 @@ import {
   groupCards,
   isExpiredOn,
   isLive,
+  LLM_LEVEL_LABEL,
   looksLikeCode,
   memoApi,
   memoPrefix,
   MEMO_KINDS,
   memoKind,
   presetOf,
+  shortDay,
   stockOptionText,
   todayKst,
+  topicPercent,
+  topicState,
 } from "../utils/memo";
+import "./memoTopics.css";
 
 /** 검색어를 다 친 뒤 이만큼 멈추면 찾는다(ms) */
 const SEARCH_DELAY = 250;
@@ -124,7 +132,7 @@ export function MemoPage() {
         })}
       </div>
 
-      <MemorySettingsCard settings={settings} />
+      <TopicMemoryCard settings={settings} />
     </div>
   );
 }
@@ -723,18 +731,30 @@ function MemoCardItem({
   );
 }
 
-// ---------- 기억 설정 ----------
-function MemorySettingsCard({ settings }: { settings: MemoSettings }) {
+// ---------- 대화에서 기억하기 (D-67) ----------
+const PIN_OPTIONS: { value: TopicPin; label: string; hint: string }[] = [
+  { value: "pin", label: "늘 기억", hint: "중요도와 관계없이 늘 기억에 넣어요" },
+  { value: "", label: "자동", hint: "되풀이한 날·매니저 판단으로 정해요" },
+  { value: "mute", label: "빼기", hint: "기억에 넣지 않아요" },
+];
+
+function TopicMemoryCard({ settings }: { settings: MemoSettings }) {
   const qc = useQueryClient();
   const m = useMemoScope();
+  const topicsKey = useMemo(() => [m.market, "memory-topics"], [m.market]);
+  const q = useQuery({ queryKey: topicsKey, queryFn: m.api.topics });
+  const related = () => invalidateNames(qc, ["agent-structure"], m.market);
+  const setTopics = (fn: (list: MemoryTopic[]) => MemoryTopic[]) =>
+    qc.setQueryData<MemoryTopics>(topicsKey, (old) => old && { ...old, topics: fn(old.topics) });
+
   const save = useMutation({
-    mutationFn: (on: boolean) => m.api.saveSettings({ use_recent_messages: on }),
+    mutationFn: (on: boolean) => m.api.saveSettings({ topics: on }),
     onMutate: async (on) => {
       await qc.cancelQueries({ queryKey: m.cardsKey });
       const prev = qc.getQueryData<MemoCards>(m.cardsKey)?.settings;
       qc.setQueryData<MemoCards>(
         m.cardsKey,
-        (old) => old && { ...old, settings: { ...old.settings, use_recent_messages: on } },
+        (old) => old && { ...old, settings: { ...old.settings, topics: on } },
       );
       return { prev };
     },
@@ -742,37 +762,170 @@ function MemorySettingsCard({ settings }: { settings: MemoSettings }) {
       const prev = ctx?.prev;
       if (prev) qc.setQueryData<MemoCards>(m.cardsKey, (old) => old && { ...old, settings: prev });
     },
-    onSuccess: (s) => {
-      qc.setQueryData<MemoCards>(m.cardsKey, (old) => old && { ...old, settings: { ...old.settings, ...s } });
-      toast(s.use_recent_messages ? "최근 대화도 기억에 넣어요 ✓" : "메모 카드만 기억에 넣어요 ✓");
+    onSuccess: (st) => {
+      qc.setQueryData<MemoCards>(
+        m.cardsKey,
+        (old) => old && { ...old, settings: { ...old.settings, ...st } },
+      );
+      qc.setQueryData<MemoryTopics>(topicsKey, (old) => old && { ...old, settings: st });
+      toast(
+        st.topics ? "대화에서 되풀이한 주제를 기억해요 ✓" : "대화 기억을 껐어요 — 메모 카드만 기억해요 ✓",
+      );
     },
-    onSettled: () => invalidateNames(qc, ["agent-structure"], m.market),
+    onSettled: related,
   });
-  const n = settings.recent_messages || 5;
+  const pin = useMutation({
+    mutationFn: ({ id, value }: { id: number; value: TopicPin }) => m.api.pinTopic(id, value),
+    onSuccess: (t) => setTopics((list) => list.map((x) => (x.id === t.id ? t : x))),
+    onSettled: related,
+  });
+  const remove = useMutation({
+    mutationFn: (id: number) => m.api.removeTopic(id),
+    onSuccess: (_r, id) => setTopics((list) => list.filter((x) => x.id !== id)),
+    onSettled: related,
+  });
+  const review = useMutation({
+    mutationFn: m.api.reviewTopics,
+    onSuccess: (d) => {
+      qc.setQueryData<MemoryTopics>(topicsKey, d);
+      const r = d.result;
+      toast(r?.skipped ? r.skipped : `메시지 ${r?.messages ?? 0}개를 정리했어요 ✓`);
+    },
+    onSettled: related,
+  });
+
+  const data = q.data;
+  const on = settings.topics;
+  const list = data?.topics ?? [];
+  const inCount = list.filter((t) => t.included).length;
+  const threshold = Math.round((settings.threshold ?? 0.35) * 100);
+  const err = save.error ?? pin.error ?? remove.error ?? review.error;
   return (
-    <section className="card memo-settings" aria-labelledby="memo-settings-title">
-      <h3 id="memo-settings-title">🧠 기억 설정</h3>
-      <label className="toggle memo-settings-toggle">
-        <input
-          type="checkbox"
-          role="switch"
-          className="switch"
-          checked={settings.use_recent_messages}
-          onChange={(e) => {
-            save.reset();
-            save.mutate(e.target.checked);
-          }}
-        />
-        <span>최근 대화 {n}개도 기억에 넣기 (예전 방식)</span>
-      </label>
+    <section className="card memo-settings topic-memory" aria-labelledby="memo-settings-title">
+      <div className="card-head">
+        <h3 id="memo-settings-title">🧠 대화에서 기억하기</h3>
+        <label className="toggle memo-settings-toggle">
+          <input
+            type="checkbox"
+            role="switch"
+            className="switch"
+            checked={on}
+            aria-label="대화에서 기억하기"
+            onChange={(e) => {
+              save.reset();
+              save.mutate(e.target.checked);
+            }}
+          />
+          <span>{on ? "켜짐" : "꺼짐"}</span>
+        </label>
+      </div>
       <p className="muted memo-settings-hint">
-        켜 두면 트레이딩 룸에 보낸 내 메시지 최근 {n}개도 날짜와 관계없이 기억에 들어가요. 끄면 예전에 한
-        말(예: '카카오')이 며칠 뒤 판단에 다시 끼어들지 않고, 메모 카드만 기억으로 들어가요.
+        트레이딩 룸에서 꺼낸 주제(종목·업종·테마·지시)를 주제별로 모아요. <b>여러 날 되풀이해 물으면</b>{" "}
+        중요도가 오르고 오래 기억하고, <b>한 번 묻고 만 주제</b>는 그날만 들어가고 며칠 안에 빠져요. 새
+        메시지가 있으면 판단 세션 전에 매니저가 주제마다 올리거나 내려요(LLM 1번). &apos;잊어줘&apos;라고 하면
+        다시 꺼낼 때까지 빼요.
       </p>
+      <div className="topic-bar">
+        <span className="muted" data-testid="topic-in-count">
+          지금 기억에 들어가는 주제 {inCount}개 · 중요도 {threshold} 이상, 최대 {settings.max_in_prompt ?? 8}
+          개
+        </span>
+        <button
+          type="button"
+          className="btn tiny"
+          disabled={!on || !data?.llm || review.isPending}
+          title={data && !data.llm ? "LLM 이 설정되지 않아 정리할 수 없어요" : "LLM 을 한 번 불러요"}
+          onClick={() => review.mutate()}
+        >
+          {review.isPending ? "정리 중…" : "지금 정리"}
+        </button>
+      </div>
+      {q.isError ? (
+        <p className="error">주제를 불러오지 못했어요: {errorText(q.error)}</p>
+      ) : !data ? (
+        <p className="muted">불러오는 중…</p>
+      ) : list.length === 0 ? (
+        <p className="muted memo-empty">
+          아직 정리된 주제가 없어요. 트레이딩 룸에서 이야기하면 다음 판단 세션 전에 정리돼요.
+        </p>
+      ) : (
+        <ul className="topic-list" aria-label="대화에서 모은 주제">
+          {list.map((t) => (
+            <TopicItem
+              key={t.id}
+              topic={t}
+              busy={pin.isPending || remove.isPending}
+              onPin={(value) => pin.mutate({ id: t.id, value })}
+              onRemove={() => remove.mutate(t.id)}
+            />
+          ))}
+        </ul>
+      )}
       <p className="memo-settings-hint">
         <Link to="/agent">에이전트 구조에서 매니저의 기억 보기 →</Link>
       </p>
-      <div aria-live="polite">{save.isError && <p className="error">{errorText(save.error)}</p>}</div>
+      <div aria-live="polite">{err && <p className="error">{errorText(err)}</p>}</div>
     </section>
+  );
+}
+
+function TopicItem({
+  topic: t,
+  busy,
+  onPin,
+  onRemove,
+}: {
+  topic: MemoryTopic;
+  busy: boolean;
+  onPin: (v: TopicPin) => void;
+  onRemove: () => void;
+}) {
+  const st = topicState(t);
+  const pct = topicPercent(t.score);
+  const quote = t.quotes.length ? t.quotes[t.quotes.length - 1].text : "";
+  return (
+    <li className={`topic-item ${st.tone}`} data-testid={`topic-${t.key}`}>
+      <div className="topic-head">
+        <b className="topic-label">{t.label}</b>
+        <span className={`pill topic-state ${st.tone}`}>{st.label}</span>
+        <span className="topic-score" aria-label={`중요도 ${pct}`}>
+          <span className="topic-meter" aria-hidden>
+            <i style={{ width: `${pct}%` }} />
+          </span>
+          <small className="num">{pct}</small>
+        </span>
+      </div>
+      <small className="muted topic-meta">
+        {t.days}일 언급{t.streak > 1 ? ` · 연달아 ${t.streak}일` : ""} · 마지막 {shortDay(t.last_day)} ·
+        메시지 {t.mentions}개
+      </small>
+      {t.llm_reason && (
+        <small className="topic-reason">
+          매니저 {LLM_LEVEL_LABEL[t.llm_level] ?? "유지"}
+          {t.forgotten ? " · 잊음" : ""} — {t.llm_reason}
+        </small>
+      )}
+      {quote && <q className="topic-quote">{quote}</q>}
+      <div className="topic-actions">
+        <div className="seg" role="group" aria-label={`${t.label} 기억 방식`}>
+          {PIN_OPTIONS.map((o) => (
+            <button
+              key={o.value || "auto"}
+              type="button"
+              className={t.pin === o.value ? "active" : ""}
+              aria-pressed={t.pin === o.value}
+              title={o.hint}
+              disabled={busy}
+              onClick={() => onPin(o.value)}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+        <button type="button" className="btn tiny ghost memo-del" disabled={busy} onClick={onRemove}>
+          지우기
+        </button>
+      </div>
+    </li>
   );
 }

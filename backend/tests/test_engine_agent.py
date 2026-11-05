@@ -268,7 +268,8 @@ async def test_chat_answer_and_memo(tmp_path: Path) -> None:
     chat = _chat(c)
     assert chat[-2].role == "user" and chat[-1].role == "analyst" and "관망" in chat[-1].content
     assert "요즘 왜 아무것도 안 사?" in json.loads(route.calls[0].request.content)["messages"][1]["content"]
-    assert "요즘 왜 아무것도 안 사?" in c.runner._memory()
+    # D-67: 보낸 말이 그대로 기억에 들어가지 않는다 — 판단 전 정리(LLM)를 거쳐 되풀이한 주제만 남는다
+    assert "요즘 왜 아무것도 안 사?" not in c.runner._memory()
 
 
 async def test_chat_without_llm(tmp_path: Path) -> None:

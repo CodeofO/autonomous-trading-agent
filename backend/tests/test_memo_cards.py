@@ -1,4 +1,4 @@
-"""메모 카드 (D-52): 만들기·검증·중복·만료·관심종목 연동·기억 설정·프롬프트 반영, 국장·미장 분리, 종목 검색."""
+"""메모 카드 (D-52): 만들기·검증·중복·만료·관심종목 연동·기억 설정(D-67)·프롬프트 반영, 국장·미장 분리, 종목 검색."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ def test_create_validate_and_list_cards(tmp_path: Path) -> None:
         empty = c.get("/api/memory/cards").json()
         assert empty == {
             "cards": [],
-            "settings": {"use_recent_messages": True, "recent_messages": 5},
+            "settings": {"topics": True, "threshold": 0.35, "max_in_prompt": 8},
             "today": "2026-11-04",
         }
         w = c.post("/api/memory/cards", json={"kind": "watch", "symbol": "005930", "expires_on": None})
@@ -138,7 +138,7 @@ def test_patch_delete_duplicates_and_expiry(tmp_path: Path) -> None:
         assert any(m.startswith("메모 카드 변경: 주목할 종목 삼성전자") for m in ev)
 
 
-def test_prompt_memory_and_recent_messages_setting(tmp_path: Path) -> None:
+def test_prompt_memory_cards_and_topics_setting(tmp_path: Path) -> None:
     with _client(tmp_path, NOW, auth_enabled=False) as c:
         runner = c.app.state.container.runner  # type: ignore[attr-defined]
         c.post("/api/chat", json={"message": "카카오 계속 지켜봐 줘"})
@@ -155,29 +155,28 @@ def test_prompt_memory_and_recent_messages_setting(tmp_path: Path) -> None:
             "피할 종목(매수하지 말 것",
             "- 에코프로비엠(247540)",
             "운용 지시:\n- 현금 30% 이상 유지",
-            "최근 대화 메모",
-            "카카오 계속 지켜봐 줘",
         ):
             assert part in mem, part
-        # 순서: 카드 → 최근 판단 기록 → 최근 대화 메모
-        assert mem.index("관심 종목") < mem.index("피할 종목") < mem.index("운용 지시")
-        assert mem.index("운용 지시") < mem.index("최근 판단 기록") < mem.index("최근 대화 메모")
+        # 예전 '최근 대화 5개'는 없어졌다 — 보낸 말은 정리(D-67)를 거쳐 주제로만 들어간다
+        assert "최근 대화 메모" not in mem and "카카오" not in mem
+        assert (
+            mem.index("관심 종목")
+            < mem.index("피할 종목")
+            < mem.index("운용 지시")
+            < mem.index("최근 판단 기록")
+        )
         assert "BUY" in mem[mem.index("피할 종목") :].split("\n")[0]  # 매수 금지를 프롬프트로 분명히
         assert "피할 종목" in runner._system()  # 시스템 프롬프트에도 규칙
 
-        r = c.put("/api/memory/settings", json={"use_recent_messages": False})
-        assert r.json() == {"use_recent_messages": False, "recent_messages": 5}
-        assert c.get("/api/memory/cards").json()["settings"]["use_recent_messages"] is False
-        mem = runner._memory()
-        assert "최근 대화 메모" not in mem and "카카오" not in mem and "SK하이닉스" in mem
+        r = c.put("/api/memory/settings", json={"topics": False})
+        assert r.json() == {"topics": False, "threshold": 0.35, "max_in_prompt": 8}
+        assert c.get("/api/memory/cards").json()["settings"]["topics"] is False
         st = c.get("/api/agent/structure").json()["memory"]
-        assert st["memos"] == [] and st["use_recent_messages"] is False
-        rule = next(x for x in st["rules"] if x["name"] == "투자자 메모")
-        assert "끌 수 있다" in rule["detail"] and "지금 꺼짐" in rule["detail"]
+        assert st["topics"] == [] and st["use_topics"] is False
+        rule = next(x for x in st["rules"] if x["name"] == "대화에서 되풀이한 관심사")
+        assert "되풀이" in rule["detail"] and "지금 꺼짐" in rule["detail"]
         assert st["rules"][0]["name"] == "메모 카드"
-        assert any("최근 대화 메모 끔" in e["message"] for e in c.get("/api/events?type=CONFIG").json())
-        c.put("/api/memory/settings", json={"use_recent_messages": True})
-        assert "카카오" in runner._memory()
+        assert any("대화에서 기억하기 끔" in e["message"] for e in c.get("/api/events?type=CONFIG").json())
 
 
 def test_memo_cards_are_per_market(tmp_path: Path) -> None:
@@ -197,8 +196,8 @@ def test_memo_cards_are_per_market(tmp_path: Path) -> None:
         assert [x["symbol"] for x in us["cards"]] == ["NVDA"] and [x["kind"] for x in kr["cards"]] == ["note"]
         assert us["today"] == "2026-11-03"  # 미장 만료 기준 = 뉴욕 날짜 (한국 11/04 10:00 = 뉴욕 11/03 21:00)
         # 설정도 스택마다
-        c.put("/api/us/memory/settings", json={"use_recent_messages": False})
-        assert c.get("/api/memory/cards").json()["settings"]["use_recent_messages"] is True
+        c.put("/api/us/memory/settings", json={"topics": False})
+        assert c.get("/api/memory/cards").json()["settings"]["topics"] is True
         us_runner = c.app.state.containers["US"].runner  # type: ignore[attr-defined]
         assert "엔비디아(NVDA)" in us_runner._memory()
         assert "국장 지시" not in us_runner._memory()
@@ -248,6 +247,20 @@ def test_migration_0003_creates_memory_cards_on_both_dbs(tmp_path: Path) -> None
         eng = create_engine(f"sqlite:///{tmp_path / name}")
         assert "memory_cards" in inspect(eng).get_table_names()
         with eng.connect() as con:
-            assert con.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0006"
+            assert con.execute(text("SELECT version_num FROM alembic_version")).scalar() == _head()
             assert con.execute(text("SELECT count(*) FROM memory_cards")).scalar() == 1
         eng.dispose()
+
+
+def _head() -> str:
+    """마이그레이션 최신 번호 (새 마이그레이션이 생길 때마다 이 테스트를 고치지 않게)."""
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    from app.core.config import BACKEND_DIR
+
+    cfg = Config(str(Path(BACKEND_DIR) / "alembic.ini"))
+    cfg.set_main_option("script_location", str(Path(BACKEND_DIR) / "app" / "db" / "migrations"))
+    head = ScriptDirectory.from_config(cfg).get_current_head()
+    assert head is not None
+    return head

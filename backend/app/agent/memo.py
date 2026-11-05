@@ -2,7 +2,7 @@
 
 예전에는 트레이딩 룸에 보낸 사용자 메시지 최근 5개가 날짜와 관계없이 '투자자 메모'로 들어가, 며칠 전 한 말이 계속
 판단에 끼어들었다. 이제는 사용자가 카드(관심·주목·피할 종목, 운용 지시)를 만들고 켜고 끄고 만료일을 정한다.
-켜져 있고 만료되지 않은 카드만 판단·답장 프롬프트에 들어간다. 최근 대화 메모는 설정(kv `memory_settings`)으로 끌 수 있다.
+켜져 있고 만료되지 않은 카드만 판단·답장 프롬프트에 들어간다. 대화에서 저절로 자라는 기억은 app/agent/topics.py (D-67).
 카드는 시장 스택마다 따로(각 DB) 있다.
 """
 
@@ -15,14 +15,11 @@ from sqlalchemy import or_, select
 
 from app.db.models import MemoryCard
 from app.db.session import Database
-from app.engine.settings_store import SettingsStore
 
 KINDS: tuple[str, ...] = ("watch", "focus", "avoid", "note")  # 정렬 순서이기도 하다
 STOCK_KINDS: frozenset[str] = frozenset({"watch", "focus", "avoid"})
 KIND_LABEL = {"watch": "관심 종목", "focus": "주목할 종목", "avoid": "피할 종목", "note": "운용 지시"}
 MAX_TEXT = 500
-SETTINGS_KEY = "memory_settings"
-RECENT_MESSAGES = 5  # 최근 대화 메모 개수 (AgentRunner.MEMORY_MEMOS 와 같다)
 
 # 프롬프트 섹션 제목 — 피할 종목은 프롬프트로 부드럽게 막는다(리스크 엔진이 최종 방어선, 리스크 규칙은 그대로)
 PROMPT_SECTIONS = {
@@ -31,20 +28,6 @@ PROMPT_SECTIONS = {
     "avoid": "피할 종목(매수하지 말 것 — BUY 금지, 이미 보유 중이면 HOLD 또는 SELL 만)",
     "note": "운용 지시",
 }
-
-
-def memory_settings(kv: SettingsStore) -> dict[str, Any]:
-    """기억 설정. use_recent_messages 기본 true (예전 동작 그대로 — 화면에서 끌 수 있다)."""
-    raw = kv.get(SETTINGS_KEY)
-    return {
-        "use_recent_messages": bool(raw.get("use_recent_messages", True)),
-        "recent_messages": RECENT_MESSAGES,
-    }
-
-
-def set_memory_settings(kv: SettingsStore, use_recent_messages: bool) -> dict[str, Any]:
-    kv.set(SETTINGS_KEY, {"use_recent_messages": use_recent_messages})
-    return memory_settings(kv)
 
 
 def kind_order(kind: str) -> int:

@@ -30,14 +30,14 @@ const FILL = T(["orders", "fills", "portfolio", "equity", "decisions", "candles"
 // 매니저 결정: 결정 기록, 종목 차트의 AI 결정 표시
 const DECISION = T(["decisions", "candles"]);
 // 세션 정리: 세션 목록(요약·상태), 결정, 매니저의 기억(구조 화면), 한눈에 보기의 마지막 세션
-const SESSION_DONE = T(["runs", "decisions", "agent-structure"], ["overview"]);
+const SESSION_DONE = T(["runs", "decisions", "agent-structure", "memory-topics"], ["overview"]);
 // 마감 리포트 (시스템): 자산 추이·계좌
 const DAILY_REPORT = T(["equity", "portfolio", "runs"], ["overview"]);
 // 세션 시작·실패 안내 (시스템, run_id 있음)
 const SESSION_NOTE = T(["runs"], ["overview"]);
 // 그 밖의 시스템 안내 — 엔진 정지·재개, LLM·일정·데이터 소스 변경, 재시작처럼 드물고 여러 화면에 걸친 일
 const SYSTEM_NOTE = T(["*"], ["overview", "markets", "llm-profile", "llm-costs", "schedule"]);
-// 내가 보낸 메시지 — 매니저의 최근 대화 메모(구조 화면)
+// 내가 보낸 메시지 — 구조 화면 (대화 기억 주제는 판단 세션 전에 정리되므로 세션이 끝날 때 다시 받는다)
 const USER_NOTE = T(["agent-structure"]);
 
 /** 채팅 한 줄 → 다시 받을 캐시 (없으면 null: 매니저 생각·도구 기록·리스크 안내 등은 화면 데이터가 바뀌지 않는다) */

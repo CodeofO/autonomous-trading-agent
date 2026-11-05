@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from app.agent import memo
+from app.agent import topics
 from app.agent.activity import TOOL_GROUPS
 from app.agent.prompts import DEFAULT_PERSONA, DEFAULT_POLICY, US_DEFAULT_POLICY
 from app.agent.tools import openai_tools
@@ -175,11 +175,13 @@ def agent_structure(c: C, _: U) -> dict[str, Any]:
                     "detail": f"완료된 세션 최근 {c.runner.MEMORY_RUNS}개의 요약(160자)과 사고판 종목",
                 },
                 {
-                    "name": "투자자 메모",
+                    "name": "대화에서 되풀이한 관심사",
                     "where": "판단 세션·답장",
-                    "detail": f"트레이딩 룸에 보낸 내 메시지 최근 {c.runner.MEMORY_MEMOS}개(200자). 날짜와 관계없이 "
-                    "새 메시지가 쌓여야 밀려난다 — 어제 한 말이 오늘도 들어가는 이유. 메모 화면의 '기억 설정'에서 끌 수 있다 "
-                    + ("(지금 켜짐)" if memo.memory_settings(c.kv)["use_recent_messages"] else "(지금 꺼짐)"),
+                    "detail": "트레이딩 룸에서 꺼낸 주제(종목·업종·테마·지시)를 주제별로 모은다. 여러 날 되풀이해 물으면 "
+                    "중요도가 오르고 오래 남고, 한 번 묻고 만 주제는 그날만 들어가고 며칠 안에 빠진다. 새 메시지가 있으면 "
+                    "판단 세션 전에 매니저가 주제마다 올림·유지·내림·잊기를 정한다(LLM 1번). 중요도 "
+                    f"{topics.THRESHOLD} 이상·최대 {topics.MAX_IN_PROMPT}개, 메모 화면에서 늘 기억·빼기 "
+                    + ("(지금 켜짐)" if topics.enabled(c.kv) else "(지금 꺼짐)"),
                 },
                 {
                     "name": "오늘 대화",

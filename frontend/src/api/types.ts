@@ -372,9 +372,10 @@ export interface AgentMemory {
   rules: { name: string; where: string; detail: string }[];
   /** at: 서버가 한국 시각 "MM/DD HH:MM" 으로 준다 */
   sessions: { run_id: number; at: string; summary: string; actions: string }[];
-  memos: { id: number; at: string; text: string }[];
-  /** 최근 대화 메모를 기억에 넣는지 (메모 화면 '기억 설정') — 예전 서버에는 없다 */
-  use_recent_messages?: boolean;
+  /** 대화에서 되풀이한 관심사 중 지금 들어가는 것 (D-67) — 예전 서버에는 없다 */
+  topics?: MemoryTopic[];
+  /** 대화에서 기억하기를 켰는지 (메모 화면 '대화에서 기억하기') — 예전 서버에는 없다 */
+  use_topics?: boolean;
   /** 지금 켜져 있는(만료 안 된) 메모 카드 — 예전 서버에는 없다 */
   cards?: { kind: MemoKind; symbol: string | null; name: string | null; text: string }[];
 }
@@ -561,9 +562,51 @@ export interface MemoCard {
 }
 
 export interface MemoSettings {
-  /** 트레이딩 룸 최근 대화도 기억에 넣을지 (예전 방식) */
-  use_recent_messages: boolean;
-  recent_messages: number;
+  /** 대화에서 기억하기 (D-67): 되풀이한 주제를 저절로 기억 */
+  topics: boolean;
+  /** 이 중요도 이상이면 판단·답장 기억에 들어간다 */
+  threshold: number;
+  max_in_prompt: number;
+}
+
+// ---------- 대화에서 자라는 기억 (GET /api/memory/topics, PATCH·DELETE /api/memory/topics/{id}) ----------
+/** '' 자동 · pin 늘 기억 · mute 빼기 */
+export type TopicPin = "" | "pin" | "mute";
+
+export interface MemoryTopic {
+  id: number;
+  key: string;
+  label: string;
+  symbol: string | null;
+  /** 0~1 — 오늘 날짜로 다시 계산한 중요도 */
+  score: number;
+  /** 지금 판단·답장 기억에 들어가는지 */
+  included: boolean;
+  pin: TopicPin;
+  /** 최근 21일 중 언급한 날 수 */
+  days: number;
+  /** 마지막 언급 날부터 연달아 언급한 날 수 */
+  streak: number;
+  mentions: number;
+  /** "YYYY-MM-DD" (시장 날짜) */
+  last_day: string | null;
+  quotes: { id: number; at: string; text: string }[];
+  /** 매니저 판단: 1 올림 · 0 유지 · -1 내림 */
+  llm_level: number;
+  llm_reason: string;
+  /** '잊어줘' — 다시 꺼낼 때까지 0 */
+  forgotten: boolean;
+}
+
+export interface MemoryTopics {
+  topics: MemoryTopic[];
+  settings: MemoSettings;
+  review: { last_msg_id: number; at: string | null; fails: number };
+  /** LLM 이 설정돼 있는지 (없으면 정리 못 함) */
+  llm: boolean;
+  today: string;
+  /** POST /review 결과 */
+  result?: { messages: number; mentioned: number; created: number; adjusted: number; skipped?: string };
 }
 
 export interface MemoCards {

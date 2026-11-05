@@ -99,15 +99,15 @@ def test_agent_structure(client: TestClient) -> None:
     assert [r["name"] for r in mem["rules"]] == [
         "메모 카드",  # D-52: 사용자가 관리하는 카드가 맨 앞
         "최근 판단 세션",
-        "투자자 메모",
+        "대화에서 되풀이한 관심사",  # D-67: '최근 대화 5개'를 바꾼 것
         "오늘 대화",
         "계좌·매매 내역",
     ]
-    assert mem["sessions"] == [] and mem["memos"] == [] and mem["cards"] == []
-    assert mem["use_recent_messages"] is True  # 기본은 예전처럼 최근 대화도 기억
+    assert mem["sessions"] == [] and mem["topics"] == [] and mem["cards"] == []
+    assert mem["use_topics"] is True  # 기본 켬
     client.post("/api/chat", headers=h, json={"message": "카카오 계속 지켜봐 줘"})
-    memos = client.get("/api/agent/structure", headers=h).json()["memory"]["memos"]
-    assert [m["text"] for m in memos] == ["카카오 계속 지켜봐 줘"]
+    topics = client.get("/api/agent/structure", headers=h).json()["memory"]["topics"]
+    assert topics == []  # 보낸 말은 판단 전에 정리(LLM)를 거쳐야 주제가 된다 — 규칙 모드는 정리하지 않는다
 
 
 def test_agent_run_orders_cancel_kill(client: TestClient) -> None:

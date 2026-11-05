@@ -46,7 +46,7 @@ export function AgentPage() {
   const openKst = info?.session ? fmtHm(info.session.open) : api.market === "KR" ? "09:00" : null;
   const pre = openKst ? times.filter((t) => isPreOpen(t, openKst)) : sc.times ? [] : [sc.morning];
   const sessions = times.filter((t) => !pre.includes(t));
-  const recentOn = st.memory?.use_recent_messages !== false;
+  const topicsOn = st.memory?.use_topics !== false;
   const llmMode = llm.mode === "rules";
   const terminal = st.tools.find((t) => t.group === "decision");
   const live = st.trading_mode === "live";
@@ -107,7 +107,9 @@ export function AgentPage() {
               <ul className="wf-list">
                 <li>운용 정책·페르소나 (설정에서 수정)</li>
                 <li>
-                  {recentOn ? "최근 판단 3건과 투자자 메모 5건" : "최근 판단 3건 (투자자 메모는 꺼 둠)"}
+                  {topicsOn
+                    ? "최근 판단 3건과 대화에서 되풀이한 관심사"
+                    : "최근 판단 3건 (대화 기억은 꺼 둠)"}
                 </li>
                 <li>현재 시각과 세션 종류</li>
               </ul>
@@ -310,7 +312,7 @@ export function AgentPage() {
 
 /** 매니저가 판단·답장 때 DB 에서 다시 읽어 넣는 '기억' — 규칙과 지금 들어가는 내용 */
 function MemoryCard({ memory }: { memory: AgentMemory }) {
-  const { rules = [], sessions = [], memos = [], cards } = memory;
+  const { rules = [], sessions = [], topics = [], cards } = memory;
   return (
     <section className="card memory-card" aria-labelledby="memory-title">
       <div className="card-head">
@@ -388,29 +390,33 @@ function MemoryCard({ memory }: { memory: AgentMemory }) {
           )}
         </div>
         <div className="mem-col">
-          <h4>투자자 메모</h4>
-          {/* 메모 화면 '기억 설정'에서 끄면 매니저는 최근 대화 메모를 받지 않는다 — 그때는 경고 대신 꺼져 있다고만 */}
-          {memory.use_recent_messages === false ? (
-            <p className="muted mem-note" data-testid="memos-off">
-              최근 대화 메모는 꺼 두었어요 — 매니저가 판단·답장 때 받지 않아요.{" "}
-              <Link to="/memo">기억 설정 →</Link>
+          <h4>대화에서 되풀이한 관심사</h4>
+          {/* 메모 화면 '대화에서 기억하기'에서 끄면 매니저는 주제를 받지 않는다 */}
+          {memory.use_topics === false ? (
+            <p className="muted mem-note" data-testid="topics-off">
+              대화 기억은 꺼 두었어요 — 매니저가 판단·답장 때 받지 않아요.{" "}
+              <Link to="/memo">대화에서 기억하기 →</Link>
             </p>
           ) : (
-            <p className="push-note warn mem-note">
-              트레이딩 룸에 보낸 내 메시지 중 <b>날짜와 관계없이 최근 5개</b>예요. 새 메시지가 쌓여야
-              밀려나서, 예전에 한 말(예: '카카오')이 며칠 뒤 판단에도 계속 들어갈 수 있어요.
+            <p className="muted mem-note">
+              여러 날 되풀이해 물은 주제는 오래, 한 번 물은 주제는 그날만 들어가요.{" "}
+              <Link to="/memo">주제 보기·고정 →</Link>
             </p>
           )}
-          {memos.length === 0 ? (
-            <p className="muted mem-empty">아직 보낸 메시지가 없어요.</p>
+          {topics.length === 0 ? (
+            <p className="muted mem-empty">지금 기억에 들어가는 주제가 없어요.</p>
           ) : (
-            <ul className="mem-list" aria-label="투자자 메모">
-              {memos.map((m) => (
-                <li key={m.id}>
+            <ul className="mem-list" aria-label="대화에서 되풀이한 관심사">
+              {topics.map((t) => (
+                <li key={t.id}>
                   <div className="mem-meta">
-                    <small className="muted">{m.at}</small>
+                    <b>{t.label}</b>{" "}
+                    <small className="muted">
+                      중요도 {Math.round(t.score * 100)} · {t.days}일 언급
+                      {t.pin === "pin" ? " · 늘 기억" : ""}
+                    </small>
                   </div>
-                  <p>{m.text}</p>
+                  {t.quotes.length > 0 && <p>{t.quotes[t.quotes.length - 1].text}</p>}
                 </li>
               ))}
             </ul>

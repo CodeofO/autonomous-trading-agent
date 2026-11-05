@@ -259,6 +259,33 @@ class MemoryCard(Base):
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
 
+class MemoryTopic(Base):
+    """대화에서 자라는 기억 (D-67): 투자자가 트레이딩 룸에서 꺼낸 주제 하나 — 종목·업종·테마·운용 지시.
+
+    중요도는 저장하지 않고 읽을 때 날짜로 다시 계산한다(app/agent/topics.py): 여러 날 되풀이하면 오르고,
+    오래 안 꺼내면 줄고, 매니저(LLM)가 새 메시지를 볼 때 올림/유지/내림/잊기로 고친다.
+    """
+
+    __tablename__ = "memory_topics"
+    __table_args__ = (UniqueConstraint("key", name="uq_memory_topics_key"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    key: Mapped[str] = mapped_column(String(80))  # sym:<종목코드> | t:<정규화한 이름>
+    label: Mapped[str] = mapped_column(String(80))
+    symbol: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # 언급한 시장 현지 날짜 "YYYY-MM-DD" (최근 30일)
+    days: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    mentions: Mapped[int] = mapped_column(Integer, default=0)  # 언급한 메시지 수
+    quotes: Mapped[list[Any]] = mapped_column(JSON, default=list)  # 최근 인용 3개 {id, at, text}
+    first_seen: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+    last_seen: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+    llm_level: Mapped[int] = mapped_column(Integer, default=0)  # 매니저 판단: 1 올림 · 0 유지 · -1 내림
+    llm_reason: Mapped[str] = mapped_column(Text, default="")
+    llm_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    # '잊어줘' — 이후 다시 꺼낼 때까지 중요도 0
+    forgot_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    pin: Mapped[str] = mapped_column(String(8), default="")  # '' 자동 | pin 늘 기억 | mute 빼기
+
+
 class LlmUsage(Base):
     """LLM 호출 1회(또는 예전 세션 합계)의 토큰 사용량과 실제 요금 — 요금 장부 (D-41, D-66).
 

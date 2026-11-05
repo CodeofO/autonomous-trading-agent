@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { MemoCard, MemoCardCreate, StockSearchItem } from "../api/types";
+import type { MemoCard, MemoCardCreate, MemoryTopic, StockSearchItem } from "../api/types";
 import { MemoPage } from "../pages/Memo";
 import {
   addDays,
@@ -54,12 +54,61 @@ const STOCKS: StockSearchItem[] = [
 
 type Method = "POST" | "PATCH" | "DELETE" | "PUT";
 
+const topic = (over: Partial<MemoryTopic> & Pick<MemoryTopic, "id" | "key" | "label">): MemoryTopic => ({
+  symbol: null,
+  score: 0.52,
+  included: true,
+  pin: "",
+  days: 2,
+  streak: 2,
+  mentions: 2,
+  last_day: "2026-11-04",
+  quotes: [{ id: 9, at: "2026-11-04T08:00:00+09:00", text: "카카오 오늘은 어때?" }],
+  llm_level: 1,
+  llm_reason: "이틀 연달아 물어봄",
+  forgotten: false,
+  ...over,
+});
+
+const TOPICS: MemoryTopic[] = [
+  topic({ id: 1, key: "sym:035720", label: "카카오(035720)", symbol: "035720" }),
+  topic({
+    id: 2,
+    key: "t:반도체",
+    label: "반도체",
+    score: 0.2,
+    included: false,
+    days: 1,
+    streak: 1,
+    mentions: 1,
+    last_day: "2026-11-02",
+    llm_level: -1,
+    llm_reason: "한 번 묻고 끝",
+    quotes: [],
+  }),
+];
+
 /** 메모 카드 API 를 흉내 내는 작은 서버 (요청에 따라 상태가 바뀐다) */
 function memoServer(
-  opts: { fail?: Partial<Record<Method, () => Response>>; gate?: Promise<void>; cards?: MemoCard[] } = {},
+  opts: {
+    fail?: Partial<Record<Method, () => Response>>;
+    gate?: Promise<void>;
+    cards?: MemoCard[];
+    topics?: MemoryTopic[];
+    llm?: boolean;
+  } = {},
 ) {
   let cards = [...(opts.cards ?? CARDS)];
-  let settings = { use_recent_messages: true, recent_messages: 5 };
+  let topics = [...(opts.topics ?? TOPICS)];
+  let settings = { topics: true, threshold: 0.35, max_in_prompt: 8 };
+  const topicsBody = (result?: object) => ({
+    topics,
+    settings,
+    review: { last_msg_id: 9, at: null, fails: 0 },
+    llm: opts.llm ?? true,
+    today: "2026-11-04",
+    ...(result ? { result } : {}),
+  });
   let nextId = 100;
   const fetchMock = mockFetch({
     "/api/memory/cards": async (url: string, init?: RequestInit) => {
@@ -101,6 +150,24 @@ function memoServer(
       if (failure) return failure();
       settings = { ...settings, ...JSON.parse(String(init?.body)) };
       return settings;
+    },
+    "/api/memory/topics": (url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      if (method === "GET") return topicsBody();
+      if (url.endsWith("/review")) {
+        topics = topics.map((t) => (t.id === 2 ? { ...t, score: 0.4, included: true } : t));
+        return topicsBody({ messages: 3, mentioned: 1, created: 0, adjusted: 1, dropped: 0 });
+      }
+      const id = Number(url.split("/").pop());
+      if (method === "DELETE") {
+        topics = topics.filter((t) => t.id !== id);
+        return new Response(null, { status: 204 });
+      }
+      const { pin } = JSON.parse(String(init?.body));
+      topics = topics.map((t) =>
+        t.id === id ? { ...t, pin, included: pin === "pin" || (pin === "" && t.score >= 0.35) } : t,
+      );
+      return topics.find((t) => t.id === id);
     },
     "/api/market/search": (url: string) => {
       const q = new URL(url, "http://test").searchParams.get("q") ?? "";
@@ -373,30 +440,79 @@ describe("메모 카드 추가", () => {
   });
 });
 
-describe("기억 설정", () => {
-  it("'최근 대화 5개도 기억에 넣기'를 끄면 PUT 으로 보낸다", async () => {
-    const { sent } = memoServer();
+describe("대화에서 기억하기 (D-67)", () => {
+  const topicCard = () => screen.findByRole("region", { name: "🧠 대화에서 기억하기" });
+
+  it("주제마다 중요도·언급한 날·매니저 판단과 이유·최근 인용을 보여 준다", async () => {
+    memoServer();
     renderWithProviders(<MemoPage />);
-    await loaded();
-    const sw = screen.getByRole("switch", { name: "최근 대화 5개도 기억에 넣기 (예전 방식)" });
-    expect(sw).toBeChecked();
-    expect(
-      screen.getByText(/예전에 한 말\(예: '카카오'\)이 며칠 뒤 판단에 다시 끼어들지 않고/),
-    ).toBeInTheDocument();
-    fireEvent.click(sw);
-    await waitFor(() => expect(sent("PUT")).toHaveLength(1));
-    expect(sent("PUT")[0]).toEqual({ url: "/api/memory/settings", body: { use_recent_messages: false } });
-    expect(sw).not.toBeChecked();
+    const card = await topicCard();
+    const kakao = await within(card).findByTestId("topic-sym:035720");
+    expect(kakao).toHaveTextContent("카카오(035720)");
+    expect(kakao).toHaveTextContent("기억 중");
+    expect(within(kakao).getByLabelText("중요도 52")).toBeInTheDocument();
+    expect(kakao).toHaveTextContent("2일 언급 · 연달아 2일 · 마지막 11/04 · 메시지 2개");
+    expect(kakao).toHaveTextContent("매니저 ⬆ 올림 — 이틀 연달아 물어봄");
+    expect(kakao).toHaveTextContent("카카오 오늘은 어때?");
+    const chip = within(card).getByTestId("topic-t:반도체");
+    expect(chip).toHaveTextContent("빠짐");
+    expect(chip).toHaveTextContent("매니저 ⬇ 내림 — 한 번 묻고 끝");
+    expect(within(card).getByTestId("topic-in-count")).toHaveTextContent(
+      "지금 기억에 들어가는 주제 1개 · 중요도 35 이상, 최대 8개",
+    );
+    expect(card).toHaveTextContent("여러 날 되풀이해 물으면");
   });
 
-  it("저장에 실패하면 스위치를 되돌리고 오류를 보여 준다", async () => {
+  it("늘 기억·빼기를 PATCH 로 보내고, 지우기는 DELETE", async () => {
+    const { sent } = memoServer();
+    renderWithProviders(<MemoPage />);
+    const card = await topicCard();
+    const chip = await within(card).findByTestId("topic-t:반도체");
+    fireEvent.click(within(chip).getByRole("button", { name: "늘 기억" }));
+    await waitFor(() =>
+      expect(within(chip).getByText("늘 기억", { selector: ".topic-state" })).toBeInTheDocument(),
+    );
+    expect(sent("PATCH")).toEqual([{ url: "/api/memory/topics/2", body: { pin: "pin" } }]);
+    expect(within(chip).getByRole("button", { name: "늘 기억" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(within(chip).getByRole("button", { name: "지우기" }));
+    await waitFor(() => expect(within(card).queryByTestId("topic-t:반도체")).not.toBeInTheDocument());
+    expect(sent("DELETE")).toEqual([{ url: "/api/memory/topics/2", body: undefined }]);
+  });
+
+  it("'지금 정리'는 POST 하고 새 목록으로 바꾼다 — LLM 이 없으면 누를 수 없다", async () => {
+    const { sent } = memoServer();
+    const { unmount } = renderWithProviders(<MemoPage />);
+    const card = await topicCard();
+    await within(card).findByTestId("topic-t:반도체");
+    fireEvent.click(within(card).getByRole("button", { name: "지금 정리" }));
+    await waitFor(() => expect(within(card).getByTestId("topic-t:반도체")).toHaveTextContent("기억 중"));
+    expect(sent("POST")).toEqual([{ url: "/api/memory/topics/review", body: {} }]);
+    unmount();
+    memoServer({ llm: false });
+    renderWithProviders(<MemoPage />);
+    const card2 = await topicCard();
+    await within(card2).findByTestId("topic-t:반도체");
+    expect(within(card2).getByRole("button", { name: "지금 정리" })).toBeDisabled();
+  });
+
+  it("끄면 PUT 으로 보내고, 실패하면 스위치를 되돌린다", async () => {
+    const { sent } = memoServer();
+    const { unmount } = renderWithProviders(<MemoPage />);
+    await loaded();
+    const sw = screen.getByRole("switch", { name: "대화에서 기억하기" });
+    expect(sw).toBeChecked();
+    fireEvent.click(sw);
+    await waitFor(() => expect(sent("PUT")).toHaveLength(1));
+    expect(sent("PUT")[0]).toEqual({ url: "/api/memory/settings", body: { topics: false } });
+    expect(sw).not.toBeChecked();
+    unmount();
     memoServer({ fail: { PUT: () => apiError(500, "설정을 저장하지 못했어요") } });
     renderWithProviders(<MemoPage />);
     await loaded();
-    const sw = screen.getByRole("switch", { name: /최근 대화 5개도/ });
-    fireEvent.click(sw);
+    const sw2 = screen.getByRole("switch", { name: "대화에서 기억하기" });
+    fireEvent.click(sw2);
     expect(await screen.findByText("설정을 저장하지 못했어요")).toBeInTheDocument();
-    expect(sw).toBeChecked();
+    expect(sw2).toBeChecked();
   });
 });
 

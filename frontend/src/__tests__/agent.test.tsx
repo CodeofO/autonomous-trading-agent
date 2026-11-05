@@ -87,7 +87,11 @@ const MEMORY = {
       where: "판단 세션·답장",
       detail: "완료된 세션 최근 3개의 요약(160자)과 사고판 종목",
     },
-    { name: "투자자 메모", where: "판단 세션·답장", detail: "트레이딩 룸에 보낸 내 메시지 최근 5개(200자)" },
+    {
+      name: "대화에서 되풀이한 관심사",
+      where: "판단 세션·답장",
+      detail: "여러 날 되풀이해 물으면 중요도가 오르고, 한 번 묻고 만 주제는 며칠 안에 빠진다",
+    },
     { name: "오늘 대화", where: "답장", detail: "오늘(한국 시각) 트레이딩 룸 대화 최근 30개" },
     { name: "계좌·매매 내역", where: "판단 세션·답장", detail: "기억이 아니라 매번 새로 조회" },
   ],
@@ -95,13 +99,32 @@ const MEMORY = {
     { run_id: 42, at: "11/04 10:15", summary: "반도체 비중 유지", actions: "삼성전자 BUY" },
     { run_id: 41, at: "11/04 10:00", summary: "관망", actions: "거래 없음" },
   ],
-  memos: [{ id: 7, at: "10/30 14:02", text: "카카오는 사지 마" }],
+  topics: [
+    {
+      id: 7,
+      key: "sym:035720",
+      label: "카카오(035720)",
+      symbol: "035720",
+      score: 0.62,
+      included: true,
+      pin: "" as const,
+      days: 3,
+      streak: 2,
+      mentions: 4,
+      last_day: "2026-11-04",
+      quotes: [{ id: 70, at: "2026-11-04T08:00:00+09:00", text: "카카오 실적 어때?" }],
+      llm_level: 1,
+      llm_reason: "여러 날 물음",
+      forgotten: false,
+    },
+  ],
+  use_topics: true,
 };
 
 const memoryCard = () => screen.findByRole("region", { name: "🧠 매니저의 기억" });
 
 describe("매니저의 기억", () => {
-  it("규칙과 지금 기억하는 판단 세션·투자자 메모를 보여 준다", async () => {
+  it("규칙과 지금 기억하는 판단 세션·대화 주제를 보여 준다", async () => {
     mockFetch({ "/api/agent/structure": { ...STRUCTURE, memory: MEMORY } });
     renderWithProviders(<AgentPage />);
     const card = await memoryCard();
@@ -125,20 +148,22 @@ describe("매니저의 기억", () => {
     expect(sessions[0]).toHaveTextContent("반도체 비중 유지");
     expect(sessions[0]).toHaveTextContent("매매: 삼성전자 BUY");
 
-    const memos = within(within(card).getByRole("list", { name: "투자자 메모" })).getAllByRole("listitem");
-    expect(memos).toHaveLength(1);
-    expect(memos[0]).toHaveTextContent("10/30 14:02");
-    expect(memos[0]).toHaveTextContent("카카오는 사지 마");
-    // 날짜와 관계없이 최근 5개라는 점을 강조
-    expect(within(card).getByText("날짜와 관계없이 최근 5개")).toBeInTheDocument();
+    const topics = within(within(card).getByRole("list", { name: "대화에서 되풀이한 관심사" })).getAllByRole(
+      "listitem",
+    );
+    expect(topics).toHaveLength(1);
+    expect(topics[0]).toHaveTextContent("카카오(035720)");
+    expect(topics[0]).toHaveTextContent("중요도 62 · 3일 언급");
+    expect(topics[0]).toHaveTextContent("카카오 실적 어때?");
+    expect(within(card).getByRole("link", { name: "주제 보기·고정 →" })).toHaveAttribute("href", "/memo");
   });
 
-  it("기억할 세션·메모가 없으면 빈 안내를 보여 준다", async () => {
-    mockFetch({ "/api/agent/structure": { ...STRUCTURE, memory: { ...MEMORY, sessions: [], memos: [] } } });
+  it("기억할 세션·주제가 없으면 빈 안내를 보여 준다", async () => {
+    mockFetch({ "/api/agent/structure": { ...STRUCTURE, memory: { ...MEMORY, sessions: [], topics: [] } } });
     renderWithProviders(<AgentPage />);
     const card = await memoryCard();
     expect(within(card).getByText("아직 완료된 판단 세션이 없어요.")).toBeInTheDocument();
-    expect(within(card).getByText("아직 보낸 메시지가 없어요.")).toBeInTheDocument();
+    expect(within(card).getByText("지금 기억에 들어가는 주제가 없어요.")).toBeInTheDocument();
     expect(within(card).queryByRole("list", { name: "최근 판단 세션" })).not.toBeInTheDocument();
   });
 

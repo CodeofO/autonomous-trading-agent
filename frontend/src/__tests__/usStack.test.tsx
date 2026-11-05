@@ -92,8 +92,8 @@ describe("판단 시각의 '장전' 표시", () => {
     expect(screen.getByText(/장중 60분마다 \(10:00~12:00, 3회\)/)).toBeInTheDocument();
   });
 
-  it("최근 대화 메모를 꺼 두면 '최근 5개' 경고 대신 꺼져 있다고 알려 준다", async () => {
-    const memory = { rules: [], sessions: [], memos: [], cards: [], use_recent_messages: false };
+  it("대화 기억을 꺼 두면 꺼져 있다고 알려 준다", async () => {
+    const memory = { rules: [], sessions: [], topics: [], cards: [], use_topics: false };
     mockFetch({
       "/api/agent/structure": structure(
         { interval_minutes: 60, morning: "08:35", sessions: ["09:00"], times: ["08:35", "09:00"] },
@@ -101,9 +101,8 @@ describe("판단 시각의 '장전' 표시", () => {
       ),
     });
     renderWithProviders(<AgentPage />);
-    expect(await screen.findByTestId("memos-off")).toHaveTextContent("최근 대화 메모는 꺼 두었어요");
-    expect(screen.queryByText("날짜와 관계없이 최근 5개")).not.toBeInTheDocument();
-    expect(screen.getByText("최근 판단 3건 (투자자 메모는 꺼 둠)")).toBeInTheDocument();
+    expect(await screen.findByTestId("topics-off")).toHaveTextContent("대화 기억은 꺼 두었어요");
+    expect(screen.getByText("최근 판단 3건 (대화 기억은 꺼 둠)")).toBeInTheDocument();
   });
 });
 
@@ -112,7 +111,7 @@ describe("미장 메모 카드", () => {
     const fetchMock = mockFetch({
       "/api/us/memory/cards": {
         cards: [],
-        settings: { use_recent_messages: true, recent_messages: 5 },
+        settings: { topics: true, threshold: 0.35, max_in_prompt: 8 },
         today: "2026-11-03",
       },
     });

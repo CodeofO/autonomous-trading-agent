@@ -1,4 +1,4 @@
-"""메모 카드 API (D-52)."""
+"""메모 카드 API (D-52) · 대화에서 자라는 기억 (D-67)."""
 
 from __future__ import annotations
 
@@ -10,10 +10,10 @@ from fastapi import APIRouter, HTTPException, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from app.agent import memo
+from app.agent import memo, topics
 from app.api.routes.common import C, U
 from app.container import Container
-from app.db.models import MemoryCard, WatchlistItem
+from app.db.models import MemoryCard, MemoryTopic, WatchlistItem
 
 router = APIRouter()
 
@@ -35,7 +35,11 @@ class MemoCardPatchBody(BaseModel):
 
 
 class MemorySettingsBody(BaseModel):
-    use_recent_messages: bool
+    topics: bool
+
+
+class TopicPatchBody(BaseModel):
+    pin: str = Field(max_length=8)  # '' 자동 · pin 늘 기억 · mute 빼기
 
 
 def _market_today(c: Container) -> date:
@@ -126,7 +130,7 @@ def memo_cards(c: C, _: U) -> dict[str, Any]:
     today = _market_today(c)
     return {
         "cards": [memo.card_dict(x, today) for x in memo.all_cards(c.db)],
-        "settings": memo.memory_settings(c.kv),
+        "settings": topics.settings(c.kv),
         "today": today.isoformat(),
     }
 
@@ -224,10 +228,67 @@ def delete_memo_card(card_id: int, c: C, _: U) -> Response:
 
 @router.put("/memory/settings")
 def put_memory_settings(body: MemorySettingsBody, c: C, _: U) -> dict[str, Any]:
-    """최근 대화 메모(트레이딩 룸 내 메시지 최근 5개)를 기억에 넣을지."""
-    prev = memo.memory_settings(c.kv)["use_recent_messages"]
-    out = memo.set_memory_settings(c.kv, body.use_recent_messages)
-    if prev != body.use_recent_messages:
-        state = "켬" if body.use_recent_messages else "끔"
-        c.hub.audit("CONFIG", f"최근 대화 메모 {state}", None, use_recent_messages=body.use_recent_messages)
+    """대화에서 기억 만들기(D-67)를 켜고 끈다. 끄면 정리도 하지 않고 주제도 기억에 넣지 않는다(주제 기록은 남는다)."""
+    prev = topics.enabled(c.kv)
+    out = topics.set_enabled(c.kv, body.topics)
+    if prev != body.topics:
+        state = "켬" if body.topics else "끔"
+        c.hub.audit("CONFIG", f"대화에서 기억하기 {state}", None, topics=body.topics)
     return out
+
+
+# ====================================================================== 대화에서 자라는 기억 (D-67)
+def _topics_view(c: Container) -> dict[str, Any]:
+    today = _market_today(c)
+    return {
+        "topics": topics.all_topics(c.db, today),
+        "settings": topics.settings(c.kv),
+        "review": topics.review_state(c.kv),
+        "llm": c.runner.llm is not None,
+        "today": today.isoformat(),
+    }
+
+
+@router.get("/memory/topics")
+def memory_topics(c: C, _: U) -> dict[str, Any]:
+    """대화에서 모은 주제 전체(빠진 것 포함) — 중요도·언급한 날·매니저 판단과 이유."""
+    return _topics_view(c)
+
+
+@router.patch("/memory/topics/{topic_id}")
+def patch_memory_topic(topic_id: int, body: TopicPatchBody, c: C, _: U) -> dict[str, Any]:
+    """늘 기억(pin) · 빼기(mute) · 자동('') 중 하나로."""
+    pin = body.pin.strip().lower()
+    if pin not in topics.PINS:
+        raise HTTPException(400, "pin 은 '', 'pin', 'mute' 중 하나예요")
+    t = topics.set_pin(c.db, topic_id, pin)
+    if t is None:
+        raise HTTPException(404, "주제를 찾을 수 없어요")
+    out = topics.topic_dict(t, _market_today(c))
+    state = {"": "자동", "pin": "늘 기억", "mute": "빼기"}[pin]
+    c.hub.audit("CONFIG", f"기억 주제 {state}: {out['label']}", out["symbol"], topic=out["key"], pin=pin)
+    return out
+
+
+@router.delete("/memory/topics/{topic_id}", status_code=204)
+def delete_memory_topic(topic_id: int, c: C, _: U) -> Response:
+    """주제 기록을 지운다 (다시 꺼내면 처음부터 다시 센다)."""
+    with c.db.session() as s:
+        t = s.get(MemoryTopic, topic_id)
+        if t is None:
+            raise HTTPException(404, "주제를 찾을 수 없어요")
+        label = t.label
+        s.delete(t)
+    c.hub.audit("CONFIG", f"기억 주제 삭제: {label}", None)
+    return Response(status_code=204)
+
+
+@router.post("/memory/topics/review")
+async def review_memory_topics(c: C, _: U) -> dict[str, Any]:
+    """아직 정리하지 않은 내 메시지를 지금 정리한다 (LLM 1번). 보통은 판단 세션 시작 전에 저절로 한다."""
+    if not topics.enabled(c.kv):
+        raise HTTPException(400, "대화에서 기억하기가 꺼져 있어요")
+    if c.runner.llm is None:
+        raise HTTPException(400, "LLM 이 설정되지 않아 정리할 수 없어요")
+    result = await c.runner.review_topics()
+    return {**_topics_view(c), "result": result}

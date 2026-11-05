@@ -6,8 +6,11 @@ import type {
   MemoCardPatch,
   MemoCards,
   MemoKind,
+  MemoryTopic,
+  MemoryTopics,
   MemoSettings,
   StockSearchItem,
+  TopicPin,
 } from "../api/types";
 
 /** 시장별 API 접두어: 국장 "/api" · 미장 "/api/us" */
@@ -22,6 +25,9 @@ export function memoApi(prefix = "/api") {
     cards: `${prefix}/memory/cards`,
     card: (id: number) => `${prefix}/memory/cards/${id}`,
     settings: `${prefix}/memory/settings`,
+    topics: `${prefix}/memory/topics`,
+    topic: (id: number) => `${prefix}/memory/topics/${id}`,
+    review: `${prefix}/memory/topics/review`,
     search: (q: string, limit = 20) => `${prefix}/market/search?q=${encodeURIComponent(q)}&limit=${limit}`,
   };
   return {
@@ -31,8 +37,12 @@ export function memoApi(prefix = "/api") {
     update: (id: number, body: MemoCardPatch) =>
       api<MemoCard>(paths.card(id), { method: "PATCH", json: body }),
     remove: (id: number) => del<null>(paths.card(id)),
-    saveSettings: (body: Pick<MemoSettings, "use_recent_messages">) =>
-      put<MemoSettings>(paths.settings, body),
+    saveSettings: (body: Pick<MemoSettings, "topics">) => put<MemoSettings>(paths.settings, body),
+    topics: () => get<MemoryTopics>(paths.topics),
+    pinTopic: (id: number, pin: TopicPin) =>
+      api<MemoryTopic>(paths.topic(id), { method: "PATCH", json: { pin } }),
+    removeTopic: (id: number) => del<null>(paths.topic(id)),
+    reviewTopics: () => post<MemoryTopics>(paths.review, {}),
     search: (q: string, limit = 20) => get<StockSearchItem[]>(paths.search(q, limit)),
   };
 }
@@ -160,3 +170,21 @@ export function fmtDay(day: string): string {
   if (Number.isNaN(d.getTime())) return day;
   return `${pad(d.getUTCMonth() + 1)}/${pad(d.getUTCDate())}(${WEEKDAY[d.getUTCDay()]})`;
 }
+
+// ---------- 대화에서 자라는 기억 (D-67) ----------
+/** 중요도 0~1 → 0~100 정수 (막대·글자) */
+export const topicPercent = (score: number) => Math.round(Math.max(0, Math.min(1, score)) * 100);
+
+/** 주제 상태 한 줄: 늘 기억 · 빠짐(직접) · 잊음 · 기억 중 · 빠짐 */
+export function topicState(t: MemoryTopic): { label: string; tone: "on" | "off" | "pin" } {
+  if (t.pin === "pin") return { label: "늘 기억", tone: "pin" };
+  if (t.pin === "mute") return { label: "직접 뺌", tone: "off" };
+  if (t.forgotten) return { label: "잊음", tone: "off" };
+  return t.included ? { label: "기억 중", tone: "on" } : { label: "빠짐", tone: "off" };
+}
+
+/** 매니저 판단 표시 */
+export const LLM_LEVEL_LABEL: Record<number, string> = { 1: "⬆ 올림", 0: "유지", [-1]: "⬇ 내림" };
+
+/** "2026-11-04" → "11/04" */
+export const shortDay = (d: string | null) => (d ? d.slice(5).replace("-", "/") : "-");

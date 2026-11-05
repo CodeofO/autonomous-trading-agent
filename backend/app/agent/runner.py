@@ -12,16 +12,17 @@ import math
 import re
 import time
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 
+from app.agent import topics
 from app.agent.activity import preview, result_line, tool_source
 from app.agent.costs import record_call
 from app.agent.llm import RAW_KEY, ChatResult, LLMClient, LLMError, ToolsUnsupportedError, extract_json
-from app.agent.memo import RECENT_MESSAGES, live_cards, memory_settings, render_cards
+from app.agent.memo import live_cards, render_cards
 from app.agent.prompts import (
     ACCOUNT_DESC,
     CHAT_SYSTEM_PROMPT,
@@ -102,6 +103,7 @@ class AgentRunner:
         self.names = names or (lambda s: s)
         self._lock = asyncio.Lock()
         self._reply_lock = asyncio.Lock()
+        self._topics_lock = asyncio.Lock()  # 대화 기억 정리 (D-67) — 세션 시작과 '지금 정리'가 겹치지 않게
         self._handled_question = 0  # 마지막으로 답하기 시작한 질문 id (같은 질문에 두 번 답하지 않음)
         self._typing_slots: dict[str, str | None] = {"session": None, "reply": None}
         self._run: dict[str, Any] = {"active": False}
@@ -239,6 +241,7 @@ class AgentRunner:
             }
             self._step("출근 준비 중…", phase="start")
             usage: dict[str, int] = {}
+            await self._review_before_session(run_id)
             try:
                 if self.llm is None:
                     payload = await self._run_rules(run_id)
@@ -288,21 +291,21 @@ class AgentRunner:
 
     # ================================================================ 컨텍스트
     MEMORY_RUNS = 3  # 최근 판단 세션 요약 몇 개를 다음 세션·답장에 넣는지
-    MEMORY_MEMOS = (
-        RECENT_MESSAGES  # 사용자 메시지 몇 개를 '최근 대화 메모'로 넣는지 (날짜와 관계없이 최근 순)
-    )
 
-    def memory_snapshot(self) -> dict[str, Any]:
-        """매니저가 지금 '기억'으로 받는 내용 (D-47, D-52). 판단 세션·답장 프롬프트와 에이전트 구조 화면이 같이 쓴다.
-
-        cards: 켜져 있고 만료 안 된 메모 카드 / memos: 최근 대화 메모 (설정에서 끄면 빈 목록)
-        """
-        use_recent = bool(memory_settings(self.settings)["use_recent_messages"])
-        today = (
+    def _today(self) -> date:
+        return (
             self.market.local_date(self.clock.now())
             if self.market
             else self.clock.now().astimezone(KST).date()
         )
+
+    def memory_snapshot(self) -> dict[str, Any]:
+        """매니저가 지금 '기억'으로 받는 내용 (D-47, D-52, D-67). 판단 세션·답장 프롬프트와 에이전트 구조 화면이 같이 쓴다.
+
+        cards: 켜져 있고 만료 안 된 메모 카드 / topics: 대화에서 자란 관심사 중 지금 들어가는 것(꺼 두면 빈 목록)
+        """
+        use_topics = topics.enabled(self.settings)
+        today = self._today()
         since_raw = self.settings.get("account_source").get("since")
         with self.db.session() as s:
             q = select(AgentRun).where(AgentRun.status == "DONE")
@@ -330,40 +333,71 @@ class AgentRunner:
                 sessions.append(
                     {"run_id": r.id, "at": _kst(r.started_at), "summary": r.summary[:160], "actions": acts}
                 )
-            memos = (
-                list(
-                    s.scalars(
-                        select(ChatMessage)
-                        .where(ChatMessage.role == USER)
-                        .order_by(ChatMessage.id.desc())
-                        .limit(self.MEMORY_MEMOS)
-                    )
-                )
-                if use_recent
-                else []
-            )
         return {
             "cards": live_cards(self.db, today),
             "sessions": sessions,
-            "memos": [{"id": m.id, "at": _kst(m.ts), "text": m.content[:200]} for m in reversed(memos)],
-            "use_recent_messages": use_recent,
+            "topics": topics.prompt_topics(self.db, today) if use_topics else [],
+            "use_topics": use_topics,
         }
 
     def _memory(self) -> str:
-        """프롬프트의 기억 부분: 메모 카드 → 최근 판단 기록 → 최근 대화 메모(설정에서 켰을 때만)."""
+        """프롬프트의 기억 부분: 메모 카드 → 대화에서 되풀이한 관심사(켰을 때) → 최근 판단 기록."""
         snap = self.memory_snapshot()
         lines = [
             f"- 세션#{x['run_id']} ({x['at']}): {x['summary']} / {x['actions']}" for x in snap["sessions"]
         ]
-        cards = render_cards(snap["cards"])
-        out = (cards + "\n\n" if cards else "") + "최근 판단 기록:\n" + ("\n".join(lines) or "- 없음")
-        if snap["use_recent_messages"]:
-            memo_txt = "\n".join(f"- {m['at']}: {m['text']}" for m in snap["memos"]) or "- 없음"
-            out += (
-                "\n\n최근 대화 메모(트레이딩 룸에 보낸 메시지 — 참고용 의견이며 리스크 규칙보다 우선하지 않음):\n"
-                + memo_txt
+        parts = [render_cards(snap["cards"]), topics.render(snap["topics"])]
+        head = "\n\n".join(p for p in parts if p)
+        return (head + "\n\n" if head else "") + "최근 판단 기록:\n" + ("\n".join(lines) or "- 없음")
+
+    # ================================================================ 대화 기억 정리 (D-67)
+    async def _review_before_session(self, run_id: int) -> None:
+        """새 사용자 메시지가 있으면 판단 전에 주제별로 정리한다. 실패해도 세션은 그대로 진행."""
+        if self.llm is None or not topics.enabled(self.settings):
+            return
+        try:
+            if topics.pending(self.db, self.settings, self.clock.now(), self.tz):
+                self._step("지난 대화 정리 중…", phase="start")
+                await self.review_topics(run_id)
+        except Exception:
+            log.exception("대화 기억 정리 실패 (세션은 계속)")
+
+    async def review_topics(self, run_id: int | None = None) -> dict[str, Any]:
+        """아직 정리하지 않은 내 메시지를 LLM 1번으로 주제별 정리 → 언급 통계·매니저 판단 반영.
+
+        돌려주는 값: {"messages": 정리한 메시지 수, "mentioned"/"created"/"adjusted"/"dropped", "skipped"}.
+        """
+        out: dict[str, Any] = {"messages": 0, "mentioned": 0, "created": 0, "adjusted": 0, "dropped": 0}
+        if self.llm is None:
+            return {**out, "skipped": "LLM 이 설정되지 않았어요"}
+        async with self._topics_lock:
+            now = self.clock.now()
+            msgs = topics.pending(self.db, self.settings, now, self.tz)
+            if not msgs:
+                return {**out, "skipped": "새로 정리할 메시지가 없어요"}
+            today = self._today()
+            known = sorted(topics.all_topics(self.db, today), key=lambda t: -t["score"])[
+                : topics.MAX_TOPICS_IN_REVIEW
+            ]
+            res = await self.llm.chat(topics.review_messages(msgs, known))
+            self._log_usage("memory", run_id, res)
+
+            def name_of(sym: str) -> str | None:
+                n = self.names(sym)
+                return n or None
+
+            parsed = topics.parse_review(
+                res.content, {m.id for m in msgs}, {t["key"]: t["label"] for t in known}, name_of
             )
-        return out
+            if parsed is None:
+                skipped = topics.mark_failed(self.settings, now, msgs[-1].id)
+                log.warning("대화 기억 정리: JSON 이 아닌 답 (%s)", "건너뜀" if skipped else "다음에 다시")
+                return {**out, "skipped": "정리 결과를 읽지 못했어요"}
+            mentions, adjusts = parsed
+            out.update(topics.apply_review(self.db, now, msgs, mentions, adjusts))
+            topics.mark_done(self.settings, now, msgs[-1].id)
+            out["messages"] = len(msgs)
+            return out
 
     def _system(self) -> str:
         p = self.persona()
