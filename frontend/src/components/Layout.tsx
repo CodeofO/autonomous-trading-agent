@@ -647,10 +647,17 @@ function useMobileNav(pathname: string, screen: string, active: number) {
   useLayoutEffect(() => {
     latest.current = { pathname, active };
   });
+  // 넘기기·탭으로 가는 중인 주소. 다음 화면 조각을 받는 동안(lazy) 라우터 위치는 아직 앞 화면이라,
+  // 그 사이에 또 넘기면 앞 화면 기준으로 한 칸 더 가 버린다(포트폴리오 → 홈). 새 화면이 그려지면 지운다
+  const pendingPath = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    pendingPath.current = null;
+  }, [pathname]);
 
   /** 화면 이동 (휴대폰): 지원하면 View Transition 으로 옆으로 밀며, 아니면 그냥 이동. to = -1 이면 뒤로 */
   const go = useCallback(
     (to: string | -1, dir: "prev" | "next") => {
+      pendingPath.current = to === -1 ? null : to;
       const move = () => (to === -1 ? navigate(-1) : navigate(to));
       if (prefersReducedMotion() || typeof document.startViewTransition !== "function") {
         move();
@@ -699,7 +706,8 @@ function useMobileNav(pathname: string, screen: string, active: number) {
   useEffect(() => {
     const el = scroller.current;
     if (!el) return;
-    const target = (dir: SwipeDir) => swipeTarget(latest.current.pathname, dir, canGoBack());
+    const target = (dir: SwipeDir) =>
+      swipeTarget(pendingPath.current ?? latest.current.pathname, dir, canGoBack());
     return attachSwipe(el, {
       enabled: () => isMobile() && !document.documentElement.classList.contains("kb-open"),
       canGo: (dir) => target(dir) !== null,
