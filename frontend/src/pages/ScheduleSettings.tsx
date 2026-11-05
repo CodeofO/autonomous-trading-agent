@@ -311,7 +311,7 @@ function ScheduleEditor({ market, data }: { market: MarketCode; data: ScheduleIn
           </p>
         )}
         <p className="muted sched-cost">
-          판단 세션이 많을수록 LLM 비용이 늘어요 → <Link to="/costs">LLM 비용 화면</Link>
+          판단 세션이 많을수록 LLM 비용이 늘어요 → <Link to="/costs">LLM 요금 화면</Link>
         </p>
       </div>
 

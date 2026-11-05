@@ -78,6 +78,10 @@ class Settings(BaseSettings):
     llm_test_api: Literal["auto", "chat", "responses"] = "auto"
     llm_test_reasoning_effort: str = ""
 
+    # --- 요금 장부 공식 대조 (D-66) -------------------------------------------
+    # OpenAI 조직 Usage·Costs API 는 Admin 키로만 조회된다. 비우면 대조하지 않는다 (LLM 호출에는 쓰지 않는다)
+    openai_admin_key: SecretStr | None = None
+
     # --- 휴대폰 알림 (Web Push, D-39) ----------------------------------------
     # VAPID 개인키(P-256, base64url). ./run.sh 가 비어 있으면 만들어 .env 에 넣는다. 비우면 알림 꺼짐
     vapid_private_key: SecretStr | None = None
@@ -240,6 +244,7 @@ class Settings(BaseSettings):
             self.vapid_private_key,
             self.llm_test_api_key,
             self.gemini_api_key,
+            self.openai_admin_key,
         ):
             if _filled(s):
                 assert s is not None

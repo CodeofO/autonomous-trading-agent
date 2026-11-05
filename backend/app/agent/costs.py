@@ -1,12 +1,15 @@
-"""LLM 토큰 사용량 기록과 상용 API 요금 환산 (D-41).
+"""LLM 요금 장부 (D-41 → D-66): 호출마다 어느 모델이 토큰을 얼마나 썼고 실제 요금이 얼마인지.
 
-지금 모델(자체 서버)은 API 요금이 없지만, 같은 사용량을 상용 모델로 돌렸다면 얼마인지 미리 본다.
-요금은 각 회사 공식 가격표를 PRICES_CHECKED 날짜에 확인한 값이다(아래 SOURCES). 가격이 바뀌면 이 표만 고친다.
+요금은 호출 1회마다 이 순서로 정한다 (cost_source):
+1. reported  — 제공사가 응답에 적어 준 요금. OpenRouter 는 usage.cost(USD, 캐시·추론 반영)를 늘 준다
+               (https://openrouter.ai/docs/cookbook/administration/usage-accounting)
+2. free      — 자체 서버(provider=local, 무료 묶음 LLM_TEST_*): API 요금 없음
+3. priced    — OpenAI·Google 직접 연결: 응답의 토큰(캐시 적중·추론 포함)을 공식 단가표(아래 MODELS)로 계산
+4. unpriced  — 단가를 모르는 모델 (화면에 '단가 모름'으로 따로 센다 — 0 원으로 치지 않는다)
+5. estimated — D-66 이전 기록: 캐시 적중을 알 수 없어 예전 추정(바로 전 호출 입력)으로 계산
 
-- 토큰 수는 지금 모델의 토크나이저 기준이다. 같은 글도 회사·모델마다 토큰 수가 달라 실제 청구액과 차이가 난다.
-- '캐시 적용'은 판단 세션 안에서 바로 전 호출의 입력이 다음 호출 앞부분으로 그대로 다시 들어가는 만큼을
-  캐시 적중으로 본 추정이다. OpenAI·Google 은 자동 캐시(쓰기 요금 없음), Anthropic 은 cache_control 을
-  써야 하고 새로 쓰는 부분은 5분 캐시 쓰기 요금(입력의 1.25배)을 낸다.
+국장·미장·전략 실험실·뉴스 룸의 모든 호출을 국장 DB 한 곳(장부)에 모은다 (market·strategy 로 구분).
+단가는 각 회사 공식 가격표를 PRICES_CHECKED 날짜에 확인한 값이다(SOURCES). 가격이 바뀌면 이 표만 고친다.
 """
 
 from __future__ import annotations
@@ -16,26 +19,28 @@ import logging
 import threading
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
-from typing import Any
+from datetime import date, datetime
+from typing import TYPE_CHECKING, Any
 from weakref import WeakKeyDictionary
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select, update
 
+from app.agent import openrouter
 from app.core.clock import KST
-from app.core.market_calendar import MarketCalendar
 from app.db.models import LlmUsage
 from app.db.session import Database
+
+if TYPE_CHECKING:
+    from app.agent.llm import ChatResult, LLMClient
 
 log = logging.getLogger(__name__)
 
 PRICES_CHECKED = "2026-11-04"
 SOURCES = {
-    "anthropic": "https://platform.claude.com/docs/en/about-claude/pricing",
     "openai": "https://developers.openai.com/api/docs/pricing",
     "google": "https://aistudio.google.com/docs/pricing",
+    "openrouter": "https://openrouter.ai/docs/cookbook/administration/usage-accounting",
 }
-PROJECTION_DAYS = 30  # 하루 평균을 낼 최근 기간
 
 
 @dataclass(frozen=True)
@@ -44,15 +49,14 @@ class Price:
 
     input: float
     cached: float  # 캐시 적중 입력
-    output: float
-    cache_write: float | None = None  # Anthropic: 5분 캐시 쓰기
+    output: float  # 추론 토큰도 출력 요금
     since: date | None = None  # 이 날부터 적용 (예정된 가격 변경)
 
 
 @dataclass(frozen=True)
 class ModelPrice:
     id: str
-    provider: str  # anthropic | openai | google
+    provider: str  # openai | google
     name: str
     tier: str  # 최상위 | 주력 | 중간 | 경량
     prices: tuple[Price, ...]  # since 오름차순
@@ -71,19 +75,6 @@ class ModelPrice:
 
 
 MODELS: tuple[ModelPrice, ...] = (
-    ModelPrice("claude-fable-5-1", "anthropic", "Claude Fable 5.1", "최상위", (Price(10, 0.25, 50, 12.5),)),
-    ModelPrice("claude-opus-5-5", "anthropic", "Claude Opus 5.5", "주력", (Price(4, 0.20, 20, 5),)),
-    ModelPrice("claude-sonnet-5-5", "anthropic", "Claude Sonnet 5.5", "중간", (Price(2, 0.10, 10, 2.5),)),
-    ModelPrice(
-        "claude-haiku-5-5",
-        "anthropic",
-        "Claude Haiku 5.5",
-        "경량",
-        (Price(0.10, 0.01, 0.50, 0.125),),
-        long_from=100_000,
-        long=Price(0.50, 0.05, 2.50, 0.625),
-        note="입력 10만 토큰 초과 호출은 5배 요금",
-    ),
     ModelPrice(
         "gpt-6-astra",
         "openai",
@@ -127,270 +118,418 @@ MODELS: tuple[ModelPrice, ...] = (
         "gemini-3.5-flash-lite", "google", "Gemini 3.5 Flash-Lite", "경량", (Price(0.30, 0.03, 2.50),)
     ),
 )
+CATALOG = {m.id: m for m in MODELS}
+# 추론 토큰: OpenAI 는 출력(output/completion_tokens)에 들어 있다 (https://developers.openai.com/api/docs/guides/reasoning).
+# Google 의 OpenAI 호환 주소는 completion_tokens 에 생각(thinking) 토큰이 들어가는지 문서에 없다. 기본 API 는
+# totalTokenCount = 입력 + 도구 입력 + 생각 + 출력 이고 생각은 출력 요금이다(https://ai.google.dev/api/generate-content,
+# …/docs/pricing). 그래서 total − 입력 − 출력 이 남으면 그만큼을 드러나지 않은 생각 토큰으로 보고 출력 요금을 매긴다.
+HIDDEN_REASONING: frozenset[str] = frozenset({"google"})
+# OpenAI 캐시 쓰기 (GPT-5.6 이후 모델): 입력 단가 대신 30분 1.25배·12시간 2.5배
+# (https://developers.openai.com/api/docs/guides/prompt-caching). input_tokens 에 캐시 읽기·쓰기가 들어 있다
+CACHE_WRITE_X: dict[str, tuple[float, float]] = {"openai": (1.25, 2.5)}
+# 응답의 service_tier 별 요금: flex 는 Batch 요금(50%), fast·priority 등은 별도 표라 단가 모름으로 둔다
+# (https://developers.openai.com/api/docs/guides/flex-processing, …/fast-mode)
+TIER_X: dict[str, float | None] = {
+    "": 1.0,
+    "auto": 1.0,
+    "default": 1.0,
+    "flex": 0.5,
+    "batch": 0.5,
+    "priority": None,
+    "fast": None,
+    "ultrafast": None,
+    "scale": None,
+}
 
 
-# ====================================================================== 기록
-def record_usage(
-    db: Database,
-    ts: datetime,
-    kind: str,
-    run_id: int | None,
+def catalog_price(model: str) -> ModelPrice | None:
+    """단가표 모델 찾기: 그대로 → 'openai/…' 같은 앞부분 뗀 것 → '-2026-10-01' 같은 날짜 꼬리 뗀 것."""
+    m = (model or "").strip()
+    if m in CATALOG:
+        return CATALOG[m]
+    tail = m.rsplit("/", 1)[-1]
+    if tail in CATALOG:
+        return CATALOG[tail]
+    for mid, mp in CATALOG.items():
+        if tail.startswith(mid + "-") and tail[len(mid) + 1 : len(mid) + 2].isdigit():
+            return mp
+    return None
+
+
+# ====================================================================== 요금 매기기
+@dataclass(frozen=True)
+class Charge:
+    cost: float | None  # USD (unpriced 면 None)
+    source: str  # reported | priced | free | unpriced | estimated
+
+
+def price_tokens(
+    mp: ModelPrice,
+    day: date,
+    *,
+    input: int,
+    cache_read: int,
+    output: int,
+    hidden: int = 0,
+    cache_write: int = 0,
+    cache_write_12h: int = 0,
+) -> float:
+    """공식 단가로 1회 요금.
+
+    입력 = 캐시 읽기(캐시 단가) + 캐시 쓰기(OpenAI: 30분 1.25배·12시간 2.5배) + 나머지(기본 단가),
+    출력(추론 포함) + hidden(출력에 안 잡힌 생각 토큰)은 출력 단가. 장문 구간은 호출 1회 입력으로 정한다.
+    """
+    p = mp.at(day, input)
+    hit = max(0, min(cache_read, input))
+    x30, x12 = CACHE_WRITE_X.get(mp.provider, (1.0, 1.0))
+    w12 = max(0, min(cache_write_12h, input - hit))
+    w30 = max(0, min(cache_write - cache_write_12h, input - hit - w12)) if cache_write else 0
+    rest = input - hit - w30 - w12
+    out = output + max(0, hidden)
+    return (rest * p.input + hit * p.cached + (w30 * x30 + w12 * x12) * p.input + out * p.output) / 1e6
+
+
+def _openrouter_price(model: str, input: int, output: int) -> float | None:
+    """OpenRouter 가 요금을 적어 주지 않았을 때만: 목록 API 단가(캐시 할인 없이)로."""
+    m = openrouter.CACHE.get(model)
+    if m is None or m.input is None or m.output is None:
+        return None
+    return (input * m.input + output * m.output) / 1e6
+
+
+def hidden_reasoning(provider: str, usage: dict[str, int]) -> int:
+    """출력에 잡히지 않은 생각 토큰 (Google OpenAI 호환: total − 입력 − 출력 이 남는 만큼). 그 밖은 0."""
+    if provider not in HIDDEN_REASONING or "total_tokens" not in usage:
+        return 0
+    rest = int(usage.get("total_tokens") or 0) - int(usage.get("prompt_tokens") or 0)
+    return max(0, rest - int(usage.get("completion_tokens") or 0))
+
+
+def charge(
+    provider: str,
     model: str,
     usage: dict[str, int],
-    cached_estimate: int = 0,
-) -> None:
+    reported: float | None,
+    day: date,
+    service_tier: str = "",
+) -> Charge:
+    if reported is not None:
+        return Charge(max(0.0, float(reported)), "reported")
+    if provider == "local":
+        return Charge(0.0, "free")
     inp, out = int(usage.get("prompt_tokens") or 0), int(usage.get("completion_tokens") or 0)
-    if inp == 0 and out == 0:
-        return
-    try:
-        with db.session() as s:
-            s.add(
-                LlmUsage(
-                    ts=ts,
-                    kind=kind,
-                    run_id=run_id,
-                    model=model,
-                    calls=1,
-                    input_tokens=inp,
-                    cached_tokens=max(0, min(cached_estimate, inp)),
-                    output_tokens=out,
-                    max_input_tokens=inp,
-                    source="live",
-                )
-            )
-    except Exception:  # 기록 실패가 판단·답장을 막지 않게
-        log.exception("토큰 사용량 기록 실패")
-
-
-# ====================================================================== 계산
-USAGE_FIELDS = ("kind", "source", "input_tokens", "cached_tokens", "output_tokens", "max_input_tokens")
-
-
-def row_cost(m: ModelPrice, r: LlmUsage | dict[str, Any], day: date) -> tuple[float, float]:
-    """(캐시 없음, 캐시 적용) USD."""
-    d: dict[str, Any] = r if isinstance(r, dict) else {k: getattr(r, k) for k in USAGE_FIELDS}
-
-    def g(k: str, default: Any = 0) -> Any:
-        v = d.get(k)
-        return default if v is None else v
-
-    inp, out, hit = int(g("input_tokens")), int(g("output_tokens")), int(g("cached_tokens"))
-    p = m.at(day, int(g("max_input_tokens")))
-    base = (inp * p.input + out * p.output) / 1e6
-    miss = inp - hit
-    # Anthropic 은 다음 호출이 이어지는 판단 세션 호출만 캐시에 쓴다 (단발 답장·예전 합계는 기본 입력 요금)
-    write = (
-        p.cache_write
-        if (p.cache_write and g("kind", "") == "session" and g("source", "") == "live")
-        else p.input
+    if provider == "openrouter":
+        v = _openrouter_price(model, inp, out)
+        return Charge(v, "priced") if v is not None else Charge(None, "unpriced")
+    mp = catalog_price(model)
+    tier = TIER_X.get((service_tier or "").lower(), None)
+    if mp is None or tier is None:
+        return Charge(None, "unpriced")
+    cost = price_tokens(
+        mp,
+        day,
+        input=inp,
+        cache_read=int(usage.get("cached_tokens") or 0),
+        output=out,
+        hidden=hidden_reasoning(mp.provider, usage),
+        cache_write=int(usage.get("cache_write_tokens") or 0),
+        cache_write_12h=int(usage.get("cache_write_12h_tokens") or 0),
     )
-    cached = (miss * write + hit * p.cached + out * p.output) / 1e6
-    return base, cached
+    return Charge(cost * tier, "priced")
 
 
 def _kst_day(ts: datetime) -> date:
     return (ts if ts.tzinfo else ts.replace(tzinfo=KST)).astimezone(KST).date()
 
 
-_SUMMARY_CACHE: WeakKeyDictionary[Database, dict[tuple[Any, ...], dict[str, Any]]] = WeakKeyDictionary()
-_SUMMARY_LOCK = threading.Lock()
+def public_model(model: str) -> str:
+    """화면에 내보내는 모델 이름: 자체 서버 주소('…@호스트')는 떼어 낸다."""
+    return (model or "").split("@", 1)[0]
 
 
-def _month_window(today: date, months: int) -> tuple[date, date, date]:
-    """(조회 시작 = months 개월 전 1일, 이번 달 1일, 이번 달 말일)."""
-    first = date(today.year, today.month, 1)
-    start = first
-    for _ in range(months - 1):
-        start = (start - timedelta(days=1)).replace(day=1)
-    month_end = (first + timedelta(days=32)).replace(day=1) - timedelta(days=1)
-    return start, first, month_end
-
-
-def summary(
+# ====================================================================== 기록
+def record_call(
     db: Database,
-    now: datetime,
-    cal: MarketCalendar,
-    months: int = 12,
-    sessions_per_day: int | None = None,
-) -> dict[str, Any]:
-    """`sessions_per_day`: 지금 일정의 하루 판단 세션 수. 주면 '세션당 평균 × 하루 세션 수'로 예상한다
-    (판단 간격을 바꾼 뒤에도 예전 간격의 사용량으로 부풀리지 않도록).
+    ts: datetime,
+    *,
+    kind: str,
+    run_id: int | None,
+    llm: LLMClient,
+    res: ChatResult,
+    market: str = "",
+    strategy: str = "",
+    cached_estimate: int = 0,
+) -> Charge | None:
+    """호출 1회를 장부에 남기고 요금을 돌려준다. 기록 실패가 판단·답장을 막지 않게 예외는 삼킨다."""
+    usage = res.usage or {}
+    inp, out = int(usage.get("prompt_tokens") or 0), int(usage.get("completion_tokens") or 0)
+    if inp == 0 and out == 0 and res.cost is None:
+        return None
+    provider = llm.provider
+    try:
+        meta = res.meta or {}
+        ch = charge(provider, llm.model, usage, res.cost, _kst_day(ts), meta.get("service_tier", ""))
+        with db.session() as s:
+            s.add(
+                LlmUsage(
+                    ts=ts,
+                    kind=kind,
+                    run_id=run_id,
+                    model=llm.model,
+                    calls=1,
+                    input_tokens=inp,
+                    cached_tokens=max(0, min(cached_estimate, inp)),
+                    output_tokens=out,
+                    max_input_tokens=inp,
+                    source="live",
+                    market=market,
+                    strategy=strategy,
+                    profile=getattr(llm, "profile", "") or "",
+                    provider=provider,
+                    served_model=meta.get("model", "")[:128],
+                    upstream=meta.get("provider", "")[:64],
+                    response_id=meta.get("id", "")[:128],
+                    cache_read_tokens=int(usage["cached_tokens"]) if "cached_tokens" in usage else None,
+                    cache_write_tokens=int(usage.get("cache_write_tokens") or 0),
+                    reasoning_tokens=max(
+                        int(usage.get("reasoning_tokens") or 0), hidden_reasoning(provider, usage)
+                    ),
+                    cost_usd=ch.cost,
+                    cost_source=ch.source,
+                )
+            )
+        return ch
+    except Exception:
+        log.exception("LLM 요금 장부 기록 실패")
+        return None
 
-    결과는 (오늘 날짜, 기간, 일정, 남은 거래일, 사용 기록의 건수·마지막 id)가 같으면 캐시를 돌려준다(B5) —
-    사용 기록이 하나라도 늘면 다시 계산한다. 확인 조회는 1번(건수·최대 id).
+
+def _fill_legacy(r: LlmUsage) -> None:
+    """D-66 이전 기록: 모델 이름으로 제공사를 짐작하고, 캐시 적중은 예전 추정치로 요금을 매긴다."""
+    model = r.model or ""
+    if "@" in model:  # 자체 서버 (모델 이름 뒤에 서버 주소를 붙여 둔 것)
+        r.provider, r.profile, r.cost_usd, r.cost_source = "local", "free", 0.0, "free"
+        return
+    mp = catalog_price(model)
+    if mp is not None:
+        r.provider, r.profile = mp.provider, "paid"
+        r.cost_usd = price_tokens(
+            mp,
+            _kst_day(r.ts),
+            input=r.input_tokens,
+            cache_read=r.cached_tokens,
+            output=r.output_tokens,
+        )
+        r.cost_source = "estimated"
+        return
+    if "/" in model:
+        r.provider, r.profile = "openrouter", "paid"
+        v = _openrouter_price(model, r.input_tokens, r.output_tokens)
+        r.cost_usd, r.cost_source = (v, "estimated") if v is not None else (None, "unpriced")
+        return
+    r.cost_usd, r.cost_source = None, "unpriced"
+
+
+def backfill(db: Database, market: str = "") -> int:
+    """요금이 비어 있는 예전 기록에 요금을 매긴다 (부팅 때). 고친 행 수.
+
+    market 을 주면 그 DB 에서 바로 쌓인(옮겨 온 것이 아닌) 예전 판단·답장 기록에 시장을 적는다.
+    뉴스 룸 기록은 공용('')으로 둔다. 새 기록은 처음부터 시장이 있어 다시 바뀌지 않는다.
+    """
+    with db.session() as s:
+        rows = list(s.scalars(select(LlmUsage).where(LlmUsage.cost_source == "")))
+        for r in rows:
+            _fill_legacy(r)
+        if market:
+            s.execute(
+                update(LlmUsage)
+                .where(LlmUsage.market == "", LlmUsage.origin.is_(None), LlmUsage.kind != "newsroom")
+                .values(market=market)
+            )
+    if rows:
+        log.info("LLM 요금 장부: 예전 기록 %d건에 요금을 매김", len(rows))
+    return len(rows)
+
+
+COPY_FIELDS = (
+    "ts",
+    "kind",
+    "run_id",
+    "model",
+    "calls",
+    "input_tokens",
+    "cached_tokens",
+    "output_tokens",
+    "max_input_tokens",
+    "source",
+    "profile",
+    "provider",
+    "served_model",
+    "upstream",
+    "response_id",
+    "cache_read_tokens",
+    "cache_write_tokens",
+    "reasoning_tokens",
+    "cost_usd",
+    "cost_source",
+)
+
+
+def move_usage(src: Database, ledger: Database, market: str, strategy: str = "") -> int:
+    """미장·실험실 DB 에 쌓인 기록을 장부(국장 DB)로 옮긴다. origin 으로 한 번만 옮기고, 옮긴 뒤 원래 행은 지운다.
+
+    origin = '시장:전략:원래 id:시각(초)' — SQLite 는 행을 지우면 id 를 다시 쓸 수 있어 시각까지 붙인다.
+    """
+    if src is ledger:
+        return 0
+    prefix = f"{market}:{strategy}:"
+    with src.session() as s:
+        rows = list(s.scalars(select(LlmUsage).order_by(LlmUsage.id)))
+        if not rows:
+            return 0
+        data = [
+            {f: getattr(r, f) for f in COPY_FIELDS} | {"src_id": f"{r.id}:{int(r.ts.timestamp())}"}
+            for r in rows
+        ]
+        ids = [r.id for r in rows]
+    with ledger.session() as s:
+        done = set(s.scalars(select(LlmUsage.origin).where(LlmUsage.origin.like(prefix + "%"))))
+        moved = 0
+        for d in data:
+            origin = f"{prefix}{d.pop('src_id')}"
+            if origin in done:
+                continue
+            row = LlmUsage(**d, market=market, strategy=strategy, origin=origin)
+            if not row.cost_source:
+                _fill_legacy(row)
+            s.add(row)
+            moved += 1
+    with src.session() as s:  # 장부에 들어간 것을 확인한 뒤에만 지운다
+        s.execute(delete(LlmUsage).where(LlmUsage.id.in_(ids)))
+    if moved:
+        log.info("LLM 요금 장부: %s %s 기록 %d건을 옮김", market, strategy or "주 계좌", moved)
+    return moved
+
+
+# ====================================================================== 장부 보기
+GROUP_KEYS = ("profile", "provider", "model", "market", "strategy", "kind")
+_CACHE: WeakKeyDictionary[Database, dict[tuple[Any, ...], dict[str, Any]]] = WeakKeyDictionary()
+_LOCK = threading.Lock()
+
+
+def _month_keys(today: date, months: int) -> list[str]:
+    y, m = today.year, today.month
+    out = []
+    for _ in range(months):
+        out.append(f"{y:04d}-{m:02d}")
+        y, m = (y, m - 1) if m > 1 else (y - 1, 12)
+    return out[::-1]
+
+
+def _bucket() -> dict[str, Any]:
+    return {
+        "calls": 0,
+        "input": 0,
+        "cache_read": 0,
+        "cache_known": 0,  # 캐시 적중을 제공사가 알려 준 호출 수
+        "output": 0,
+        "reasoning": 0,
+        "cost": 0.0,
+        "unpriced": 0,
+        "by_source": defaultdict(int),
+    }
+
+
+def _add(b: dict[str, Any], r: Any) -> None:
+    b["calls"] += r.calls
+    b["input"] += r.input_tokens
+    b["output"] += r.output_tokens
+    b["reasoning"] += r.reasoning_tokens or 0
+    if r.cache_read_tokens is not None:
+        b["cache_read"] += r.cache_read_tokens
+        b["cache_known"] += r.calls
+    if r.cost_usd is None:
+        b["unpriced"] += r.calls
+    else:
+        b["cost"] += r.cost_usd
+    b["by_source"][r.cost_source or "unpriced"] += r.calls
+
+
+def _rows_out(groups: dict[tuple[Any, ...], dict[str, Any]], first: str) -> list[dict[str, Any]]:
+    out = []
+    for key, b in sorted(groups.items(), key=lambda kv: tuple(str(x) for x in kv[0])):
+        out.append(
+            {
+                first: key[0],
+                **dict(zip(GROUP_KEYS, key[1:], strict=True)),
+                **{k: v for k, v in b.items() if k not in ("cost", "by_source")},
+                "cost": round(b["cost"], 6),
+                "by_source": dict(b["by_source"]),
+            }
+        )
+    return out
+
+
+def ledger_view(db: Database, now: datetime, months: int = 12, month: str | None = None) -> dict[str, Any]:
+    """월별 묶음(최근 months 개월)과 고른 달(month, 기본 이번 달)의 날짜별 묶음.
+
+    묶음 열쇠: profile·provider·model·market·strategy·kind — 화면이 이것으로 거르고 다시 묶는다.
+    결과는 (오늘, 기간, 달, 장부 건수·마지막 id)가 같으면 캐시를 돌려준다(B5).
     """
     today = now.astimezone(KST).date()
-    start, first, month_end = _month_window(today, months)
-    remaining = len(cal.trading_days(today + timedelta(days=1), month_end)) if today < month_end else 0
+    keys = _month_keys(today, months)
+    sel = month if month in keys else keys[-1]
+    start = datetime(int(keys[0][:4]), int(keys[0][5:]), 1, tzinfo=KST)
     with db.session() as s:
         count, last_id = s.execute(select(func.count(LlmUsage.id), func.max(LlmUsage.id))).one()
-    key = (today, months, sessions_per_day, remaining, int(count or 0), int(last_id or 0))
-    with _SUMMARY_LOCK:
-        hit = _SUMMARY_CACHE.get(db, {}).get(key)
+    ck = (today, months, sel, int(count or 0), int(last_id or 0))
+    with _LOCK:
+        hit = _CACHE.get(db, {}).get(ck)
     if hit is not None:
         return copy.deepcopy(hit)
-    out = _summary(db, today, start, first, remaining, sessions_per_day)
-    with _SUMMARY_LOCK:
-        per_db = _SUMMARY_CACHE.setdefault(db, {})
-        if len(per_db) >= 8:
-            per_db.clear()
-        per_db[key] = copy.deepcopy(out)
-    return out
 
-
-def _month_keys(start: date, first: date) -> list[str]:
-    out = []
-    d = start
-    while d <= first:
-        out.append(d.strftime("%Y-%m"))
-        d = (d + timedelta(days=32)).replace(day=1)
-    return out
-
-
-@dataclass
-class _Tally:
-    """사용 기록을 달별로 모은 것: 토큰 합계, 모델별 환산 요금, 최근 30일 기록(하루 단위)."""
-
-    tok: dict[str, dict[str, int]]
-    cost: dict[str, dict[str, list[float]]]
-    daily: dict[date, list[dict[str, Any]]]
-
-
-def _tally(rows: list[LlmUsage], month_keys: list[str], today: date) -> _Tally:
-    tok: dict[str, dict[str, int]] = {
-        k: {"calls": 0, "input": 0, "cached": 0, "output": 0, "sessions": 0, "chats": 0, "backfill": 0}
-        for k in month_keys
-    }
-    sessions: dict[str, set[int]] = defaultdict(set)
-    cost: dict[str, dict[str, list[float]]] = {m.id: {k: [0.0, 0.0] for k in month_keys} for m in MODELS}
-    daily: dict[date, list[dict[str, Any]]] = defaultdict(list)
-    for r in rows:
-        day = _kst_day(r.ts)
-        k = day.strftime("%Y-%m")
-        if k not in tok:
-            continue
-        t = tok[k]
-        t["calls"] += r.calls
-        t["input"] += r.input_tokens
-        t["cached"] += r.cached_tokens
-        t["output"] += r.output_tokens
-        if r.kind == "chat":
-            t["chats"] += 1
-        elif r.run_id is not None:
-            sessions[k].add(r.run_id)
-        if r.source == "backfill":
-            t["backfill"] += 1
-        vals = {f: getattr(r, f) for f in USAGE_FIELDS}  # 행마다 한 번만 (모델마다 다시 만들지 않는다)
-        for m in MODELS:
-            a, b = row_cost(m, vals, day)
-            cost[m.id][k][0] += a
-            cost[m.id][k][1] += b
-        if day > today - timedelta(days=PROJECTION_DAYS):
-            daily[day].append({**vals, "run_id": r.run_id})
-    for k in month_keys:
-        tok[k]["sessions"] = len(sessions[k])
-    return _Tally(tok, cost, daily)
-
-
-def _model_row(
-    m: ModelPrice,
-    tally: _Tally,
-    window: list[tuple[date, dict[str, Any]]],
-    *,
-    today: date,
-    cur: str,
-    remaining: int,
-    n_sessions: int,
-    sessions_per_day: int | None,
-) -> dict[str, Any]:
-    """모델 하나의 달별 환산 요금·이번 달 예상·하루 평균·세션당 평균."""
-    active = len(tally.daily)
-    sess, chat = [0.0, 0.0], [0.0, 0.0]
-    for day, it in window:
-        a, b = row_cost(m, it, day)
-        bucket = sess if it["kind"] == "session" else chat
-        bucket[0] += a
-        bucket[1] += b
-    if sessions_per_day is not None and n_sessions > 0:
-        avg = [
-            sessions_per_day * sess[i] / n_sessions + (chat[i] / active if active else 0.0) for i in (0, 1)
-        ]
-    else:
-        avg = [(sess[i] + chat[i]) / active if active else 0.0 for i in (0, 1)]
-    per_session = [sess[i] / n_sessions if n_sessions else 0.0 for i in (0, 1)]
-    p = m.at(today)
-    spent = tally.cost[m.id][cur]
-    return {
-        "id": m.id,
-        "provider": m.provider,
-        "name": m.name,
-        "tier": m.tier,
-        "note": m.note,
-        "price": {
-            "input": p.input,
-            "cached": p.cached,
-            "output": p.output,
-            "cache_write": p.cache_write,
-            "long_from": m.long_from,
-        },
-        "months": {
-            k: {"nocache": round(v[0], 4), "cache": round(v[1], 4)} for k, v in tally.cost[m.id].items()
-        },
-        "projection": {
-            "nocache": round(spent[0] + avg[0] * remaining, 4),
-            "cache": round(spent[1] + avg[1] * remaining, 4),
-        },
-        "daily_avg": {"nocache": round(avg[0], 4), "cache": round(avg[1], 4)},
-        "per_session": {"nocache": round(per_session[0], 4), "cache": round(per_session[1], 4)},
-    }
-
-
-def _summary(
-    db: Database, today: date, start: date, first: date, remaining: int, sessions_per_day: int | None
-) -> dict[str, Any]:
-    with db.session() as s:
-        rows = list(
-            s.scalars(
-                select(LlmUsage).where(LlmUsage.ts >= datetime.combine(start, datetime.min.time(), KST))
-            )
-        )
-    month_keys = _month_keys(start, first)
-    tally = _tally(rows, month_keys, today)
-
-    # 이번 달 예상 = 지금까지 쓴 것 + 하루 예상 × 남은 거래일
-    #   하루 예상 = 세션당 평균 × 지금 일정의 하루 세션 수 + 답장의 하루 평균 (최근 30일 기준)
-    #   (일정을 모르면 최근 사용한 날의 하루 평균)
-    window = [(day, it) for day, items in tally.daily.items() for it in items]
-    n_sessions = len(
-        {it["run_id"] for _, it in window if it["kind"] == "session" and it["run_id"] is not None}
+    cols = (
+        LlmUsage.ts,
+        LlmUsage.calls,
+        LlmUsage.input_tokens,
+        LlmUsage.output_tokens,
+        LlmUsage.reasoning_tokens,
+        LlmUsage.cache_read_tokens,
+        LlmUsage.cost_usd,
+        LlmUsage.cost_source,
+        *(getattr(LlmUsage, k) for k in GROUP_KEYS),
     )
-    by_schedule = sessions_per_day is not None and n_sessions > 0
-    cur = first.strftime("%Y-%m")
-    out_models = [
-        _model_row(
-            m,
-            tally,
-            window,
-            today=today,
-            cur=cur,
-            remaining=remaining,
-            n_sessions=n_sessions,
-            sessions_per_day=sessions_per_day,
-        )
-        for m in MODELS
-    ]
-    return {
+    monthly: dict[tuple[Any, ...], dict[str, Any]] = defaultdict(_bucket)
+    daily: dict[tuple[Any, ...], dict[str, Any]] = defaultdict(_bucket)
+    with db.session() as s:
+        for r in s.execute(select(*cols).where(LlmUsage.ts >= start)):
+            day = _kst_day(r.ts)
+            mk = day.strftime("%Y-%m")
+            if mk not in keys:
+                continue
+            g = (
+                r.profile or "",
+                r.provider or "",
+                public_model(r.model),
+                r.market or "",
+                r.strategy or "",
+                r.kind,
+            )
+            _add(monthly[(mk, *g)], r)
+            if mk == sel:
+                _add(daily[(day.isoformat(), *g)], r)
+    out = {
         "checked": PRICES_CHECKED,
         "sources": SOURCES,
-        "months": [{"month": k, **tally.tok[k]} for k in month_keys],
-        "models": out_models,
-        "projection": {
-            "month": cur,
-            "remaining_trading_days": remaining,
-            "basis_days": len(tally.daily),
-            "basis_sessions": n_sessions,
-            "basis_window_days": PROJECTION_DAYS,
-            "method": "schedule" if by_schedule else "history",
-            "sessions_per_day": sessions_per_day if by_schedule else None,
-        },
+        "today": today.isoformat(),
+        "months": keys,
+        "month": sel,
+        "groups": _rows_out(monthly, "month"),
+        "daily": _rows_out(daily, "day"),
     }
+    with _LOCK:
+        per = _CACHE.setdefault(db, {})
+        if len(per) >= 16:
+            per.clear()
+        per[ck] = copy.deepcopy(out)
+    return out

@@ -67,10 +67,10 @@ def _fresh_cache() -> Iterator[None]:
         ("https://openrouter.ai/api/v1", "sk-ant-x", "openrouter"),  # 주소가 우선
         ("", "sk-or-v1-abc", "openrouter"),  # sk- 보다 먼저
         ("", "sk-openai-abc", "openai"),
-        ("", "sk-ant-abc", "anthropic"),
+        ("", "sk-ant-abc", None),  # Anthropic 은 쓰지 않는다 (D-66)
     ],
 )
-def test_detect_openrouter(base: str, key: str, want: str) -> None:
+def test_detect_openrouter(base: str, key: str, want: str | None) -> None:
     assert detect(base, key) == want
 
 
@@ -99,7 +99,8 @@ def test_parse_keeps_tool_capable_models_and_converts_prices() -> None:
         None,
     )
     # 회사 이름 → 모델 이름 순
-    assert [m.group_label for m in models] == ["Anthropic", "DeepSeek", "OpenAI", "openrouter", "Qwen"]
+    assert [m.group_label for m in models] == ["DeepSeek", "OpenAI", "openrouter", "Qwen"]
+    assert "anthropic/claude-sonnet-x" not in ids  # 쓰지 않는 제공사 (D-66)
     assert parse({"oops": 1}) == [] and parse(None) == []
     assert per_million("abc") is None and per_million("0.000001") == 1.0
 
@@ -179,7 +180,6 @@ def test_profile_lists_openrouter_models_and_switches(tmp_path: Path) -> None:
         o = {m["id"]: m for m in paid["models"]}
         assert set(o) == {
             "openai/gpt-6.1-sol",
-            "anthropic/claude-sonnet-x",
             "deepseek/deepseek-v9",
             "qwen/qwen9:free",
             "openrouter/auto",
@@ -197,13 +197,20 @@ def test_profile_lists_openrouter_models_and_switches(tmp_path: Path) -> None:
         assert not any(m["id"] == "gpt-6.1-terra" for m in paid["models"])  # 직접 연결용 가격표는 뺀다
         assert "sk-or-v1-test" not in r.text and "sk-or-v1-test" not in c.get("/api/llm/profile").text
 
-        r = c.put("/api/llm/model", json={"model": "anthropic/claude-sonnet-x"})
-        assert r.status_code == 200 and _paid(r.json())["model"] == "anthropic/claude-sonnet-x"
-        assert app.runner.llm.model == "anthropic/claude-sonnet-x"
-        assert app.kv.get(MODEL_KEY) == {"model": "anthropic/claude-sonnet-x"}
-        for bad in ("meta/tools-only", "mistral/no-tools", "no/such-model", "gpt-6.1-terra"):
+        r = c.put("/api/llm/model", json={"model": "deepseek/deepseek-v9"})
+        assert r.status_code == 200 and _paid(r.json())["model"] == "deepseek/deepseek-v9"
+        assert app.runner.llm.model == "deepseek/deepseek-v9"
+        assert app.kv.get(MODEL_KEY) == {"model": "deepseek/deepseek-v9"}
+        bad_ids = (
+            "meta/tools-only",
+            "mistral/no-tools",
+            "no/such-model",
+            "gpt-6.1-terra",
+            "anthropic/claude-sonnet-x",
+        )
+        for bad in bad_ids:
             assert c.put("/api/llm/model", json={"model": bad}).status_code == 400, bad
-        assert app.runner.llm.model == "anthropic/claude-sonnet-x"
+        assert app.runner.llm.model == "deepseek/deepseek-v9"
 
 
 def test_refresh_rejected_for_other_providers(tmp_path: Path) -> None:

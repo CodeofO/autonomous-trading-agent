@@ -248,6 +248,6 @@ def test_migration_0003_creates_memory_cards_on_both_dbs(tmp_path: Path) -> None
         eng = create_engine(f"sqlite:///{tmp_path / name}")
         assert "memory_cards" in inspect(eng).get_table_names()
         with eng.connect() as con:
-            assert con.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0005"
+            assert con.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0006"
             assert con.execute(text("SELECT count(*) FROM memory_cards")).scalar() == 1
         eng.dispose()

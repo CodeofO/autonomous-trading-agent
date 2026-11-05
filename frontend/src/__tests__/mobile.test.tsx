@@ -95,7 +95,7 @@ describe("모바일 탭바", () => {
     expect(screen.queryByRole("navigation", { name: "메뉴" })).not.toBeInTheDocument();
   });
 
-  it("더보기를 누르면 매니저·전략 실험실·백테스트·로그·LLM 비용·설정이 시트로 열리고, 고르면 닫히며 이동한다", async () => {
+  it("더보기를 누르면 매니저·전략 실험실·판단 일정·백테스트·로그·LLM 요금·설정이 시트로 열리고, 고르면 닫히며 이동한다", async () => {
     setMobile(true);
     mockFetch({});
     renderLayout();
@@ -105,7 +105,7 @@ describe("모바일 탭바", () => {
       within(sheet)
         .getAllByRole("link")
         .map((a) => a.getAttribute("href")),
-    ).toEqual(["/agent", "/lab", "/backtest", "/logs", "/costs", "/settings"]);
+    ).toEqual(["/agent", "/lab", "/settings/schedule", "/backtest", "/logs", "/costs", "/settings"]);
     fireEvent.click(within(sheet).getByRole("link", { name: /^매니저/ }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "더보기" })).not.toBeInTheDocument());
     expect(screen.getByText("매니저 본문")).toBeInTheDocument();

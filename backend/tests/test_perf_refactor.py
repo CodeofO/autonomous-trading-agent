@@ -22,12 +22,12 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, event, func, select
 
-from app.agent.costs import record_usage, summary
+from app.agent.costs import ledger_view, record_call
+from app.agent.llm import ChatResult, LLMClient
 from app.brokers.base import OrderRequest, OrderSide, OrderStatus
 from app.container import build_container
 from app.core.clock import KST, SimulatedClock
 from app.core.config import Settings
-from app.core.market_calendar import MarketCalendar
 from app.db.models import ApiCache, EquitySnapshot, Fill, Order, WatchlistItem
 from app.db.session import Database
 from app.engine.maintenance import prune_api_cache, run_maintenance
@@ -299,21 +299,25 @@ def test_costs_summary_cache_invalidates_on_new_usage() -> None:
     db = Database("sqlite://")
     db.create_all()
     now = datetime(2026, 11, 4, 10, tzinfo=KST)
-    cal = MarketCalendar()
-    record_usage(
-        db, now - timedelta(hours=1), "session", 1, "m", {"prompt_tokens": 1000, "completion_tokens": 10}
-    )
-    first = summary(db, now, cal, 2, sessions_per_day=3)
+    llm = LLMClient("http://llm.local.test/v1", "m", "", profile="free")
+
+    def call(ts: datetime, kind: str, run_id: int | None, inp: int, out: int) -> None:
+        res = ChatResult(content="", usage={"prompt_tokens": inp, "completion_tokens": out})
+        record_call(db, ts, kind=kind, run_id=run_id, llm=llm, res=res, market="KR")
+
+    call(now - timedelta(hours=1), "session", 1, 1000, 10)
+    first = ledger_view(db, now, 2)
     count = SqlCount(db.engine)
     with count() as q:
-        again = summary(db, now, cal, 2, sessions_per_day=3)
+        again = ledger_view(db, now, 2)
     assert again == first and q.n == 1
-    again["models"].clear()  # 돌려받은 값을 고쳐도 캐시는 그대로
-    assert summary(db, now, cal, 2, sessions_per_day=3) == first
-    record_usage(db, now, "chat", None, "m", {"prompt_tokens": 500, "completion_tokens": 5})
-    fresh = summary(db, now, cal, 2, sessions_per_day=3)
-    assert fresh["months"][-1]["input"] == 1500 and fresh["months"][-1]["chats"] == 1
-    assert summary(db, now, cal, 2, sessions_per_day=2) != fresh  # 일정이 바뀌면 다시 계산
+    again["groups"].clear()  # 돌려받은 값을 고쳐도 캐시는 그대로
+    assert ledger_view(db, now, 2) == first
+    call(now, "chat", None, 500, 5)
+    fresh = ledger_view(db, now, 2)
+    assert sum(g["input"] for g in fresh["groups"]) == 1500
+    assert {g["kind"] for g in fresh["groups"]} == {"session", "chat"}
+    assert ledger_view(db, now, 2, "2026-10") != fresh  # 고른 달이 바뀌면 다시 계산
 
 
 # ====================================================================== B6: 장 시간 밖 작업

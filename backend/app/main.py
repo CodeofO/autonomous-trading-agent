@@ -12,7 +12,7 @@ from fastapi import FastAPI
 from starlette.middleware.gzip import GZipMiddleware
 
 from app.api import llm_extra, routes, ws
-from app.container import Container, announce_boot, build_container
+from app.container import Container, announce_boot, build_container, move_lab_usage
 from app.core.config import Settings, get_settings
 from app.core.logging import setup_logging
 from app.db.migrate import migrate
@@ -183,6 +183,10 @@ def _start_lab(c: Container) -> None:
             log.info("전략 시나리오(%s): %s", c.code, ", ".join(c.lab.stacks))
     except Exception:
         log.exception("전략 시나리오 준비 실패")
+    try:
+        move_lab_usage(c)  # 꺼 둔 전략 기록 DB 의 예전 LLM 기록도 요금 장부로 (D-66)
+    except Exception:
+        log.exception("실험실 LLM 기록 옮기기 실패")
 
 
 async def _check_live_account(c: Any) -> None:

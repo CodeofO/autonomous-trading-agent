@@ -19,7 +19,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select
 
 from app.agent.activity import preview, result_line, tool_source
-from app.agent.costs import record_usage
+from app.agent.costs import record_call
 from app.agent.llm import RAW_KEY, ChatResult, LLMClient, LLMError, ToolsUnsupportedError, extract_json
 from app.agent.memo import RECENT_MESSAGES, live_cards, memory_settings, render_cards
 from app.agent.prompts import (
@@ -86,6 +86,10 @@ class AgentRunner:
         self.us = market is not None and market.code == "US"
         self.tz = market.tz if market else KST
         self.db = db
+        # 요금 장부 (D-66): 모든 시장·실험실 계좌의 LLM 호출을 국장 DB 한 곳에 모은다(컨테이너가 바꿔 끼운다)
+        self.usage_db = db
+        self.usage_market = market.code if market is not None else ""
+        self.usage_strategy = ""  # 실험실 전략 id (주 계좌는 빈 값)
         self.clock = clock
         self.hub = hub
         self.tb = toolbox
@@ -404,7 +408,7 @@ class AgentRunner:
                 tools,
                 {"type": "function", "function": {"name": TERMINAL_TOOL}} if force else None,
             )
-            self._log_usage("session", run_id, res.usage, prev_input)
+            self._log_usage("session", run_id, res, prev_input)
             prev_input = int(res.usage.get("prompt_tokens") or 0)
             _acc(usage, res.usage)
             self._run["tokens"] = usage.get("total_tokens", 0)
@@ -520,7 +524,7 @@ class AgentRunner:
         res = await self.llm.chat(
             [{"role": "system", "content": self._system()}, {"role": "user", "content": content}]
         )
-        self._log_usage("session", run_id, res.usage)
+        self._log_usage("session", run_id, res)
         _acc(usage, res.usage)
         self._run["tokens"] = usage.get("total_tokens", 0)
         data = extract_json(res.content)
@@ -778,9 +782,20 @@ class AgentRunner:
                 out.append({"role": "assistant", "content": m.content[:600]})
         return out
 
-    def _log_usage(self, kind: str, run_id: int | None, usage: dict[str, int], cached: int = 0) -> None:
-        model = self.llm.model if self.llm else ""
-        record_usage(self.db, self.clock.now(), kind, run_id, model, usage, cached)
+    def _log_usage(self, kind: str, run_id: int | None, res: ChatResult, cached: int = 0) -> None:
+        if self.llm is None:
+            return
+        record_call(
+            self.usage_db,
+            self.clock.now(),
+            kind=kind,
+            run_id=run_id,
+            llm=self.llm,
+            res=res,
+            market=self.usage_market,
+            strategy=self.usage_strategy,
+            cached_estimate=cached,
+        )
 
     async def _reply(self, question: str, question_id: int | None = None) -> None:
         p = self.persona()
@@ -822,7 +837,7 @@ class AgentRunner:
                     {"role": "user", "content": question[:1000]},
                 ]
             )
-            self._log_usage("chat", None, res.usage)
+            self._log_usage("chat", None, res)
             text = strip_disclaimers(res.content)[:2000]
             self.hub.chat(
                 ANALYST, "text", text or "음… 잘 모르겠어요 🤔", reply_to="user", question_id=question_id

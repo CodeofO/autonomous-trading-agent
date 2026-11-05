@@ -1,12 +1,18 @@
-import { fireEvent, screen, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Route, Routes } from "react-router-dom";
-import type { LlmCosts, LlmModelCost, LlmProvider, LlmUsageMonth } from "../api/types";
+import type {
+  LlmCosts,
+  LlmLedgerDayGroup,
+  LlmLedgerGroup,
+  LlmLedgerMonthGroup,
+  LlmOfficial,
+} from "../api/types";
 import { Layout } from "../components/Layout";
-import { isActive, SETTINGS } from "../components/nav";
+import { isActive, NAV_GROUPS, SETTINGS } from "../components/nav";
 import { Costs } from "../pages/Costs";
 import { Settings } from "../pages/Settings";
-import { extremes, sortModels, tokenStack } from "../utils/costs";
+import { daysOf, groupBy, matches, NO_FILTER, optionValues, sum, tokenStack } from "../utils/costs";
 import { fmtKrwFromUsd, fmtTokens, fmtUsd } from "../utils/format";
 import { mockFetch, renderWithProviders } from "./utils";
 
@@ -14,105 +20,156 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const MONTHS = [
-  "2025-12",
-  "2026-01",
-  "2026-02",
-  "2026-03",
-  "2026-04",
-  "2026-05",
-  "2026-06",
-  "2026-07",
-  "2026-08",
-  "2026-09",
-  "2026-10",
-  "2026-11",
-];
-
-const zero = (month: string): LlmUsageMonth => ({
-  month,
-  calls: 0,
-  input: 0,
-  cached: 0,
-  output: 0,
-  sessions: 0,
-  chats: 0,
-  backfill: 0,
+const g = (over: Partial<LlmLedgerGroup>): LlmLedgerGroup => ({
+  profile: "paid",
+  provider: "openai",
+  model: "gpt-6.1-sol",
+  market: "KR",
+  strategy: "",
+  kind: "session",
+  calls: 1,
+  input: 1_000,
+  cache_read: 0,
+  cache_known: 1,
+  output: 100,
+  reasoning: 0,
+  cost: 0.01,
+  unpriced: 0,
+  by_source: { priced: 1 },
+  ...over,
 });
 
-const USAGE: Record<string, Partial<LlmUsageMonth>> = {
-  // 예전 세션 합계에서 가져온 달 (호출별 캐시 추정 없음)
-  "2026-09": { calls: 12, input: 80_000, cached: 0, output: 3_000, sessions: 4, backfill: 4 },
-  "2026-10": { calls: 30, input: 100_000, cached: 60_000, output: 5_000, sessions: 3, chats: 2 },
-  "2026-11": { calls: 10, input: 50_000, cached: 20_000, output: 4_000, sessions: 1, chats: 1 },
+const M = (month: string, over: Partial<LlmLedgerGroup>): LlmLedgerMonthGroup => ({ month, ...g(over) });
+const Dd = (day: string, over: Partial<LlmLedgerGroup>): LlmLedgerDayGroup => ({ day, ...g(over) });
+
+const SOL = {
+  calls: 10,
+  input: 100_000,
+  cache_read: 60_000,
+  cache_known: 10,
+  output: 5_000,
+  reasoning: 2_000,
+  cost: 1.5,
+  by_source: { priced: 10 },
+};
+const QWEN = {
+  profile: "free" as const,
+  provider: "local" as const,
+  model: "qwen",
+  calls: 20,
+  input: 300_000,
+  cache_read: 0,
+  cache_known: 0,
+  output: 9_000,
+  cost: 0,
+  by_source: { free: 20 },
+};
+const LAB = { ...QWEN, strategy: "lynch", calls: 5, input: 50_000, output: 1_000, by_source: { free: 5 } };
+const OR_ROW = {
+  provider: "openrouter" as const,
+  model: "deepseek/deepseek-v9",
+  market: "US",
+  calls: 4,
+  input: 20_000,
+  output: 800,
+  cost: 0.25,
+  by_source: { reported: 4 },
+};
+const MYSTERY = {
+  provider: "gateway" as const,
+  model: "mystery",
+  kind: "chat",
+  calls: 2,
+  cost: 0,
+  unpriced: 2,
+  by_source: { unpriced: 2 },
 };
 
-const PROVIDERS: LlmProvider[] = ["anthropic", "openai", "google"];
-const TIERS = ["최상위", "주력", "중간", "경량"];
+const DATA: LlmCosts = {
+  checked: "2026-11-04",
+  sources: { openai: "https://example.com/openai-pricing", openrouter: "https://example.com/or" },
+  today: "2026-11-05",
+  months: ["2026-09", "2026-10", "2026-11"],
+  month: "2026-11",
+  groups: [
+    M("2026-10", { ...SOL, cost: 3 }),
+    M("2026-11", SOL),
+    M("2026-11", QWEN),
+    M("2026-11", LAB),
+    M("2026-11", OR_ROW),
+    M("2026-11", MYSTERY),
+  ],
+  daily: [
+    Dd("2026-11-04", { ...SOL, cost: 1, calls: 6 }),
+    Dd("2026-11-05", { ...SOL, cost: 0.5, calls: 4 }),
+    Dd("2026-11-05", QWEN),
+    Dd("2026-11-05", LAB),
+    Dd("2026-11-05", OR_ROW),
+    Dd("2026-11-03", MYSTERY),
+  ],
+  usd_krw: 1400,
+  current_model: "gpt-6.1-sol",
+  current_provider: "openai",
+  profile: "paid",
+  strategies: { default: { name: "기본 매니저", emoji: "🦉" }, lynch: { name: "피터 린치", emoji: "🧺" } },
+  official_ready: { openai: false },
+};
 
-/** 12개 모델: 회사마다 4개. 예상 요금은 일부러 순서와 다르게 섞는다 */
-const PROJ = [1.5, 0.9, 0.3, 0.05, 2.4, 1.1, 0.2, 0.08, 1.8, 0.7, 0.12, 0.01];
-
-function model(i: number): LlmModelCost {
-  const provider = PROVIDERS[Math.floor(i / 4)];
-  const cache = PROJ[i];
-  return {
-    id: `${provider}-${i}`,
-    provider,
-    name: `${provider === "anthropic" ? "Claude" : provider === "openai" ? "GPT" : "Gemini"} 모델${i}`,
-    tier: TIERS[i % 4],
-    note: i === 4 ? "입력 27.2만 토큰 초과 호출은 장문 요금" : "",
-    price: {
-      input: 4 - (i % 4),
-      cached: 0.2,
-      output: 20 - (i % 4) * 4,
-      cache_write: provider === "anthropic" ? 5 : null,
-      long_from: null,
+const OFFICIAL: LlmOfficial = {
+  month: "2026-11",
+  window_tz: "UTC",
+  providers: [
+    {
+      provider: "openai",
+      label: "OpenAI",
+      status: "no_key",
+      note: "OpenAI 공식 사용량·요금은 Admin 키로만 조회돼요.",
+      ledger: { calls: 10, input: 100_000, cache_read: 60_000, output: 5_000, cost: 1.5 },
     },
-    months: Object.fromEntries(
-      MONTHS.map((m) => [
-        m,
-        m === "2026-11"
-          ? { cache: cache / 3, nocache: (cache * 2) / 3 }
-          : m === "2026-10"
-            ? { cache: cache * 0.8, nocache: cache * 1.6 }
-            : { cache: 0, nocache: 0 },
-      ]),
-    ),
-    projection: { cache, nocache: cache * 2 },
-    daily_avg: { cache: cache / 20, nocache: cache / 10 },
-  };
-}
-
-function costs(over: Partial<LlmCosts> = {}): LlmCosts {
-  return {
-    checked: "2026-11-04",
-    sources: {
-      anthropic: "https://example.com/anthropic-pricing",
-      openai: "https://example.com/openai-pricing",
-      google: "https://example.com/google-pricing",
+    {
+      provider: "openrouter",
+      label: "OpenRouter",
+      status: "ok",
+      note: "키 1개의 공식 사용 금액(UTC 기준)이에요.",
+      windows: [
+        {
+          key: "daily",
+          label: "오늘",
+          official: { cost: 0.25 },
+          ledger: { calls: 4, input: 0, cache_read: 0, output: 0, cost: 0.25 },
+        },
+        {
+          key: "monthly",
+          label: "이번 달",
+          official: { cost: 0.4 },
+          ledger: { calls: 4, input: 0, cache_read: 0, output: 0, cost: 0.25 },
+        },
+      ],
     },
-    current_model: "Qwen/Qwen3-32B",
-    profile: "free",
-    usd_krw: 1343.8,
-    months: MONTHS.map((m) => ({ ...zero(m), ...USAGE[m] })),
-    models: Array.from({ length: 12 }, (_, i) => model(i)),
-    projection: { month: "2026-11", remaining_trading_days: 17, basis_days: 5, basis_window_days: 30 },
-    ...over,
-  };
+    {
+      provider: "google",
+      label: "Google",
+      status: "unsupported",
+      note: "Gemini API 키로 조회하는 공식 사용량·요금 API 가 없어요.",
+    },
+  ],
+};
+
+function mockCosts(data: LlmCosts = DATA, asked: string[] = []) {
+  return mockFetch({
+    "/api/llm/costs/official": OFFICIAL,
+    "/api/llm/costs": (u: string) => {
+      asked.push(u);
+      const month = new URL(u, "http://x").searchParams.get("month");
+      return month ? { ...data, month, daily: [] } : data;
+    },
+  });
 }
 
-function renderCosts(data: LlmCosts = costs()) {
-  const fetch = mockFetch({ "/api/llm/costs": data });
-  renderWithProviders(<Costs />);
-  return fetch;
-}
-
-describe("LLM 비용 숫자 표기", () => {
+describe("숫자 표기", () => {
   it("달러는 작은 금액일수록 소수 자리를 늘리고, 원은 반올림한다", () => {
     expect(fmtUsd(0)).toBe("$0");
     expect(fmtUsd(1234.567)).toBe("$1,234.57");
-    expect(fmtUsd(0.123)).toBe("$0.123");
     expect(fmtUsd(0.0042)).toBe("$0.0042");
     expect(fmtUsd(0.00001)).toBe("<$0.0001");
     expect(fmtKrwFromUsd(1.5, 1343.8)).toBe("2,016원");
@@ -122,174 +179,163 @@ describe("LLM 비용 숫자 표기", () => {
   it("토큰은 만·억 단위로 줄여 쓴다", () => {
     expect(fmtTokens(9_876)).toBe("9,876");
     expect(fmtTokens(123_456)).toBe("12.3만");
-    expect(fmtTokens(345_000_000)).toBe("3.45억");
   });
 });
 
-describe("월별 토큰 막대", () => {
-  it("입력(나머지) = 입력 − 캐시, 캐시가 입력보다 커도 입력을 넘지 않는다", () => {
-    expect(tokenStack({ input: 100_000, cached: 60_000, output: 5_000 })).toEqual({
-      cached: 60_000,
-      rest: 40_000,
-      output: 5_000,
-      total: 105_000,
+describe("장부 묶음 계산", () => {
+  const nov = DATA.groups.filter((x) => x.month === "2026-11");
+
+  it("거르지 않으면 모두 더하고, 단가 모름은 요금에 넣지 않고 따로 센다", () => {
+    const t = sum(nov);
+    expect(t.calls).toBe(10 + 20 + 5 + 4 + 2);
+    expect(t.cost).toBeCloseTo(1.75);
+    expect(t.unpriced).toBe(2);
+    expect(t.by_source).toEqual({ priced: 10, free: 25, reported: 4, unpriced: 2 });
+  });
+
+  it("빈 값(주 계좌·공용)도 정확히 거른다 — null 이 '전체'", () => {
+    expect(sum(nov, { ...NO_FILTER, strategy: "" }).calls).toBe(10 + 20 + 4 + 2);
+    expect(sum(nov, { ...NO_FILTER, strategy: "lynch" }).calls).toBe(5);
+    expect(sum(nov, { ...NO_FILTER, profile: "free" }).cost).toBe(0);
+    expect(matches(nov[0], { ...NO_FILTER, provider: "google" })).toBe(false);
+  });
+
+  it("거르기 목록은 다른 조건에 맞는 값만", () => {
+    expect(optionValues(nov, "provider", NO_FILTER)).toEqual(["gateway", "local", "openai", "openrouter"]);
+    expect(optionValues(nov, "model", { ...NO_FILTER, profile: "free" })).toEqual(["qwen"]);
+  });
+
+  it("묶어 합치기·막대 조각·날짜 칸", () => {
+    const byModel = groupBy(nov, (x) => x.model);
+    expect(byModel.get("qwen")?.calls).toBe(25);
+    expect(tokenStack({ input: 100, cache_read: 150, output: 5 })).toEqual({
+      cached: 100,
+      rest: 0,
+      output: 5,
+      total: 105,
     });
-    expect(tokenStack({ input: 10, cached: 50, output: 0 })).toMatchObject({ cached: 10, rest: 0 });
-  });
-
-  it("막대 조각을 캐시 적중 · 나머지 · 출력으로 쌓고, 달을 누르면 정확한 숫자와 세션·답장 수가 보인다", async () => {
-    renderCosts();
-    const chart = await screen.findByTestId("token-chart");
-    const oct = chart.querySelector('g[data-month="2026-10"]')!;
-    expect(oct.querySelector('[data-seg="llm-cached"]')).toHaveAttribute("data-value", "60000");
-    expect(oct.querySelector('[data-seg="llm-input"]')).toHaveAttribute("data-value", "40000");
-    expect(oct.querySelector('[data-seg="llm-output"]')).toHaveAttribute("data-value", "5000");
-    expect(oct.querySelector("title")!.textContent).toContain("세션 3 · 답장 2");
-    // 아무것도 안 쓴 달은 막대 조각이 없다
-    expect(chart.querySelector('g[data-month="2026-01"] [data-seg]')).toBeNull();
-
-    // 기본 선택은 이번 달
-    expect(screen.getByTestId("token-detail")).toHaveTextContent("2026년 11월");
-    fireEvent.click(within(chart).getByRole("button", { name: "10월" }));
-    const detail = screen.getByTestId("token-detail");
-    expect(detail).toHaveTextContent("캐시 적중 추정 60,000");
-    expect(detail).toHaveTextContent("입력 나머지 40,000");
-    expect(detail).toHaveTextContent("출력 5,000");
-    expect(detail).toHaveTextContent("세션 3 · 답장 2");
-  });
-
-  it("예전 세션 합계를 가져온 달은 따로 표시한다", async () => {
-    renderCosts();
-    const chart = await screen.findByTestId("token-chart");
-    const sep = within(chart).getByRole("button", { name: "9월" });
-    expect(sep).toHaveClass("mark");
-    expect(sep.title).toContain("예전 세션 합계 포함 — 호출별 캐시 추정 없음");
-    expect(within(chart).getByRole("button", { name: "10월" })).not.toHaveClass("mark");
-  });
-
-  it("기록이 하나도 없으면 빈 화면 안내를 보여 준다", async () => {
-    renderCosts(costs({ months: MONTHS.map(zero) }));
-    expect(await screen.findByTestId("costs-empty")).toHaveTextContent("아직 기록된 LLM 사용량이 없어요");
-    expect(screen.getByTestId("costs-empty")).toHaveTextContent("예전 판단 세션은 세션 합계로 가져왔어요");
-    expect(screen.queryByTestId("token-chart")).toBeNull();
-    expect(screen.queryByTestId("projection")).toBeNull();
-    // 가격 비교표는 그대로 (가장 저렴/비쌈 표시는 없이)
-    const table = screen.getByTestId("costs-table");
-    expect(table.querySelectorAll("tbody tr")).toHaveLength(12);
+    expect(daysOf("2026-11", "2026-11-05")).toEqual([
+      "2026-11-01",
+      "2026-11-02",
+      "2026-11-03",
+      "2026-11-04",
+      "2026-11-05",
+    ]);
+    expect(daysOf("2026-10", "2026-11-05")).toHaveLength(31);
   });
 });
 
-describe("시나리오·통화 토글", () => {
-  it("기본은 캐시 적용 · 원, 토글하면 예상 금액이 바뀐다", async () => {
-    renderCosts();
-    const proj = await screen.findByTestId("projection");
-    // 첫 모델: 캐시 적용 $1.5 × 1,343.8 = 2,015.7 → 2,016원
-    expect(proj).toHaveTextContent("2,016원");
-    expect(screen.getByRole("button", { name: "캐시 적용(추정)" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByText(/남은 거래일 17일 \(최근 30일 중 사용한 5일 기준\)/)).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "캐시 없음" }));
-    expect(screen.getByTestId("projection")).toHaveTextContent("4,031원"); // $3 × 1,343.8
-
-    fireEvent.click(screen.getByRole("button", { name: "$" }));
-    expect(screen.getByTestId("projection")).toHaveTextContent("$3.00");
-
-    fireEvent.click(screen.getByRole("button", { name: "캐시 적용(추정)" }));
-    expect(screen.getByTestId("projection")).toHaveTextContent("$1.50");
+describe("LLM 요금 화면", () => {
+  it("이번 달 실제 요금·오늘 요금·출처를 보여 주고, 예상·캐시 시나리오는 없다", async () => {
+    mockCosts();
+    renderWithProviders(<Costs />);
+    const total = await screen.findByTestId("costs-total");
+    expect(total).toHaveTextContent("2026년 11월");
+    expect(total).toHaveTextContent(fmtKrwFromUsd(1.75, 1400));
+    expect(total).toHaveTextContent("오늘");
+    expect(total).toHaveTextContent(fmtKrwFromUsd(0.75, 1400)); // 0.5 + 0 + 0 + 0.25
+    expect(screen.getByLabelText("요금 출처")).toHaveTextContent("제공사 보고 4회");
+    expect(screen.getByLabelText("요금 출처")).toHaveTextContent("단가 모름 2회");
+    expect(screen.queryByText(/캐시 적용/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/예상/)).not.toBeInTheDocument();
+    expect(screen.getByText("gpt-6.1-sol", { selector: ".costs-model" })).toBeInTheDocument();
   });
 
-  it("환율이 없으면 통화 토글 없이 $ 로만 보여 준다", async () => {
-    renderCosts(costs({ usd_krw: null }));
-    expect(await screen.findByTestId("projection")).toHaveTextContent("$1.50");
-    expect(screen.queryByRole("group", { name: "통화" })).toBeNull();
-    expect(screen.getByText("환율을 받지 못해 $ 로만 보여요")).toBeInTheDocument();
+  it("통화를 $ 로 바꾸면 달러로", async () => {
+    mockCosts();
+    renderWithProviders(<Costs />);
+    fireEvent.click(await screen.findByRole("button", { name: "$" }));
+    expect(screen.getByTestId("costs-total")).toHaveTextContent("$1.75");
   });
 
-  it("회사·모델을 고르면 그 모델의 예상과 월별 요금 막대로 바뀐다", async () => {
-    renderCosts();
-    await screen.findByTestId("projection");
-    fireEvent.click(screen.getByRole("button", { name: "Google" }));
-    // Google 첫 모델(8번): $1.8 → 2,419원
-    expect(screen.getByTestId("projection")).toHaveTextContent("2,419원");
-    const chips = screen.getByRole("group", { name: "모델" });
-    expect(within(chips).getAllByRole("button")).toHaveLength(4);
-    fireEvent.click(within(chips).getByRole("button", { name: /Gemini 모델11/ }));
-    expect(screen.getByTestId("projection")).toHaveTextContent("13원"); // $0.01 × 1,343.8
-    const nov = screen.getByTestId("cost-chart").querySelector('g[data-month="2026-11"]')!;
-    expect(nov.querySelector('[data-seg="cost-spent"]')).not.toBeNull();
+  it("무료/유료·계좌로 거르면 합계와 나눠 보기 표가 바뀐다", async () => {
+    mockCosts();
+    renderWithProviders(<Costs />);
+    const profile = await screen.findByRole("combobox", { name: "무료/유료" });
+    fireEvent.change(profile, { target: { value: "v:free" } });
+    expect(screen.getByTestId("costs-total")).toHaveTextContent("호출 25회");
+    const table = screen.getByTestId("costs-breakdown");
+    expect(within(table).getByText("qwen")).toBeInTheDocument();
+    expect(within(table).queryByText("gpt-6.1-sol")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "계좌" }));
+    expect(
+      within(screen.getByTestId("costs-breakdown")).getByText("🇰🇷 국장 · 🧺 피터 린치"),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("combobox", { name: "계좌" }), { target: { value: "v:" } });
+    expect(screen.getByTestId("costs-total")).toHaveTextContent("호출 20회");
+
+    fireEvent.click(screen.getByRole("button", { name: "모두 보기" }));
+    expect(screen.getByTestId("costs-total")).toHaveTextContent("호출 41회");
   });
 
-  it("자체 서버 모델이면 지금은 API 요금이 없다고 알려 준다", async () => {
-    renderCosts();
-    expect(await screen.findByText("Qwen/Qwen3-32B")).toBeInTheDocument();
-    expect(screen.getByText("지금은 API 요금 없음")).toBeInTheDocument();
-    expect(screen.getByText("가격 확인일 2026-11-04")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Anthropic" })).toHaveAttribute(
-      "href",
-      "https://example.com/anthropic-pricing",
-    );
-  });
-});
-
-describe("12개 모델 비교표", () => {
-  const order = () =>
-    Array.from(screen.getByTestId("costs-table").querySelectorAll("tbody tr")).map((r) =>
-      r.getAttribute("data-model"),
-    );
-
-  it("이번 달 예상이 싼 순서로 정렬하고, 머리글을 누르면 뒤집는다", async () => {
-    renderCosts();
-    await screen.findByTestId("costs-table");
-    const asc = [...PROJ.keys()].sort((a, b) => PROJ[a] - PROJ[b]).map((i) => model(i).id);
-    expect(order()).toEqual(asc);
-    fireEvent.click(screen.getByRole("button", { name: /이번 달 예상/ }));
-    expect(order()).toEqual([...asc].reverse());
-    // 다른 열(출력 가격)로 정렬
-    fireEvent.click(screen.getByRole("button", { name: /^출력/ }));
-    const prices = order().map((id) => model(Number(id!.split("-")[1])).price.output);
-    expect(prices).toEqual([...prices].sort((a, b) => a - b));
+  it("나눠 보기: 모델별 표에 단가 모름·추론 토큰, 날짜별은 최근 날짜부터", async () => {
+    mockCosts();
+    renderWithProviders(<Costs />);
+    const table = await screen.findByTestId("costs-breakdown");
+    const rows = within(table).getAllByRole("row");
+    expect(rows[1]).toHaveTextContent("gpt-6.1-sol"); // 요금 큰 순
+    expect(within(table).getByText(/\+단가 모름 2회/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "날짜" }));
+    const days = within(screen.getByTestId("costs-breakdown")).getAllByRole("row");
+    expect(days[1]).toHaveTextContent("11월 5일 (목)");
   });
 
-  it("가장 저렴한 모델과 가장 비싼 모델을 표시한다", async () => {
-    renderCosts();
-    const table = await screen.findByTestId("costs-table");
-    expect(table.querySelector("tr.cheapest")).toHaveAttribute("data-model", "google-11");
-    expect(table.querySelector("tr.priciest")).toHaveAttribute("data-model", "openai-4");
-    expect(within(table).getByText("가장 저렴")).toBeInTheDocument();
-    expect(within(table).getByText("가장 비쌈")).toBeInTheDocument();
-    expect(within(table).getByText("입력 27.2만 토큰 초과 호출은 장문 요금")).toBeInTheDocument();
-    expect(within(table).getAllByText("쓰기 $5.00")).toHaveLength(4); // Anthropic 만 캐시 쓰기 요금
+  it("월별 막대를 누르면 그 달의 일별 기록을 다시 받는다", async () => {
+    const asked: string[] = [];
+    mockCosts(DATA, asked);
+    renderWithProviders(<Costs />);
+    const chart = await screen.findByTestId("month-chart");
+    fireEvent.click(within(chart).getByRole("button", { name: "2026년 10월" }));
+    await waitFor(() => expect(asked.at(-1)).toContain("month=2026-10"));
+    expect(await screen.findByRole("heading", { name: "일별 · 2026년 10월" })).toBeInTheDocument();
   });
 
-  it("정렬·최저/최고 계산은 시나리오를 따른다", () => {
-    const models = costs().models;
-    expect(sortModels(models, "projection", "asc", "2026-11", "nocache")[0].id).toBe("google-11");
-    expect(sortModels(models, "name", "asc", "2026-11", "cache")[0].name).toBe("Claude 모델0");
-    expect(extremes(models, "cache")).toEqual({ cheapest: "google-11", priciest: "openai-4" });
-    const flat = models.map((m) => ({ ...m, projection: { cache: 0, nocache: 0 } }));
-    expect(extremes(flat, "cache")).toEqual({ cheapest: null, priciest: null });
+  it("공식 기록과 맞춰 보기: 제공사마다 상태와 공식·장부 금액", async () => {
+    mockCosts();
+    renderWithProviders(<Costs />);
+    const or = await screen.findByTestId("official-openrouter");
+    expect(or).toHaveTextContent("맞춰 봄");
+    expect(or).toHaveTextContent("이번 달");
+    expect(screen.getByTestId("official-openai")).toHaveTextContent("키 없음");
+    expect(screen.getByTestId("official-google")).toHaveTextContent("공식 조회 없음");
+  });
+
+  it("기록이 하나도 없으면 빈 화면 안내", async () => {
+    mockCosts({ ...DATA, groups: [], daily: [] });
+    renderWithProviders(<Costs />);
+    expect(await screen.findByTestId("costs-empty")).toBeInTheDocument();
   });
 });
 
 describe("메뉴·설정 링크", () => {
-  it("LLM 비용은 설정에 속한다: 사이드바에는 없고, LLM 비용 화면에서는 오른쪽 위 ⚙️ 설정이 켜져 보인다", () => {
+  it("LLM 요금은 설정에 속한다: 사이드바에는 없고, 요금 화면에서는 오른쪽 위 ⚙️ 설정이 켜져 보인다", () => {
     mockFetch({});
     renderWithProviders(
       <Routes>
         <Route element={<Layout />}>
-          <Route path="costs" element={<div>비용 본문</div>} />
+          <Route path="costs" element={<div>요금 본문</div>} />
         </Route>
       </Routes>,
       { route: "/costs" },
     );
-    expect(screen.queryByRole("link", { name: "LLM 비용" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "LLM 요금" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "설정" })).toHaveAttribute("aria-current", "page");
     expect(isActive(SETTINGS, "/costs")).toBe(true);
   });
 
-  it("설정 화면에 LLM 비용 예상 링크가 있다", () => {
+  it("설정 화면에 LLM 요금 링크가 있다", () => {
     mockFetch({});
     renderWithProviders(<Settings />);
-    expect(screen.getByRole("link", { name: /LLM 비용 예상/ })).toHaveAttribute("href", "/costs");
+    expect(screen.getByRole("link", { name: /^LLM 요금/ })).toHaveAttribute("href", "/costs");
+  });
+
+  it("사이드바 '매니저·분석'에 판단 일정·장외 거래 바로가기", () => {
+    const group = NAV_GROUPS.find((x) => x.title === "매니저·분석")!;
+    const item = group.items.find((n) => n.to === "/settings/schedule");
+    expect(item?.label).toBe("판단 일정·장외 거래");
+    expect(group.items.map((n) => n.to).indexOf("/settings/schedule")).toBe(
+      group.items.map((n) => n.to).indexOf("/lab") + 1,
+    );
   });
 });

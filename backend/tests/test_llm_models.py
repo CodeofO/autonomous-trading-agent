@@ -1,4 +1,4 @@
-"""유료 LLM 모델 고르기 (D-45): 제공사 판별, 모델 목록, 바꾸기·저장, 다른 제공사·Anthropic 거부 (실제 호출 없음)."""
+"""유료 LLM 모델 고르기 (D-45): 제공사 판별, 모델 목록, 바꾸기·저장, 다른 제공사 거부 (실제 호출 없음, Anthropic 은 D-66 에서 뺌)."""
 
 from __future__ import annotations
 
@@ -25,9 +25,9 @@ OPENAI = {
     [
         ("https://api.openai.com/v1", "x", "openai"),
         ("https://generativelanguage.googleapis.com/v1beta/openai", "x", "google"),
-        ("https://api.anthropic.com/v1", "x", "anthropic"),
+        ("https://api.anthropic.com/v1", "x", None),  # 쓰지 않는 제공사 (D-66)
         ("http://gpu-box.local:8000/v1", "sk-test", None),  # 주소가 있으면 주소가 우선(자체 서버)
-        ("", "sk-ant-test", "anthropic"),
+        ("", "sk-ant-test", None),  # sk- 라고 OpenAI 로 보지 않는다
         ("", "sk-openai-test", "openai"),
         ("", "AIzaTest", "google"),
         ("", "AQ.Test", "google"),
@@ -40,7 +40,7 @@ def test_detect_provider(base: str, key: str, want: str | None) -> None:
 
 def test_empty_base_url_uses_official_address() -> None:
     assert resolve_base_url("", "AIzaTest") == "https://generativelanguage.googleapis.com/v1beta/openai"
-    assert resolve_base_url("", "sk-ant-test") == ""  # Anthropic 은 아직 연결 전 → 주소 없음
+    assert resolve_base_url("", "sk-ant-test") == ""  # Anthropic 은 쓰지 않는다 → 주소 없음
     s = Settings(llm_base_url="", llm_model="gemini-3.8-flash", llm_api_key="AIzaTest")
     assert s.has_llm and s.llm_paid_base_url.startswith("https://generativelanguage")
     assert not Settings(llm_base_url="", llm_model="m", llm_api_key="plain-key").has_llm
@@ -61,13 +61,10 @@ def test_lists_models_and_switches_within_provider(tmp_path: Path) -> None:
             "gpt-6.1-sol",
         )
         o = _opts(r)
-        assert len(o) == 12 and o["gpt-6.1-sol"]["selected"] and o["gpt-6.1-sol"]["available"]
+        assert len(o) == 8 and o["gpt-6.1-sol"]["selected"] and o["gpt-6.1-sol"]["available"]
+        assert not any(m["provider"] == "anthropic" for m in o.values())
         assert (o["gpt-6.1-terra"]["input"], o["gpt-6.1-terra"]["output"]) == (1, 5)
         assert o["gemini-4-argon"]["available"] is False and "Google 키" in o["gemini-4-argon"]["reason"]
-        assert (
-            o["claude-opus-5-5"]["available"] is False
-            and "Anthropic 전용 API" in o["claude-opus-5-5"]["reason"]
-        )
         assert "sk-test" not in c.get("/api/llm/profile").text
 
         r = c.put("/api/llm/model", json={"model": "gpt-6.1-terra"}).json()

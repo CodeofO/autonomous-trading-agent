@@ -17,6 +17,7 @@ from typing import Any
 
 from sqlalchemy import and_, delete, func, or_, select
 
+from app.agent import costs as llm_costs
 from app.agent.profiles import active_profile, build_llm
 from app.agent.runner import AgentRunner
 from app.agent.tools import ToolBox
@@ -439,6 +440,7 @@ def build_container(
         market=spec,
     )
     engine.runner = runner
+    llm_costs.backfill(db, spec.code)  # 요금 장부 (D-66): 요금이 비어 있는 예전 기록에 요금을 매긴다
     push.busy = lambda: runner.running  # 판단 세션 중 체결·차단은 세션이 끝날 때 한 알림으로 (D-61)
     scheduler = Scheduler(engine, settings.agent_interval_minutes)
     # 뉴스 룸 (D-56): 매니저와 같은 활성 LLM 으로 요약(선택). 뉴스 키가 있을 때만 07·12·17시 자동 갱신
@@ -593,6 +595,9 @@ def _build_us(
         market=spec,
     )
     engine.runner = runner
+    if shared is not None:  # 요금 장부 (D-66): 미장 호출도 국장 DB 장부에, 예전 미장 기록은 옮긴다
+        runner.usage_db = shared.runner.usage_db
+        llm_costs.move_usage(db, runner.usage_db, spec.code)
     push.busy = lambda: runner.running
     scheduler = SessionScheduler(engine, settings.us_interval_minutes)
     c = Container(
@@ -624,6 +629,27 @@ def _with_lab(c: Container) -> Container:
     c.lab = ScenarioLab(c, build_scenario)
     c.scheduler.lab = c.lab
     return c
+
+
+def move_lab_usage(main: Container) -> int:
+    """꺼 둔 전략의 기록 DB 에 남은 예전 LLM 기록도 요금 장부로 옮긴다 (D-66). 켠 전략은 스택을 만들 때 옮긴다."""
+    spec = main.market
+    if spec is None or in_memory(main.settings.database_url):
+        return 0
+    moved = 0
+    for sid in styles.STYLES:
+        if main.lab is not None and sid in main.lab.stacks:
+            continue
+        url = scenario_db_url(main.settings, spec.code, sid)
+        if not Path(url.removeprefix("sqlite:///")).exists():
+            continue
+        migrate(url)
+        db = Database(url)
+        try:
+            moved += llm_costs.move_usage(db, main.runner.usage_db, spec.code, sid)
+        finally:
+            db.engine.dispose()
+    return moved
 
 
 def scenario_db_url(settings: Settings, code: str, sid: str) -> str:
@@ -724,6 +750,10 @@ def build_scenario(main: Container, sid: str) -> Container:
         market=spec,
     )
     engine.runner = runner
+    # 요금 장부 (D-66): 실험실 호출도 국장 DB 장부에 (시장·전략 표시), 예전 실험실 기록은 옮긴다
+    runner.usage_db = main.runner.usage_db
+    runner.usage_strategy = sid
+    llm_costs.move_usage(db, runner.usage_db, spec.code, sid)
     push = PushNotifier(kv, None, settings.vapid_subject, names=main.store.name_of, now=clock.now)
     return Container(
         settings,

@@ -482,7 +482,7 @@ const TabBar = memo(function TabBar({
   );
 });
 
-/** 휴대폰 '더보기' 시트: 매니저·백테스트·이벤트 로그·LLM 비용·설정 (+ 로그아웃) */
+/** 휴대폰 '더보기' 시트: 매니저·판단 일정·백테스트·이벤트 로그·LLM 요금·설정 (+ 로그아웃) */
 function MoreSheet({
   pathname,
   view,

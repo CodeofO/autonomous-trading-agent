@@ -14,6 +14,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
+from app.core import llm_providers as providers
 from app.core.http import Route, SafeHttpClient
 
 log = logging.getLogger(__name__)
@@ -39,10 +40,16 @@ class ToolCall:
 class ChatResult:
     content: str
     tool_calls: list[ToolCall] = field(default_factory=list)
+    # prompt_tokens·completion_tokens·total_tokens (+ 제공사가 알려 주면 cached_tokens·cache_write_tokens·
+    # reasoning_tokens — 알려 주지 않으면 키가 없다)
     usage: dict[str, int] = field(default_factory=dict)
     finish_reason: str = ""
     # Responses API 의 output 항목 그대로 (추론 항목 포함). 도구 결과와 함께 다음 요청에 되돌려 보낸다
     raw_output: list[dict[str, Any]] = field(default_factory=list)
+    # 제공사가 응답에 적어 준 이 호출의 요금(USD) — OpenRouter usage.cost (D-66). 없으면 None
+    cost: float | None = None
+    # 응답 id·실제로 답한 모델·(OpenRouter) 공급사·서비스 등급 — 요금 장부·공식 기록 대조용 (D-66)
+    meta: dict[str, str] = field(default_factory=dict)
 
 
 # 대화 메시지에 붙여 두는 Responses API 원본 항목 키 (Chat Completions 로 보낼 때는 빠진다)
@@ -141,9 +148,20 @@ def parse_responses(data: dict[str, Any]) -> ChatResult:
         "prompt_tokens": int(u.get("input_tokens") or 0),
         "completion_tokens": int(u.get("output_tokens") or 0),
         "total_tokens": int(u.get("total_tokens") or 0),
-        "cached_tokens": int((u.get("input_tokens_details") or {}).get("cached_tokens") or 0),
-        "reasoning_tokens": int((u.get("output_tokens_details") or {}).get("reasoning_tokens") or 0),
     }
+    ind = _obj(u.get("input_tokens_details"))
+    cached = _num(ind.get("cached_tokens"))
+    if cached is not None:
+        usage["cached_tokens"] = int(cached)
+    write = _num(ind.get("cache_write_tokens"))
+    if write is not None:
+        usage["cache_write_tokens"] = int(write)
+        w12 = _num(_obj(ind.get("cache_write_tokens_details")).get("ttl_12h_tokens"))
+        if w12:
+            usage["cache_write_12h_tokens"] = int(w12)
+    reasoning = _num((u.get("output_tokens_details") or {}).get("reasoning_tokens"))
+    if reasoning is not None:
+        usage["reasoning_tokens"] = int(reasoning)
     if data.get("status") == "incomplete":
         finish = (
             "length"
@@ -158,7 +176,47 @@ def parse_responses(data: dict[str, Any]) -> ChatResult:
         usage=usage,
         finish_reason=finish,
         raw_output=output,
+        meta=response_meta(data),
     )
+
+
+def _obj(v: Any) -> dict[str, Any]:
+    """JSON 객체만 (그 밖은 빈 dict)."""
+    return v if isinstance(v, dict) else {}
+
+
+def _num(v: Any) -> float | None:
+    """JSON 숫자만 (bool·문자열·None 은 None)."""
+    return float(v) if isinstance(v, int | float) and not isinstance(v, bool) else None
+
+
+def parse_chat_usage(u: Any) -> tuple[dict[str, int], float | None]:
+    """Chat Completions 의 usage → (토큰 dict, 제공사가 적어 준 요금 USD).
+
+    위 단계 정수 필드(prompt_tokens·completion_tokens·total_tokens 등)는 그대로, 아래 단계에서
+    prompt_tokens_details.cached_tokens·cache_write_tokens, completion_tokens_details.reasoning_tokens 를 꺼낸다.
+    OpenRouter 는 usage.cost(USD)를 준다. 제공사가 주지 않은 값은 키를 만들지 않는다(0 과 '모름'을 구분).
+    """
+    if not isinstance(u, dict):
+        return {}, None
+    out = {k: int(v) for k, v in u.items() if isinstance(v, int) and not isinstance(v, bool)}
+    pd, cd = _obj(u.get("prompt_tokens_details")), _obj(u.get("completion_tokens_details"))
+    for key, src in (("cached_tokens", pd), ("cache_write_tokens", pd), ("reasoning_tokens", cd)):
+        v = _num(src.get(key))
+        if v is not None:
+            out[key] = int(v)
+    cost = _num(u.get("cost"))
+    return out, cost
+
+
+def response_meta(data: dict[str, Any]) -> dict[str, str]:
+    """응답 id·실제 모델·공급사(OpenRouter)·서비스 등급(OpenAI) 중 있는 것만."""
+    out: dict[str, str] = {}
+    for key in ("id", "model", "provider", "service_tier"):
+        v = data.get(key)
+        if isinstance(v, str) and v.strip():
+            out[key] = v.strip()[:128]
+    return out
 
 
 _THINK = re.compile(r"<think>.*?(</think>|$)", re.S | re.I)
@@ -201,8 +259,10 @@ class LLMClient:
         http: SafeHttpClient | None = None,
         api: str = "auto",
         reasoning_effort: str = "",
+        profile: str = "",
     ) -> None:
         self.base_url = base_url.rstrip("/")
+        self.profile = profile  # free | paid (D-43) — 요금 장부에 남긴다 (D-66)
         self.api = resolve_api(api, base_url)  # chat | responses
         self.reasoning_effort = reasoning_effort.strip()
         self.model = model
@@ -270,12 +330,14 @@ class LLMClient:
                     raw_arguments=raw if isinstance(raw, str) else "",
                 )
             )
-        usage = {k: int(v) for k, v in (data.get("usage") or {}).items() if isinstance(v, int)}
+        usage, cost = parse_chat_usage(data.get("usage"))
         return ChatResult(
             content=strip_reasoning(msg.get("content") or ""),
             tool_calls=calls,
             usage=usage,
             finish_reason=str(choice.get("finish_reason", "")),
+            cost=cost,
+            meta=response_meta(data),
         )
 
     async def _responses(
@@ -322,6 +384,15 @@ class LLMClient:
         if data.get("status") == "failed":
             raise LLMError(f"LLM 응답 실패: {str(data.get('error'))[:300]}")
         return parse_responses(data)
+
+    @property
+    def provider(self) -> str:
+        """요금을 매기는 곳 (D-66): openai | google | openrouter (주소로 판별),
+        그 밖의 주소는 무료 묶음이면 local(자체 서버 — API 요금 없음), 유료 묶음이면 gateway(단가표로 계산)."""
+        known = providers.detect(self.base_url, "")
+        if known:
+            return known
+        return "gateway" if self.profile == "paid" else "local"
 
     def _headers(self) -> dict[str, str]:
         """키가 없으면(키를 받지 않는 자체 서버) Authorization 을 보내지 않는다."""

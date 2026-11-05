@@ -1,0 +1,138 @@
+/* 💸 LLM 요금 (D-66) — 막대(.mbars)·견본(.sw)·.costs-big 등 예전 조각은 styles.css 에 그대로 있다 */
+.costs-stale {
+  opacity: 0.75;
+  transition: opacity 0.15s ease;
+}
+.costs-total {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+  margin: 10px 0 6px;
+}
+.costs-total > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.costs-mid {
+  font-size: 22px;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+.costs-sources {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 10px;
+  font-size: 12px;
+}
+.costs-sources .chip {
+  font-size: 12px;
+}
+.chip.src-reported {
+  background: rgba(49, 130, 246, 0.12);
+  color: var(--accent, #3182f6);
+}
+.chip.src-unpriced {
+  background: rgba(240, 68, 82, 0.12);
+  color: var(--up, #f04452);
+}
+.chip.src-estimated {
+  background: rgba(255, 170, 0, 0.14);
+}
+
+/* 거르기 */
+.costs-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px 10px;
+}
+.costs-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  font-size: 12px;
+}
+.costs-filter select {
+  width: 100%;
+  min-height: 38px;
+  font-size: 14px;
+}
+
+/* 날짜 막대: 칸이 많아 이름을 작게 */
+.mbars.dense .mbars-labels button {
+  font-size: 10px;
+  padding-left: 0;
+  padding-right: 0;
+  min-width: 0;
+}
+
+/* 나눠 보기 표 */
+.costs-breakdown td,
+.costs-breakdown th {
+  white-space: nowrap;
+}
+.costs-breakdown td:first-child {
+  white-space: normal;
+  min-width: 140px;
+}
+.costs-breakdown tfoot th,
+.costs-breakdown tfoot td {
+  border-top: 1px solid var(--border);
+}
+.costs-row-name {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.costs-unpriced {
+  display: block;
+  font-weight: 400;
+}
+
+/* 공식 기록 대조 */
+.costs-official-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.costs-official-list > li {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  min-width: 0;
+  overflow-x: auto;
+}
+.costs-official-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.costs-official-table {
+  margin-top: 6px;
+}
+.pill.st-ok {
+  background: rgba(0, 180, 110, 0.14);
+  color: #0a8f5a;
+}
+.pill.st-error {
+  background: rgba(240, 68, 82, 0.12);
+  color: var(--up, #f04452);
+}
+
+@media (max-width: 760px) {
+  .costs-total {
+    gap: 10px 20px;
+  }
+  .costs-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

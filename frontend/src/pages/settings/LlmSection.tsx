@@ -195,7 +195,7 @@ export function LlmProfileSettings() {
             {apiLabel(paid.api) ? ` · ${apiLabel(paid.api)}` : ""} — 언제든 다시 무료로 돌릴 수 있어요.
           </p>
           <p>
-            <Link to="/costs">LLM 비용 예상 보기 →</Link>
+            <Link to="/costs">LLM 요금 보기 →</Link>
           </p>
           {change.isError && <p className="error">{switchErrorText(change.error)}</p>}
         </Modal>
@@ -306,7 +306,7 @@ export function UsLlmProfileToggle() {
             다시 무료로 돌릴 수 있어요.
           </p>
           <p>
-            <Link to="/costs">LLM 비용 예상 보기 →</Link>
+            <Link to="/costs">LLM 요금 보기 →</Link>
           </p>
           {change.isError && <p className="error">{switchErrorText(change.error)}</p>}
         </Modal>
@@ -799,7 +799,7 @@ function PaidModelPicker({
             {active === "free" ? " 지금은 무료를 쓰는 중이라 유료로 바꿨을 때 이 모델을 써요." : ""}
           </p>
           <p>
-            <Link to="/costs">LLM 비용 예상 보기 →</Link>
+            <Link to="/costs">LLM 요금 보기 →</Link>
           </p>
           {change.isError && <p className="error">{switchErrorText(change.error)}</p>}
         </Modal>

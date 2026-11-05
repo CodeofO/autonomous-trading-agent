@@ -8,7 +8,7 @@ import { apiError, mockFetch, renderWithProviders, SYSTEM } from "./utils";
 afterEach(() => vi.unstubAllGlobals());
 
 const GROUP_LABEL: Record<string, string> = {
-  anthropic: "Anthropic",
+  mistralai: "Mistral",
   openai: "OpenAI",
   google: "Google",
   deepseek: "DeepSeek",
@@ -35,8 +35,8 @@ const orm = (id: string, name: string, over: Partial<LlmModelOption> = {}): LlmM
 };
 
 const OR_MODELS: LlmModelOption[] = [
-  orm("anthropic/claude-big", "Claude Big", { selected: true, note: ".env" }),
-  orm("anthropic/claude-small", "Claude Small", { input: 1, output: 5 }),
+  orm("mistralai/mistral-big", "Mistral Big", { selected: true, note: ".env" }),
+  orm("mistralai/mistral-small", "Mistral Small", { input: 1, output: 5 }),
   orm("openai/gpt-main", "GPT Main", { input: 2, output: 10, context_length: 131072 }),
   orm("deepseek/ds-chat:free", "DeepSeek Chat (free)", {
     input: 0,
@@ -70,12 +70,12 @@ const orProfile = (paid: Partial<LlmPaidProfileInfo> = {}, models = OR_MODELS): 
       label: "유료",
       env: "LLM_*",
       configured: true,
-      model: models.find((m) => m.selected)?.id ?? "anthropic/claude-big",
+      model: models.find((m) => m.selected)?.id ?? "mistralai/mistral-big",
       api: "chat",
       reasoning_effort: null,
       provider: "openrouter",
       provider_label: "OpenRouter",
-      env_model: "anthropic/claude-big",
+      env_model: "mistralai/mistral-big",
       models,
       ...FRESH,
       ...paid,
@@ -119,12 +119,12 @@ describe("유료 모델 고르기 — OpenRouter", () => {
     renderWithProviders(<LlmProfileSettings />);
     const select = await modelSelect();
     expect(screen.getByText(/제공사:/)).toHaveTextContent("제공사: OpenRouter");
-    expect(select).toHaveValue("anthropic/claude-big");
+    expect(select).toHaveValue("mistralai/mistral-big");
 
     const groups = Array.from(select.querySelectorAll("optgroup")).map((g) => g.label);
-    expect(groups).toEqual(["OpenAI", "Anthropic", "DeepSeek"]);
+    expect(groups).toEqual(["OpenAI", "Mistral", "DeepSeek"]);
     const option = (name: RegExp) => within(select).getByRole("option", { name });
-    expect(option(/Claude Big/)).toHaveTextContent(/^Claude Big · 입력 \$3 \/ 출력 \$15 · 200K$/);
+    expect(option(/Mistral Big/)).toHaveTextContent(/^Mistral Big · 입력 \$3 \/ 출력 \$15 · 200K$/);
     expect(option(/GPT Main/)).toHaveTextContent(/^GPT Main · 입력 \$2 \/ 출력 \$10 · 128K$/);
     expect(option(/DeepSeek Chat/)).toHaveTextContent(
       /^DeepSeek Chat \(free\) · 입력 \$0 \/ 출력 \$0 · 무료 · 64K$/,
@@ -167,7 +167,7 @@ describe("유료 모델 고르기 — OpenRouter", () => {
     );
     renderWithProviders(<LlmProfileSettings />);
     const select = await modelSelect();
-    expect(select).toHaveValue("anthropic/claude-big");
+    expect(select).toHaveValue("mistralai/mistral-big");
     expect(refreshes).toEqual([{ method: "POST", force: "false" }]);
   });
 
@@ -208,21 +208,21 @@ describe("유료 모델 고르기 — OpenRouter", () => {
 
     fireEvent.change(search, { target: { value: "deepseek" } });
     expect(optionTexts(select)).toEqual([
-      expect.stringMatching(/^Claude Big/),
+      expect.stringMatching(/^Mistral Big/),
       expect.stringMatching(/^DeepSeek Chat/),
       expect.stringMatching(/^DeepSeek Mystery/),
     ]);
-    expect(select).toHaveValue("anthropic/claude-big");
+    expect(select).toHaveValue("mistralai/mistral-big");
     expect(screen.getByText("검색 결과 2개")).toBeInTheDocument();
 
     fireEvent.change(search, { target: { value: "GPT" } });
     expect(optionTexts(select)).toEqual([
       expect.stringMatching(/^GPT Main/),
-      expect.stringMatching(/^Claude Big/),
+      expect.stringMatching(/^Mistral Big/),
     ]);
 
     fireEvent.change(search, { target: { value: "없는모델" } });
-    expect(optionTexts(select)).toEqual([expect.stringMatching(/^Claude Big/)]);
+    expect(optionTexts(select)).toEqual([expect.stringMatching(/^Mistral Big/)]);
     expect(screen.getByText(/검색 결과가 없어요/)).toBeInTheDocument();
 
     fireEvent.change(search, { target: { value: "" } });
@@ -284,9 +284,9 @@ describe("OpenRouter 목록 글자·묶기", () => {
   it("group 이 없으면 provider 로 묶고 label 은 MODEL_GROUPS 이름", () => {
     const m = { ...orm("gpt", "GPT"), provider: "openai" as const, group: undefined, group_label: undefined };
     expect(groupModels([m]).map((g) => [g.key, g.label])).toEqual([["openai", "OpenAI"]]);
-    expect(filterModels(OR_MODELS, "anthropic").map((x) => x.id)).toEqual([
-      "anthropic/claude-big",
-      "anthropic/claude-small",
+    expect(filterModels(OR_MODELS, "mistral").map((x) => x.id)).toEqual([
+      "mistralai/mistral-big",
+      "mistralai/mistral-small",
     ]);
   });
 });

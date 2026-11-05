@@ -91,7 +91,7 @@ describe("설정 — 넓은 화면 (왼쪽 목록 + 오른쪽 내용)", () => {
     expect(within(nav).queryByRole("region", { name: "바로 가기" })).not.toBeInTheDocument();
     expect(
       within(within(nav).getByRole("region", { name: "앱 공통" })).getByRole("link", {
-        name: /LLM 비용 예상/,
+        name: /LLM 요금/,
       }),
     ).toHaveAttribute("href", "/costs");
     expect(within(nav).queryByRole("link", { name: /뉴스 룸/ })).not.toBeInTheDocument();

@@ -1,8 +1,8 @@
 /**
  * 메뉴 구성 (한 곳에서 정의 — 사이드바·휴대폰 탭바·더보기 시트가 같이 쓴다)
  *
- * - 넓은 화면 사이드바: 자주 보는 화면과 매니저·분석 화면, 두 묶음
- * - 설정은 오른쪽 위 ⚙️ (사이드바에 두지 않는다). LLM 비용은 설정 안에서 들어간다
+ * - 넓은 화면 사이드바: 자주 보는 화면과 매니저·분석 화면(판단 일정 바로가기 포함), 두 묶음
+ * - 설정은 오른쪽 위 ⚙️ (사이드바에 두지 않는다). LLM 요금은 설정 안에서 들어간다
  * - 휴대폰 하단 탭바: 4칸 + '더보기'(나머지 화면·설정·로그아웃을 시트로)
  */
 
@@ -47,6 +47,14 @@ export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
         hint: "여러 투자 전략을 모의계좌로 동시에 비교 · 주 계좌 전략 고르기",
       },
       {
+        // 설정 안의 한 주제지만 자주 바꾸므로 사이드바에서 바로 들어간다
+        to: "/settings/schedule",
+        label: "판단 일정·장외 거래",
+        short: "일정",
+        icon: "⏰",
+        hint: "판단 세션 시간대 · 주기 · 데이·프리·애프터마켓 판단·주문",
+      },
+      {
         to: "/backtest",
         label: "백테스트",
         short: "백테스트",
@@ -58,7 +66,7 @@ export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   },
 ];
 
-/** 설정 (오른쪽 위 ⚙️) — LLM 비용 화면도 설정에 속한다 */
+/** 설정 (오른쪽 위 ⚙️) — LLM 요금 화면도 설정에 속한다 */
 export const SETTINGS: NavItem = {
   to: "/settings",
   label: "설정",
@@ -76,7 +84,7 @@ export const TABS: string[] = [...TAB_ITEMS.map((n) => n.to), MORE];
 /** 더보기 시트: 탭바에 없는 화면 + 설정 */
 export const MORE_ITEMS: NavItem[] = [
   ...NAV_GROUPS[1].items,
-  { to: "/costs", label: "LLM 비용", short: "비용", icon: "💸", hint: "지금 사용량으로 본 한 달 요금" },
+  { to: "/costs", label: "LLM 요금", short: "요금", icon: "💸", hint: "모델·토큰별 실제 요금" },
   SETTINGS,
 ];
 

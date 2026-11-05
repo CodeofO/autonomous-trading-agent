@@ -79,7 +79,7 @@ export interface LlmProfileInfo {
   reasoning_effort: string | null;
 }
 
-// 유료 모델 고르기 (GET /api/llm/profile 의 profiles.paid.models, PUT /api/llm/model) — LlmProvider 는 비용 예상 쪽 정의를 같이 쓴다
+// 유료 모델 고르기 (GET /api/llm/profile 의 profiles.paid.models, PUT /api/llm/model) — LlmProvider 는 요금 장부 쪽 정의를 같이 쓴다
 
 /** 유료 모델 목록의 제공사 — "openrouter" = OpenRouter 목록, "env" = 카탈로그에 없는 .env 의 LLM_MODEL */
 export type LlmModelProvider = LlmProvider | "openrouter" | "env";
@@ -88,9 +88,9 @@ export interface LlmModelOption {
   id: string;
   name: string;
   provider: LlmModelProvider;
-  /** OpenRouter 목록만: 모델을 만든 곳 ("anthropic" | "openai" | "deepseek" | …) — 없으면 provider 로 묶는다 */
+  /** OpenRouter 목록만: 모델을 만든 곳 ("openai" | "deepseek" | …) — 없으면 provider 로 묶는다 */
   group?: string;
-  /** OpenRouter 목록만: 묶음 이름 ("Anthropic" | …) */
+  /** OpenRouter 목록만: 묶음 이름 ("OpenAI" | …) */
   group_label?: string;
   /** "최상위" | "주력" | "중간" | "경량" | "" */
   tier: string;
@@ -440,73 +440,106 @@ export interface MarketIndicators {
   items: Indicator[];
 }
 
-// LLM 비용 예상 (GET /api/llm/costs?months=12) — 같은 토큰 사용량을 상용 모델 요금으로 환산
-export type LlmProvider = "anthropic" | "openai" | "google";
-/** 캐시 적용(추정) / 캐시 없음 */
-export type LlmScenario = "cache" | "nocache";
-export type LlmScenarioCost = Record<LlmScenario, number>;
+// LLM 요금 장부 (GET /api/llm/costs?months=12&month=YYYY-MM, D-66) — 호출마다 모델·토큰·실제 요금
+/** 직접 연결 단가표 제공사 (Anthropic 은 쓰지 않는다) */
+export type LlmProvider = "openai" | "google";
+/** 요금을 매기는 곳: local 자체 서버(무료) · gateway 알 수 없는 유료 주소 · "" 모름 */
+export type LlmBillingProvider = LlmProvider | "openrouter" | "local" | "gateway" | "";
+/** 요금 출처: 제공사 보고 · 공식 단가 계산 · 무료 · 단가 모름 · 예전 기록 추정 */
+export type LlmCostSource = "reported" | "priced" | "free" | "unpriced" | "estimated";
+/** session 판단 · chat 답장 · newsroom 뉴스 요약 */
+export type LlmUsageKind = "session" | "chat" | "newsroom" | string;
 
-export interface LlmUsageMonth {
+/** 묶음 하나 (같은 무료/유료·제공사·모델·시장·계좌·종류의 합계) */
+export interface LlmLedgerGroup {
+  profile: "free" | "paid" | "";
+  provider: LlmBillingProvider;
+  model: string;
+  /** KR | US | "" (공용: 뉴스 룸) */
+  market: string;
+  /** "" 주 계좌 | 실험실 전략 id */
+  strategy: string;
+  kind: LlmUsageKind;
+  calls: number;
+  /** 입력 토큰 전체 (캐시 읽기 포함) */
+  input: number;
+  /** 제공사가 알려 준 캐시 읽기 입력 */
+  cache_read: number;
+  /** 캐시 읽기를 알려 준 호출 수 */
+  cache_known: number;
+  /** 출력 토큰 (추론 포함) */
+  output: number;
+  reasoning: number;
+  /** USD (단가 모름 호출은 빠진 합계) */
+  cost: number;
+  /** 단가를 몰라 요금에 넣지 못한 호출 수 */
+  unpriced: number;
+  by_source: Partial<Record<LlmCostSource, number>>;
+}
+
+export interface LlmLedgerMonthGroup extends LlmLedgerGroup {
   /** "2026-11" */
   month: string;
-  calls: number;
-  /** 입력 토큰 전체 (cached 포함) */
-  input: number;
-  /** 캐시 적중으로 추정한 입력 토큰 (input 의 일부) */
-  cached: number;
-  output: number;
-  sessions: number;
-  chats: number;
-  /** 예전 세션 합계에서 가져온 기록 수 (호출별 정보 없음) */
-  backfill: number;
 }
 
-export interface LlmModelPrice {
-  /** USD / 100만 토큰 (오늘 기준) */
-  input: number;
-  cached: number;
-  output: number;
-  cache_write: number | null;
-  /** 호출 1회 입력이 이 토큰 수를 넘으면 장문 요금 */
-  long_from: number | null;
-}
-
-export interface LlmModelCost {
-  id: string;
-  provider: LlmProvider;
-  name: string;
-  tier: string;
-  note: string;
-  price: LlmModelPrice;
-  /** 월("2026-11") → USD */
-  months: Record<string, LlmScenarioCost>;
-  /** 이번 달 예상 USD (지금까지 + 하루 평균 × 남은 거래일) */
-  projection: LlmScenarioCost;
-  daily_avg: LlmScenarioCost;
-  /** 판단 세션 1회 평균 USD (최근 30일) */
-  per_session?: LlmScenarioCost;
+export interface LlmLedgerDayGroup extends LlmLedgerGroup {
+  /** "2026-11-05" (한국 날짜) */
+  day: string;
 }
 
 export interface LlmCosts {
+  /** 단가표 확인일 */
   checked: string;
-  sources: Partial<Record<LlmProvider, string>>;
+  sources: Partial<Record<string, string>>;
+  today: string;
+  /** 오래된 달 → 이번 달 */
+  months: string[];
+  /** daily 가 담긴 달 */
+  month: string;
+  groups: LlmLedgerMonthGroup[];
+  daily: LlmLedgerDayGroup[];
+  usd_krw: number | null;
   current_model: string | null;
+  current_provider: LlmBillingProvider | null;
   /** 지금 쓰는 LLM 설정 (무료/유료) */
   profile: LlmProfileName;
-  usd_krw: number | null;
-  /** 오래된 달 → 이번 달 */
-  months: LlmUsageMonth[];
-  models: LlmModelCost[];
-  projection: {
-    month: string;
-    remaining_trading_days: number;
-    basis_days: number;
-    basis_window_days: number;
-    /** schedule: 세션당 평균 × 지금 일정의 하루 세션 수 / history: 최근 사용한 날의 하루 평균 */
-    method?: "schedule" | "history";
-    sessions_per_day?: number | null;
-    basis_sessions?: number;
-  };
+  strategies: Record<string, { name: string; emoji: string }>;
+  official_ready?: { openai?: boolean };
+}
+
+// 공식 기록 대조 (GET /api/llm/costs/official?month=)
+export interface LlmTotals {
+  calls: number;
+  input: number;
+  cache_read: number;
+  output: number;
+  cost: number;
+}
+
+export interface LlmOfficialProvider {
+  provider: "openai" | "openrouter" | "google";
+  label: string;
+  /** ok · no_key 키 없음 · unsupported 공식 조회 없음 · error */
+  status: "ok" | "no_key" | "unsupported" | "error";
+  note: string;
+  fetched_at?: string;
+  ledger?: LlmTotals;
+  /** OpenAI: 모델별 공식 기록과 장부 */
+  rows?: {
+    model: string;
+    official: { requests: number; input: number; cached: number; output: number; cost: number } | null;
+    ledger: LlmTotals;
+  }[];
+  official_total?: number;
+  official_other?: number;
+  /** OpenRouter: 오늘·이번 주·이번 달 (UTC) */
+  windows?: { key: string; label: string; official: { cost: number }; ledger: LlmTotals }[];
+}
+
+export interface LlmOfficial {
+  month: string;
+  window_tz: string;
+  providers: LlmOfficialProvider[];
 }
 
 // ---------- 메모 카드 (GET·POST /api/memory/cards, PATCH·DELETE /api/memory/cards/{id}) ----------

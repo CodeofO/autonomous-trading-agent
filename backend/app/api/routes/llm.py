@@ -9,7 +9,8 @@ from urllib.parse import urlsplit
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
-from app.agent.costs import summary
+from app.agent.billing import official_report
+from app.agent.costs import ledger_view, public_model
 from app.agent.llm_check import check as llm_check
 from app.agent.profiles import (
     API_CHOICES,
@@ -28,20 +29,50 @@ from app.container import US_PROFILE_KEY, Container, market_llm, market_profile
 from app.core.clock import KST
 from app.core.http import Route, SafeHttpClient
 from app.engine.events import SYSTEM
+from app.strategies import styles
 
 router = APIRouter()
 
 
+MONTH = r"^\d{4}-(0[1-9]|1[0-2])$"
+
+
 @router.get("/llm/costs")
-async def llm_costs(c: C, _: U, months: int = Query(12, ge=1, le=36)) -> dict[str, Any]:
-    """토큰 사용량(월별)과 상용 모델로 환산한 예상 요금 (D-41)."""
-    per_day = c.scheduler.sessions_per_day()  # 지금 일정(기본 또는 화면에서 정한 일정)의 하루 판단 수
-    out = summary(c.db, c.clock.now(), c.cal, months, sessions_per_day=per_day)
+async def llm_costs(
+    c: C,
+    _: U,
+    months: int = Query(12, ge=1, le=36),
+    month: str | None = Query(None, pattern=MONTH),
+) -> dict[str, Any]:
+    """요금 장부 (D-66): 월별·(고른 달) 날짜별로 무료/유료·제공사·모델·시장·계좌·종류마다 호출·토큰·실제 요금."""
+    out = ledger_view(c.runner.usage_db, c.clock.now(), months, month)
     fx = next((i for i in (await c.indicators.snapshot())["items"] if i["key"] == "USDKRW"), None)
     out["usd_krw"] = fx["price"] if fx else None
-    out["current_model"] = c.runner.llm.model if c.runner.llm else None
+    llm = c.runner.llm
+    out["current_model"] = public_model(llm.model) if llm else None  # 자체 서버 주소는 내보내지 않는다
+    out["current_provider"] = llm.provider if llm else None
     out["profile"] = active_profile(c.kv, c.settings)
+    out["strategies"] = {k: {"name": v.name, "emoji": v.emoji} for k, v in styles.STYLES.items()}
+    out["official_ready"] = {
+        "openai": bool(c.settings.openai_admin_key and c.settings.openai_admin_key.get_secret_value().strip())
+    }
     return out
+
+
+@router.get("/llm/costs/official")
+async def llm_costs_official(
+    c: C,
+    _: U,
+    month: str | None = Query(None, pattern=MONTH),
+    refresh: bool = False,
+) -> dict[str, Any]:
+    """장부를 제공사 공식 기록(OpenAI 조직 Usage·Costs, OpenRouter 키 사용액)과 맞춰 본다 (D-66). 10분 캐시."""
+    now = c.clock.now()
+    m = month or now.astimezone(KST).strftime("%Y-%m")
+    test_base = test_endpoint(c.settings, c.kv)["base_url"]
+    return await official_report(
+        c.runner.usage_db, c.settings, m, now, refresh=refresh, test_base_url=test_base
+    )
 
 
 class LlmProfileBody(BaseModel):

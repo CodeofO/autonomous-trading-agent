@@ -104,10 +104,7 @@ describe("LLM 모델 카드 (설정)", () => {
     fireEvent.click(await screen.findByRole("button", { name: /유료/ }));
     const dialog = screen.getByRole("dialog", { name: "유료 모델로 바꿀까요?" });
     expect(dialog).toHaveTextContent("유료 모델은 호출마다 실제 요금이 나가요.");
-    expect(within(dialog).getByRole("link", { name: /LLM 비용 예상 보기/ })).toHaveAttribute(
-      "href",
-      "/costs",
-    );
+    expect(within(dialog).getByRole("link", { name: /LLM 요금 보기/ })).toHaveAttribute("href", "/costs");
     await waitFor(() => expect(dialog).toHaveTextContent("장중 15분마다 판단"));
     expect(puts).toEqual([]);
 
@@ -188,12 +185,7 @@ const opt = (
   output: 10,
   note: "",
   available: provider === "openai",
-  reason:
-    provider === "openai"
-      ? null
-      : provider === "anthropic"
-        ? "Anthropic 전용 API 연결 전이라 아직 못 써요"
-        : "Google 키가 .env 에 없어요",
+  reason: provider === "openai" ? null : "Google 키가 .env 에 없어요",
   selected: false,
   ...over,
 });
@@ -203,8 +195,6 @@ const MODELS: LlmModelOption[] = [
   opt("gpt-main", "GPT Main", "openai", { selected: true }),
   opt("gpt-mini", "GPT Mini", "openai", { tier: "경량", input: 0.1, output: 0.4 }),
   opt("gemini-pro", "Gemini Pro", "google"),
-  opt("claude-big", "Claude Big", "anthropic", { tier: "최상위", input: 5, output: 25 }),
-  opt("claude-small", "Claude Small", "anthropic", { tier: "경량", input: 1, output: 5 }),
   opt("my-model", "my-model (.env)", "env", {
     tier: "",
     input: null,
@@ -263,7 +253,7 @@ describe("유료 모델 고르기 (설정)", () => {
     expect(select).toHaveValue("gpt-main");
 
     const groups = Array.from(select.querySelectorAll("optgroup")).map((g) => g.label);
-    expect(groups).toEqual(["OpenAI", "Google", "Anthropic", ".env"]);
+    expect(groups).toEqual(["OpenAI", "Google", ".env"]); // Anthropic 은 쓰지 않는다 (D-66)
 
     const option = (name: RegExp) => within(select).getByRole("option", { name });
     expect(option(/GPT Main/)).toHaveTextContent("GPT Main · 주력 · 입력 $2 / 출력 $10");
@@ -271,13 +261,8 @@ describe("유료 모델 고르기 (설정)", () => {
     expect(option(/GPT Top/)).toBeEnabled();
     expect(option(/Gemini Pro/)).toBeDisabled();
     expect(option(/Gemini Pro/)).toHaveTextContent("— 키 필요");
-    for (const name of [/Claude Big/, /Claude Small/]) {
-      expect(option(name)).toBeDisabled();
-      expect(option(name)).toHaveTextContent("— 준비 중");
-    }
     expect(option(/my-model \(\.env\)/)).toBeDisabled();
     // 못 쓰는 이유 전체 문장
-    expect(screen.getByText("Anthropic: Anthropic 전용 API 연결 전이라 아직 못 써요")).toBeInTheDocument();
     expect(screen.getByText("Google: Google 키가 .env 에 없어요")).toBeInTheDocument();
   });
 
@@ -443,26 +428,35 @@ describe("다른 화면의 무료/유료 표시", () => {
   const costs = (profile: LlmProfileName): LlmCosts => ({
     checked: "2026-11-04",
     sources: {},
+    today: "2026-11-05",
+    months: ["2026-11"],
+    month: "2026-11",
+    groups: [],
+    daily: [],
     current_model: "some-model",
+    current_provider: profile === "paid" ? "openai" : "local",
     profile,
     usd_krw: null,
-    months: [],
-    models: [],
-    projection: { month: "2026-11", remaining_trading_days: 10, basis_days: 0, basis_window_days: 30 },
+    strategies: {},
   });
 
-  it("비용 화면: 유료면 '요금 없음' 대신 실제 요금이 나간다고 말한다", async () => {
-    mockFetch({ "/api/llm/costs": costs("paid") });
+  it("요금 화면: 지금 쓰는 모델과 무료/유료를 보여 준다", async () => {
+    mockFetch({
+      "/api/llm/costs/official": { month: "2026-11", window_tz: "UTC", providers: [] },
+      "/api/llm/costs": costs("paid"),
+    });
     renderWithProviders(<Costs />);
-    expect(await screen.findByText("호출마다 실제 API 요금이 나가요")).toBeInTheDocument();
-    expect(screen.getByText("유료")).toHaveClass("pill", "paid");
-    expect(screen.queryByText("지금은 API 요금 없음")).not.toBeInTheDocument();
+    expect(await screen.findByText("유료")).toHaveClass("pill", "paid");
+    expect(screen.getByText("some-model")).toHaveClass("costs-model");
   });
 
-  it("비용 화면: 무료면 '지금은 API 요금 없음' 그대로", async () => {
-    mockFetch({ "/api/llm/costs": costs("free") });
+  it("요금 화면: 무료면 무료 표시", async () => {
+    mockFetch({
+      "/api/llm/costs/official": { month: "2026-11", window_tz: "UTC", providers: [] },
+      "/api/llm/costs": costs("free"),
+    });
     renderWithProviders(<Costs />);
-    expect(await screen.findByText("지금은 API 요금 없음")).toBeInTheDocument();
-    expect(screen.getByText("무료")).toHaveClass("pill");
+    expect(await screen.findByText("무료")).toHaveClass("pill");
+    expect(screen.getByText("무료")).not.toHaveClass("paid");
   });
 });

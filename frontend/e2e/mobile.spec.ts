@@ -35,8 +35,9 @@ test("모바일: 하단 탭바(4칸 + 더보기)와 오른쪽 위 설정으로 �
   for (const [name, path] of [
     [/^매니저/, "/agent"],
     [/^백테스트/, "/backtest"],
+    [/^판단 일정/, "/settings/schedule"],
     [/^이벤트 로그/, "/logs"],
-    [/^LLM 비용/, "/costs"],
+    [/^LLM 요금/, "/costs"],
   ] as const) {
     await tabbar.getByRole("button", { name: "더보기" }).click();
     await page.getByRole("dialog", { name: "더보기" }).getByRole("link", { name }).click();

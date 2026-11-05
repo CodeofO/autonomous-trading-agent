@@ -36,6 +36,14 @@ MIN_REFETCH_SEC = 30  # 새로고침을 연달아 눌러도 30초 안에는 다�
 log = logging.getLogger(__name__)
 
 
+# 쓰지 않는 제공사 (D-66): 목록·고르기에서 뺀다
+EXCLUDED_GROUPS = frozenset({"anthropic"})
+
+
+def excluded(model_id: str) -> bool:
+    return model_id.split("/", 1)[0].lower() in EXCLUDED_GROUPS
+
+
 class OpenRouterError(RuntimeError):
     pass
 
@@ -44,8 +52,8 @@ class OpenRouterError(RuntimeError):
 class ORModel:
     id: str
     name: str
-    group: str  # id 의 '/' 앞 (openai, anthropic, google, deepseek, qwen …)
-    group_label: str  # 이름의 ': ' 앞 (OpenAI, Anthropic, Google …), 없으면 group
+    group: str  # id 의 '/' 앞 (openai, google, deepseek, qwen …)
+    group_label: str  # 이름의 ': ' 앞 (OpenAI, Google …), 없으면 group
     input: float | None  # USD / 1M 토큰
     output: float | None
     context_length: int | None
@@ -66,7 +74,7 @@ def per_million(v: Any) -> float | None:
 
 
 def parse(data: Any) -> list[ORModel]:
-    """GET /models 응답 → 도구 호출(tools + tool_choice)을 지원하는 모델만, (회사, 이름) 순."""
+    """GET /models 응답 → 도구 호출(tools + tool_choice)을 지원하는 모델만(쓰지 않는 제공사 제외), (회사, 이름) 순."""
     items = data.get("data") if isinstance(data, dict) else None
     out: dict[str, ORModel] = {}
     for it in items or []:
@@ -74,7 +82,7 @@ def parse(data: Any) -> list[ORModel]:
             continue
         mid = str(it.get("id") or "").strip()
         params = it.get("supported_parameters") or []
-        if not mid or not all(p in params for p in REQUIRED_PARAMS):
+        if not mid or not all(p in params for p in REQUIRED_PARAMS) or excluded(mid):
             continue
         raw_name = str(it.get("name") or mid).strip()
         vendor, sep, short = raw_name.partition(": ")

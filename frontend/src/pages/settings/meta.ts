@@ -59,7 +59,7 @@ export const SECTION_META: readonly SectionMeta[] = [
     key: "account",
     icon: "🏦",
     title: "계좌·데이터",
-    desc: "모의계좌 · 데이터 연결 상태 · 관심 종목 · LLM 비용",
+    desc: "모의계좌 · 데이터 연결 상태 · 관심 종목 · LLM 요금",
     scope: "market",
     keywords: "계좌 모의 데이터 연결 토스 관심 종목 워치리스트 비용",
   },

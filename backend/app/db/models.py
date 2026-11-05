@@ -260,10 +260,11 @@ class MemoryCard(Base):
 
 
 class LlmUsage(Base):
-    """LLM 호출 1회(또는 예전 세션 합계)의 토큰 사용량 — 비용 예상용 (D-41).
+    """LLM 호출 1회(또는 예전 세션 합계)의 토큰 사용량과 실제 요금 — 요금 장부 (D-41, D-66).
 
-    cached_tokens 는 '같은 세션의 바로 전 호출 입력과 겹치는 앞부분' 추정치다. 실제 캐시 여부는
-    제공사마다 다르므로, 비용 계산에서 '캐시 적용' 시나리오에만 쓴다.
+    모든 시장·실험실 계좌의 기록은 국장 DB 한 곳에 모은다(market·strategy 로 구분).
+    cached_tokens 는 예전(D-41) '바로 전 호출 입력과 겹치는 앞부분' 추정치, cache_read_tokens 는
+    제공사가 응답으로 알려 준 실제 캐시 적중 입력이다(알려 주지 않으면 None).
     """
 
     __tablename__ = "llm_usage"
@@ -280,6 +281,23 @@ class LlmUsage(Base):
         Integer, default=0
     )  # 호출 1회 최대 입력 (장문 요금 구간 판단)
     source: Mapped[str] = mapped_column(String(16), default="live")  # live | backfill
+    # ---- D-66 요금 장부
+    market: Mapped[str] = mapped_column(String(8), default="", server_default="")  # KR | US | '' (공용)
+    # '' 주 계좌 | 실험실 전략 id
+    strategy: Mapped[str] = mapped_column(String(24), default="", server_default="")
+    profile: Mapped[str] = mapped_column(String(8), default="", server_default="")  # free | paid
+    # openai | google | openrouter | local(자체 서버) | gateway(알 수 없는 유료 주소)
+    provider: Mapped[str] = mapped_column(String(16), default="", server_default="")
+    served_model: Mapped[str] = mapped_column(String(128), default="", server_default="")
+    upstream: Mapped[str] = mapped_column(String(64), default="", server_default="")  # OpenRouter 공급사
+    response_id: Mapped[str] = mapped_column(String(128), default="", server_default="")
+    cache_read_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cache_write_tokens: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    reasoning_tokens: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # reported | priced | free | unpriced | estimated
+    cost_source: Mapped[str] = mapped_column(String(12), default="", server_default="")
+    origin: Mapped[str | None] = mapped_column(String(48), nullable=True, index=True)
 
 
 class DailyReport(Base):

@@ -53,7 +53,7 @@ const PAGES: { to: string; icon: string; label: string; keywords: string }[] = [
   },
   { to: "/settings", icon: "⚙️", label: "설정", keywords: "settings 설정" },
   { to: "/logs", icon: "📜", label: "이벤트 로그", keywords: "logs 로그 감사 기록" },
-  { to: "/costs", icon: "💸", label: "설정 › LLM 비용", keywords: "costs 비용 요금 토큰 llm" },
+  { to: "/costs", icon: "💸", label: "설정 › LLM 요금", keywords: "costs 비용 요금 토큰 llm 사용량" },
 ];
 
 const norm = (s: string) => s.toLowerCase().replace(/\s+/g, "");

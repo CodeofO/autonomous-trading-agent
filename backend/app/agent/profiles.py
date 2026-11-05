@@ -4,11 +4,12 @@
 - free: LLM_TEST_* (테스트용·무료 엔드포인트, 예: 자체 서버)
 - paid: LLM_*      (실서비스·과금 엔드포인트)
 
-유료는 .env 의 키·주소로 제공사(OpenAI·Google·Anthropic)를 알아내고, 그 제공사 모델 중 하나를 화면에서 고른다.
+유료는 .env 의 키·주소로 제공사(OpenAI·Google·OpenRouter)를 알아내고, 그 제공사 모델 중 하나를 화면에서 고른다.
 고른 모델은 app_settings 'llm_paid_model' 에 남는다. 제공사가 바뀌어 목록에 없으면 .env 의 LLM_MODEL 로 돌아간다.
 
 OpenRouter 키면 정적 가격표 대신 OpenRouter 목록 API 로 불러온 모델(도구 호출 지원만, app/agent/openrouter.py)을
-보여 준다. OpenRouter 목록에 OpenAI·Google·Anthropic 모델도 들어 있어, 직접 연결용 가격표 모델은 겹치지 않게 뺀다.
+보여 준다. OpenRouter 목록에 OpenAI·Google 모델도 들어 있어, 직접 연결용 가격표 모델은 겹치지 않게 뺀다.
+Anthropic 모델은 쓰지 않기로 해(D-66) OpenRouter 목록에서도 뺀다.
 """
 
 from __future__ import annotations
@@ -108,8 +109,6 @@ def _available(s: Settings, model_id: str) -> tuple[bool, str | None]:
     if m is None:
         return False, "목록에 없는 모델이에요"
     prov = provider(s)
-    if m.provider in providers.UNSUPPORTED_REASON:
-        return False, providers.UNSUPPORTED_REASON[m.provider]
     if prov is None:
         return False, "LLM_BASE_URL 이 자체 서버·게이트웨이라 .env 의 LLM_MODEL 만 써요"
     if m.provider != prov:
@@ -225,6 +224,7 @@ def build_llm(s: Settings, p: str, kv: SettingsStore | None = None) -> LLMClient
         timeout=s.llm_timeout_sec,
         api=api,
         reasoning_effort=effort,
+        profile=p,
     )
 
 

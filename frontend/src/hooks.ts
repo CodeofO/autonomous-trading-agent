@@ -1,7 +1,15 @@
 import { useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { get } from "./api/client";
-import type { LlmCosts, LlmProfiles, MarketCode, MarketIndicators, Portfolio, SystemInfo } from "./api/types";
+import type {
+  LlmCosts,
+  LlmOfficial,
+  LlmProfiles,
+  MarketCode,
+  MarketIndicators,
+  Portfolio,
+  SystemInfo,
+} from "./api/types";
 import { useLiveInterval } from "./live/hooks";
 import { useApi } from "./market";
 
@@ -46,12 +54,25 @@ export const useMarketIndicators = () =>
     refetchOnWindowFocus: false,
   });
 
-// LLM 비용 예상: 자주 바뀌지 않으므로 주기적으로 다시 받지 않는다 (다시 들어왔을 때 1분이 지났으면 한 번)
-export const useLlmCosts = (months = 12) =>
+// LLM 요금 장부 (D-66): 고른 달의 날짜별 묶음까지. 판단이 돌면 바뀌므로 1분마다 다시 받는다
+export const useLlmCosts = (month?: string, months = 12) =>
   useQuery({
-    queryKey: ["llm-costs", months],
-    queryFn: () => get<LlmCosts>(`/api/llm/costs?months=${months}`),
-    staleTime: 60_000,
+    queryKey: ["llm-costs", months, month ?? "now"],
+    queryFn: () =>
+      get<LlmCosts>(`/api/llm/costs?months=${months}${month ? `&month=${encodeURIComponent(month)}` : ""}`),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    placeholderData: keepPreviousData, // 달을 바꾸는 동안 이전 숫자를 그대로 (화면이 출렁이지 않게)
+    refetchOnWindowFocus: false,
+  });
+
+// 공식 기록 대조 (D-66): 서버가 10분 캐시. 버튼으로 새로고침(refresh)
+export const useLlmOfficial = (month: string, enabled = true) =>
+  useQuery({
+    queryKey: ["llm-official", month],
+    queryFn: () => get<LlmOfficial>(`/api/llm/costs/official?month=${encodeURIComponent(month)}`),
+    staleTime: 600_000,
+    enabled,
     refetchOnWindowFocus: false,
   });
 

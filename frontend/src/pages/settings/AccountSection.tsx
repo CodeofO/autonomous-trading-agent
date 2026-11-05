@@ -41,10 +41,8 @@ export function AccountSection() {
         <DataStatus />
         <Watchlist />
         <Link to="/costs" className="card link-card settings-link-card">
-          <b>💸 LLM 비용 화면 →</b>
-          <small className="muted">
-            지금 사용량을 OpenAI·Google·Anthropic 요금으로 바꾸면 한 달에 얼마인지
-          </small>
+          <b>💸 LLM 요금 화면 →</b>
+          <small className="muted">호출마다 어느 모델이 토큰을 얼마나 썼고 실제 요금이 얼마인지</small>
         </Link>
       </div>
     </SectionGate>

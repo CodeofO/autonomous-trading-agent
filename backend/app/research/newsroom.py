@@ -30,7 +30,7 @@ from urllib.parse import urlsplit
 
 from sqlalchemy import delete, select
 
-from app.agent.costs import record_usage
+from app.agent.costs import record_call
 from app.agent.llm import LLMClient, extract_json
 from app.core.clock import KST, Clock
 from app.db.models import NewsEdition
@@ -583,7 +583,7 @@ class NewsRoom:
                     [{"role": "system", "content": SUMMARY_SYSTEM}, {"role": "user", "content": prompt}],
                     max_tokens=max_tokens,
                 )
-            record_usage(self.db, self.clock.now(), "newsroom", None, llm.model, res.usage)
+            record_call(self.db, self.clock.now(), kind="newsroom", run_id=None, llm=llm, res=res)
             if res.finish_reason == "length" and extract_json(res.content or "") is None:
                 raise TruncatedError("답이 출력 한도에서 잘렸어요")
             return res.content

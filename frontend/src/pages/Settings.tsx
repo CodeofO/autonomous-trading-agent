@@ -76,14 +76,14 @@ function SettingsNav({ current, pop }: { current: SettingsSection | null; pop: b
         {common.map((m) => (
           <NavItem key={m.key} m={m} active={current === m.key} sub={summary[m.key]} />
         ))}
-        {/* LLM 비용은 설정에 속한 화면 (사이드바에서 뺐다) */}
+        {/* LLM 요금은 설정에 속한 화면 (사이드바에서 뺐다) */}
         <Link to="/costs" className="settings-item press">
           <span className="settings-icon" aria-hidden>
             💸
           </span>
           <span className="settings-text">
-            <b>LLM 비용 예상</b>
-            <small className="muted">지금 사용량을 회사별 요금으로 바꾸면 한 달에 얼마인지</small>
+            <b>LLM 요금</b>
+            <small className="muted">모델·토큰별 실제 요금 · 무료/유료·계좌별로 나눠 보기</small>
           </span>
           <span className="settings-chev" aria-hidden>
             ›

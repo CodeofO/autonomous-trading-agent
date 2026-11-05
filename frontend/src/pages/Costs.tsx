@@ -1,93 +1,147 @@
-import { useState, type ReactNode } from "react";
-import { errorText } from "../api/client";
-import type { LlmCosts, LlmModelCost, LlmScenario, LlmUsageMonth } from "../api/types";
+import { useMemo, useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { errorText, get } from "../api/client";
+import type { LlmCosts, LlmLedgerGroup, LlmOfficial, LlmOfficialProvider } from "../api/types";
 import { Loading } from "../components/Loading";
-import { useLlmCosts } from "../hooks";
+import { useLlmCosts, useLlmOfficial } from "../hooks";
 import {
-  extremes,
-  isEmptyUsage,
+  accountLabel,
+  dayLong,
+  daysOf,
+  FILTER_KEYS,
+  groupBy,
+  isFiltered,
+  kindLabel,
+  marketLabel,
   monthLabel,
   monthLong,
+  NO_FILTER,
+  optionValues,
+  profileLabel,
   PROVIDERS,
   providerLabel,
   safeUrl,
-  sortModels,
-  spentThisMonth,
+  SOURCE_KO,
+  SOURCE_ORDER,
+  strategyLabel,
+  sum,
   tokenStack,
-  type SortDir,
-  type SortKey,
+  type FilterKey,
+  type Filters,
+  type Totals,
 } from "../utils/costs";
-import { fmtIndicator, fmtKrwFromUsd, fmtNum, fmtTokens, fmtUsd, fmtUsdPrice } from "../utils/format";
+import { fmtIndicator, fmtKrwFromUsd, fmtNum, fmtTokens, fmtUsd } from "../utils/format";
+import "./costs.css";
 
 type Currency = "krw" | "usd";
+type Metric = "cost" | "tokens";
+type By = "model" | "account" | "kind" | "day";
 
-const SCENARIO_KO: Record<LlmScenario, string> = { cache: "캐시 적용(추정)", nocache: "캐시 없음" };
-const BACKFILL_NOTE = "예전 세션 합계 포함 — 호출별 캐시 추정 없음";
-
-/** LLM 비용 예상: 지금 토큰 사용량을 상용 모델(Anthropic·OpenAI·Google) 요금으로 환산 */
+/** LLM 요금 (D-66): 호출마다 어느 모델이 토큰을 얼마나 썼고 실제 요금이 얼마인지 — 무료/유료·제공사·모델·계좌로 나눠 본다 */
 export function Costs() {
-  const { data, isPending, isError, error } = useLlmCosts();
+  const [month, setMonth] = useState<string | undefined>(undefined);
+  const { data, isPending, isError, error, isPlaceholderData } = useLlmCosts(month);
   if (isPending) return <Loading cards={3} />;
   if (isError || !data) {
     return (
       <section className="card">
-        <h2>💸 LLM 비용 예상</h2>
+        <h2>💸 LLM 요금</h2>
         <p className="error">불러오지 못했어요: {errorText(error)}</p>
       </section>
     );
   }
-  return <CostsView data={data} />;
+  return <CostsView data={data} onMonth={setMonth} stale={isPlaceholderData} />;
 }
 
-function CostsView({ data }: { data: LlmCosts }) {
-  const [scenario, setScenario] = useState<LlmScenario>("cache");
+function CostsView({
+  data,
+  onMonth,
+  stale,
+}: {
+  data: LlmCosts;
+  onMonth: (m: string) => void;
+  stale: boolean;
+}) {
+  const [filters, setFilters] = useState<Filters>(NO_FILTER);
   const [cur, setCur] = useState<Currency>("krw");
-  const [modelId, setModelId] = useState(data.models[0]?.id ?? "");
-  const [sel, setSel] = useState(data.months.length - 1);
+  const [metric, setMetric] = useState<Metric>("cost");
+  const [by, setBy] = useState<By>("model");
+  const [dayIdx, setDayIdx] = useState<number | null>(null);
 
   const rate = data.usd_krw != null && data.usd_krw > 0 ? data.usd_krw : null;
   const currency: Currency = rate ? cur : "usd";
   const money = (v: number) => (currency === "krw" && rate ? fmtKrwFromUsd(v, rate) : fmtUsd(v));
-  const empty = isEmptyUsage(data.months);
-  const model = data.models.find((m) => m.id === modelId) ?? data.models[0];
+
+  const monthGroups = useMemo(() => data.groups.filter((g) => g.month === data.month), [data]);
+  const total = sum(monthGroups, filters);
+  const today =
+    data.month === data.today.slice(0, 7)
+      ? sum(
+          data.daily.filter((d) => d.day === data.today),
+          filters,
+        )
+      : null;
+  const empty = data.groups.length === 0;
+
+  const label = (key: FilterKey, v: string) =>
+    key === "profile"
+      ? profileLabel(v)
+      : key === "provider"
+        ? providerLabel(v)
+        : key === "market"
+          ? marketLabel(v)
+          : key === "strategy"
+            ? strategyLabel(v, data.strategies)
+            : key === "kind"
+              ? kindLabel(v)
+              : v || "모름";
 
   return (
-    <div className="stack costs-page">
+    <div className={`stack costs-page${stale ? " costs-stale" : ""}`}>
       <section className="card costs-head">
         <div className="card-head">
-          <h2>💸 LLM 비용 예상</h2>
-          <span className="muted">가격 확인일 {data.checked}</span>
+          <h2>💸 LLM 요금</h2>
+          <span className="muted">단가 확인일 {data.checked}</span>
         </div>
         <p className="costs-intro">
-          {data.current_model && data.profile === "paid" ? (
+          {data.current_model ? (
             <>
-              지금 쓰는 모델 <span className="pill paid">유료</span>{" "}
-              <b className="costs-model">{data.current_model}</b> — <b>호출마다 실제 API 요금이 나가요</b>.
-            </>
-          ) : data.current_model ? (
-            <>
-              지금 쓰는 모델 {data.profile === "free" && <span className="pill">무료</span>}{" "}
-              <b className="costs-model">{data.current_model}</b> — 자체 서버라 <b>지금은 API 요금 없음</b>.
+              지금 쓰는 모델{" "}
+              <span className={`pill${data.profile === "paid" ? " paid" : ""}`}>
+                {profileLabel(data.profile)}
+              </span>{" "}
+              <b className="costs-model">{data.current_model}</b>
+              {data.current_provider ? (
+                <span className="muted"> · {providerLabel(data.current_provider)}</span>
+              ) : null}
             </>
           ) : (
-            <>
-              LLM 이 설정돼 있지 않아요(규칙 기반) — <b>지금은 API 요금 없음</b>.
-            </>
+            <>LLM 이 설정돼 있지 않아요(규칙 기반).</>
           )}{" "}
-          <span className="muted">
-            같은 사용량을 상용 모델로 바꾸면 한 달에 얼마가 드는지 입력 처리·출력 생성으로 나눠 미리 봐요.
-          </span>
+          <span className="muted">호출마다 모델·토큰·요금을 장부에 남기고, 그 합계를 그대로 보여 줘요.</span>
         </p>
+        <div className="costs-total" data-testid="costs-total">
+          <div>
+            <small className="muted">
+              {monthLong(data.month)}
+              {isFiltered(filters) ? " · 고른 조건" : ""}
+            </small>
+            <b className="costs-big">{money(total.cost)}</b>
+            <small className="muted">
+              호출 {fmtNum(total.calls)}회 · 입력 {fmtTokens(total.input)} · 출력 {fmtTokens(total.output)}{" "}
+              토큰
+            </small>
+          </div>
+          {today && (
+            <div>
+              <small className="muted">오늘</small>
+              <b className="costs-mid">{money(today.cost)}</b>
+              <small className="muted">호출 {fmtNum(today.calls)}회</small>
+            </div>
+          )}
+        </div>
+        <SourceChips t={total} />
         <div className="costs-toggles">
-          <Seg
-            label="캐시 시나리오"
-            value={scenario}
-            onChange={setScenario}
-            options={[
-              { value: "cache", label: SCENARIO_KO.cache },
-              { value: "nocache", label: SCENARIO_KO.nocache },
-            ]}
-          />
           {rate ? (
             <>
               <Seg
@@ -107,59 +161,175 @@ function CostsView({ data }: { data: LlmCosts }) {
         </div>
       </section>
 
-      <section className="card">
-        <div className="card-head">
-          <h2>월별 토큰 사용량</h2>
-          {!empty && (
-            <div className="costs-legend" aria-label="범례">
-              <span>
-                <i className="sw llm-cached" /> 입력(캐시 적중 추정)
-              </span>
-              <span>
-                <i className="sw llm-input" /> 입력(나머지)
-              </span>
-              <span>
-                <i className="sw llm-output" /> 출력
-              </span>
-            </div>
-          )}
-        </div>
-        {empty ? (
+      {empty ? (
+        <section className="card">
           <p className="muted empty" data-testid="costs-empty">
-            아직 기록된 LLM 사용량이 없어요. 기록은 이번 업데이트부터 쌓이고, 예전 판단 세션은 세션 합계로
-            가져왔어요.
+            아직 기록된 LLM 사용량이 없어요.
           </p>
-        ) : (
-          <TokenChart months={data.months} sel={sel} onSelect={setSel} />
-        )}
-      </section>
+        </section>
+      ) : (
+        <>
+          <section className="card costs-filters" aria-label="거르기">
+            <div className="card-head">
+              <h3>거르기</h3>
+              {isFiltered(filters) && (
+                <button type="button" className="btn ghost" onClick={() => setFilters(NO_FILTER)}>
+                  모두 보기
+                </button>
+              )}
+            </div>
+            <div className="costs-filter-grid">
+              {FILTER_KEYS.map((k) => (
+                <FilterSelect
+                  key={k}
+                  name={FILTER_NAMES[k]}
+                  value={filters[k]}
+                  values={optionValues(data.groups, k, filters)}
+                  label={(v) => label(k, v)}
+                  onChange={(v) => {
+                    setFilters({ ...filters, [k]: v });
+                    setDayIdx(null);
+                  }}
+                />
+              ))}
+            </div>
+          </section>
 
-      {!empty && model && (
-        <ModelPanel
-          data={data}
-          model={model}
-          onModel={setModelId}
-          scenario={scenario}
-          money={money}
-          sel={sel}
-          onSelect={setSel}
-        />
+          <section className="card">
+            <div className="card-head">
+              <h2>월별</h2>
+              <Seg
+                label="막대"
+                value={metric}
+                onChange={setMetric}
+                options={[
+                  { value: "cost", label: "요금" },
+                  { value: "tokens", label: "토큰" },
+                ]}
+              />
+            </div>
+            <Bars
+              keys={data.months}
+              totals={groupBy(data.groups, (g) => g.month, filters)}
+              sel={data.months.indexOf(data.month)}
+              onSelect={(i) => {
+                onMonth(data.months[i]);
+                setDayIdx(null);
+              }}
+              colLabel={monthLabel}
+              title={monthLong}
+              metric={metric}
+              money={money}
+              testId="month-chart"
+            />
+          </section>
+
+          <section className="card">
+            <div className="card-head">
+              <h2>일별 · {monthLong(data.month)}</h2>
+            </div>
+            <DayBars
+              data={data}
+              filters={filters}
+              metric={metric}
+              money={money}
+              sel={dayIdx}
+              onSelect={setDayIdx}
+            />
+          </section>
+
+          <section className="card">
+            <div className="card-head">
+              <h2>{monthLong(data.month)} 나눠 보기</h2>
+              <Seg
+                label="묶어 보기"
+                value={by}
+                onChange={setBy}
+                options={[
+                  { value: "model", label: "모델" },
+                  { value: "account", label: "계좌" },
+                  { value: "kind", label: "종류" },
+                  { value: "day", label: "날짜" },
+                ]}
+              />
+            </div>
+            <Breakdown data={data} groups={monthGroups} filters={filters} by={by} money={money} />
+          </section>
+        </>
       )}
 
-      <CompareTable
-        data={data}
-        scenario={scenario}
-        money={money}
-        selectedId={model?.id}
-        onModel={setModelId}
-      />
-
+      <Official data={data} money={money} />
       <Footnotes data={data} rate={rate} />
     </div>
   );
 }
 
-/** 두 개 중 하나를 고르는 토글 (버튼 묶음) */
+const FILTER_NAMES: Record<FilterKey, string> = {
+  profile: "무료/유료",
+  provider: "제공사",
+  model: "모델",
+  market: "시장",
+  strategy: "계좌",
+  kind: "종류",
+};
+
+/** 거르기 한 칸. 빈 값("" — 공용·주 계좌)도 고를 수 있게 값 앞에 표시를 붙여 둔다 */
+function FilterSelect({
+  name,
+  value,
+  values,
+  label,
+  onChange,
+}: {
+  name: string;
+  value: string | null;
+  values: string[];
+  label: (v: string) => string;
+  onChange: (v: string | null) => void;
+}) {
+  return (
+    <label className="costs-filter">
+      <span className="muted">{name}</span>
+      <select
+        aria-label={name}
+        value={value == null ? "*" : `v:${value}`}
+        onChange={(e) => onChange(e.target.value === "*" ? null : e.target.value.slice(2))}
+      >
+        <option value="*">전체</option>
+        {values.map((v) => (
+          <option key={v} value={`v:${v}`}>
+            {label(v)}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function SourceChips({ t }: { t: Totals }) {
+  const items = SOURCE_ORDER.filter((s) => (t.by_source[s] ?? 0) > 0);
+  if (items.length === 0) return null;
+  return (
+    <p className="costs-sources" aria-label="요금 출처">
+      {items.map((s) => (
+        <span key={s} className={`chip src-${s}`} title={SOURCE_HINT[s]}>
+          {SOURCE_KO[s]} {fmtNum(t.by_source[s] ?? 0)}회
+        </span>
+      ))}
+      {t.unpriced > 0 && <span className="muted">— 단가 모름 호출은 요금 합계에 들어가지 않았어요</span>}
+    </p>
+  );
+}
+
+const SOURCE_HINT: Record<string, string> = {
+  reported: "제공사가 응답에 적어 준 요금 그대로 (OpenRouter)",
+  priced: "응답의 토큰(캐시 읽기·쓰기·추론 포함)을 공식 단가로 계산 (OpenAI·Google)",
+  free: "자체 서버 — API 요금 없음",
+  unpriced: "단가표에 없는 모델 — 요금에 넣지 않음",
+  estimated: "요금 장부 이전 기록 — 캐시 적중을 몰라 예전 추정으로 계산",
+};
+
+/** 두세 개 중 하나를 고르는 토글 (버튼 묶음) */
 function Seg<T extends string>({
   label,
   value,
@@ -188,22 +358,21 @@ function Seg<T extends string>({
   );
 }
 
-// ---------- 월별 막대 (차트 라이브러리 없이 SVG) ----------
+// ---------- 막대 (차트 라이브러리 없이 SVG) ----------
 interface BarCol {
   key: string;
   label: string;
   /** 아래에서 위로 쌓는 조각 */
   segs: { value: number; cls: string }[];
   title: string;
-  mark?: boolean;
 }
 
 const COL_W = 10;
 const PLOT_H = 100;
 
 /**
- * 달마다 막대 하나. 막대는 SVG(가로·세로 늘어남), 글자는 HTML 이라 휴대폰 폭에서도 글자가 찌그러지지 않는다.
- * 막대·달 이름을 누르면 그 달이 선택돼 아래 한 줄에 자세한 숫자가 나온다 (손가락으로는 툴팁을 볼 수 없으니)
+ * 칸마다 막대 하나. 막대는 SVG(가로·세로 늘어남), 글자는 HTML 이라 휴대폰 폭에서도 글자가 찌그러지지 않는다.
+ * 막대·이름을 누르면 그 칸이 선택돼 아래 한 줄에 자세한 숫자가 나온다 (손가락으로는 툴팁을 볼 수 없으니)
  */
 function MonthBars({
   cols,
@@ -212,19 +381,21 @@ function MonthBars({
   label,
   maxText,
   testId,
+  dense = false,
 }: {
   cols: BarCol[];
-  sel: number;
+  sel: number | null;
   onSelect: (i: number) => void;
   label: string;
   maxText: (max: number) => string;
   testId: string;
+  dense?: boolean;
 }) {
   const max = Math.max(0, ...cols.map((c) => c.segs.reduce((s, x) => s + x.value, 0)));
   const scale = max > 0 ? (PLOT_H - 4) / max : 0;
-  const n = cols.length;
+  const n = Math.max(1, cols.length);
   return (
-    <div className="mbars" data-testid={testId}>
+    <div className={`mbars${dense ? " dense" : ""}`} data-testid={testId}>
       <div className="mbars-plot">
         {max > 0 && <span className="mbars-max">{maxText(max)}</span>}
         <svg viewBox={`0 0 ${n * COL_W} ${PLOT_H}`} preserveAspectRatio="none" role="img" aria-label={label}>
@@ -242,7 +413,7 @@ function MonthBars({
           {cols.map((c, i) => {
             let y = PLOT_H;
             return (
-              <g key={c.key} data-month={c.key} onClick={() => onSelect(i)} className="mbars-col">
+              <g key={c.key} data-col={c.key} onClick={() => onSelect(i)} className="mbars-col">
                 <title>{c.title}</title>
                 <rect
                   className={i === sel ? "mbars-hit on" : "mbars-hit"}
@@ -277,8 +448,9 @@ function MonthBars({
           <button
             key={c.key}
             type="button"
-            className={`${i === sel ? "active" : ""}${c.mark ? " mark" : ""}`}
+            className={i === sel ? "active" : ""}
             aria-pressed={i === sel}
+            aria-label={c.title.split("\n")[0]}
             title={c.title}
             onClick={() => onSelect(i)}
           >
@@ -290,347 +462,371 @@ function MonthBars({
   );
 }
 
-function tokenTitle(m: LlmUsageMonth): string {
-  const s = tokenStack(m);
+function segsOf(t: Totals, metric: Metric) {
+  if (metric === "cost") return [{ value: t.cost, cls: "cost-spent" }];
+  const s = tokenStack(t);
   return [
-    monthLong(m.month),
-    `입력(캐시 적중 추정) ${fmtNum(s.cached)}`,
-    `입력(나머지) ${fmtNum(s.rest)}`,
-    `출력 ${fmtNum(s.output)}`,
-    `합계 ${fmtNum(s.total)} 토큰 · 호출 ${fmtNum(m.calls)}회`,
-    `세션 ${fmtNum(m.sessions)} · 답장 ${fmtNum(m.chats)}`,
-    ...(m.backfill > 0 ? [`＊ ${BACKFILL_NOTE}`] : []),
+    { value: s.cached, cls: "llm-cached" },
+    { value: s.rest, cls: "llm-input" },
+    { value: s.output, cls: "llm-output" },
+  ];
+}
+
+function titleOf(head: string, t: Totals, money: (v: number) => string) {
+  return [
+    head,
+    `요금 ${money(t.cost)}${t.unpriced ? ` (+단가 모름 ${fmtNum(t.unpriced)}회)` : ""}`,
+    `호출 ${fmtNum(t.calls)}회`,
+    `입력 ${fmtNum(t.input)} (캐시 읽기 ${fmtNum(t.cache_read)}) · 출력 ${fmtNum(t.output)} 토큰`,
   ].join("\n");
 }
 
-function TokenChart({
-  months,
+function Bars({
+  keys,
+  totals,
   sel,
   onSelect,
+  colLabel,
+  title,
+  metric,
+  money,
+  testId,
+  dense,
 }: {
-  months: LlmUsageMonth[];
-  sel: number;
+  keys: string[];
+  totals: Map<string, Totals>;
+  sel: number | null;
   onSelect: (i: number) => void;
+  colLabel: (k: string, i: number) => string;
+  title: (k: string) => string;
+  metric: Metric;
+  money: (v: number) => string;
+  testId: string;
+  dense?: boolean;
 }) {
-  const cols: BarCol[] = months.map((m, i) => {
-    const s = tokenStack(m);
-    return {
-      key: m.month,
-      label: monthLabel(m.month, i),
-      segs: [
-        { value: s.cached, cls: "llm-cached" },
-        { value: s.rest, cls: "llm-input" },
-        { value: s.output, cls: "llm-output" },
-      ],
-      title: tokenTitle(m),
-      mark: m.backfill > 0,
-    };
+  const zero = sum([]);
+  const cols: BarCol[] = keys.map((k, i) => {
+    const t = totals.get(k) ?? zero;
+    return { key: k, label: colLabel(k, i), segs: segsOf(t, metric), title: titleOf(title(k), t, money) };
   });
-  const m = months[sel] ?? months[months.length - 1];
-  const s = tokenStack(m);
+  const k = sel != null ? keys[sel] : null;
+  const t = (k && totals.get(k)) || zero;
   return (
     <>
       <MonthBars
         cols={cols}
         sel={sel}
         onSelect={onSelect}
-        label="월별 토큰 사용량 (입력 캐시 적중 추정 · 입력 나머지 · 출력)"
-        maxText={(v) => `${fmtTokens(v)} 토큰`}
-        testId="token-chart"
+        label={metric === "cost" ? "요금" : "토큰 (캐시 읽기 · 입력 나머지 · 출력)"}
+        maxText={(v) => (metric === "cost" ? money(v) : `${fmtTokens(v)} 토큰`)}
+        testId={testId}
+        dense={dense}
       />
-      <p className="mbars-detail" data-testid="token-detail">
-        <b>{monthLong(m.month)}</b>
-        <span>
-          <i className="sw llm-cached" /> 캐시 적중 추정 {fmtNum(s.cached)}
-        </span>
-        <span>
-          <i className="sw llm-input" /> 입력 나머지 {fmtNum(s.rest)}
-        </span>
-        <span>
-          <i className="sw llm-output" /> 출력 {fmtNum(s.output)}
-        </span>
-        <span className="muted">
-          호출 {fmtNum(m.calls)}회 · 세션 {fmtNum(m.sessions)} · 답장 {fmtNum(m.chats)}
-        </span>
-      </p>
-      {months.some((x) => x.backfill > 0) && (
-        <p className="muted costs-small">
-          ＊ 표시한 달은 {BACKFILL_NOTE}
-          {m.backfill > 0 ? ` (이 달 ${fmtNum(m.backfill)}건)` : ""}
+      {k && (
+        <p className="mbars-detail" data-testid={`${testId}-detail`}>
+          <b>{title(k)}</b>
+          <span>
+            <i className="sw cost-spent" /> {money(t.cost)}
+            {t.unpriced > 0 && <small className="muted"> +단가 모름 {fmtNum(t.unpriced)}회</small>}
+          </span>
+          <span>
+            <i className="sw llm-cached" /> 캐시 읽기 {fmtTokens(t.cache_read)}
+          </span>
+          <span>
+            <i className="sw llm-input" /> 입력 나머지 {fmtTokens(Math.max(0, t.input - t.cache_read))}
+          </span>
+          <span>
+            <i className="sw llm-output" /> 출력 {fmtTokens(t.output)}
+          </span>
+          <span className="muted">호출 {fmtNum(t.calls)}회</span>
         </p>
       )}
     </>
   );
 }
 
-// ---------- 모델 고르기 + 이번 달 예상 ----------
-function ModelPanel({
+function DayBars({
   data,
-  model,
-  onModel,
-  scenario,
+  filters,
+  metric,
   money,
   sel,
   onSelect,
 }: {
   data: LlmCosts;
-  model: LlmModelCost;
-  onModel: (id: string) => void;
-  scenario: LlmScenario;
+  filters: Filters;
+  metric: Metric;
   money: (v: number) => string;
-  sel: number;
-  onSelect: (i: number) => void;
+  sel: number | null;
+  onSelect: (i: number | null) => void;
 }) {
-  const p = data.projection;
-  const spent = spentThisMonth(model, p.month, scenario);
-  const projected = model.projection[scenario];
-  const daily = model.daily_avg[scenario];
-  const providerModels = data.models.filter((m) => m.provider === model.provider);
-  const cols: BarCol[] = data.months.map((mo, i) => {
-    const v = model.months[mo.month]?.[scenario] ?? 0;
-    // 이번 달은 '남은 기간 예상'을 옅게 이어 쌓는다
-    const rest = mo.month === p.month ? Math.max(0, projected - v) : 0;
-    return {
-      key: mo.month,
-      label: monthLabel(mo.month, i),
-      segs: [
-        { value: v, cls: "cost-spent" },
-        { value: rest, cls: "cost-proj" },
-      ],
-      title: [
-        `${monthLong(mo.month)} · ${model.name}`,
-        `${SCENARIO_KO[scenario]} ${money(v)}`,
-        ...(rest > 0 ? [`이번 달 예상 ${money(projected)}`] : []),
-        ...(mo.backfill > 0 ? [`＊ ${BACKFILL_NOTE}`] : []),
-      ].join("\n"),
-      mark: mo.backfill > 0,
-    };
-  });
-  const selMonth = data.months[sel] ?? data.months[data.months.length - 1];
-
+  const days = daysOf(data.month, data.today);
+  if (days.length === 0) return <p className="muted">이 달은 아직 날짜가 없어요.</p>;
+  const totals = groupBy(data.daily, (g) => g.day, filters);
   return (
-    <section className="card">
-      <div className="card-head">
-        <h2>모델별 예상 요금</h2>
-        <span className="muted">{SCENARIO_KO[scenario]}</span>
-      </div>
-      <div className="costs-picker">
-        <div className="seg" role="group" aria-label="회사">
-          {PROVIDERS.map((pv) => {
-            const first = data.models.find((m) => m.provider === pv.id);
-            const on = model.provider === pv.id;
-            return (
-              <button
-                key={pv.id}
-                type="button"
-                className={on ? "active" : ""}
-                aria-pressed={on}
-                disabled={!first}
-                onClick={() => first && !on && onModel(first.id)}
+    <Bars
+      keys={days}
+      totals={totals}
+      sel={sel}
+      onSelect={(i) => onSelect(i === sel ? null : i)}
+      colLabel={(d) => {
+        const n = Number(d.slice(8));
+        return n === 1 || n % 5 === 0 ? String(n) : "";
+      }}
+      title={dayLong}
+      metric={metric}
+      money={money}
+      testId="day-chart"
+      dense
+    />
+  );
+}
+
+// ---------- 나눠 보기 ----------
+function rowKey(g: LlmLedgerGroup & { day?: string }, by: By): string {
+  if (by === "model") return `${g.provider}|${g.model}|${g.profile}`;
+  if (by === "account") return `${g.market}|${g.strategy}`;
+  if (by === "kind") return g.kind;
+  return g.day ?? "";
+}
+
+function rowLabel(key: string, by: By, data: LlmCosts): ReactNode {
+  if (by === "model") {
+    const [provider, model, profile] = key.split("|");
+    return (
+      <span className="costs-row-name">
+        <b>{model || "모름"}</b>
+        <small className="muted">
+          {providerLabel(provider)} · {profileLabel(profile)}
+        </small>
+      </span>
+    );
+  }
+  if (by === "account") {
+    const [market, strategy] = key.split("|");
+    return <b>{accountLabel(market, strategy, data.strategies)}</b>;
+  }
+  if (by === "kind") return <b>{kindLabel(key)}</b>;
+  return <b>{dayLong(key)}</b>;
+}
+
+function Breakdown({
+  data,
+  groups,
+  filters,
+  by,
+  money,
+}: {
+  data: LlmCosts;
+  groups: LlmLedgerGroup[];
+  filters: Filters;
+  by: By;
+  money: (v: number) => string;
+}) {
+  const src: (LlmLedgerGroup & { day?: string })[] = by === "day" ? data.daily : groups;
+  const rows = [...groupBy(src, (g) => rowKey(g, by), filters).entries()].sort((a, b) =>
+    by === "day" ? b[0].localeCompare(a[0]) : b[1].cost - a[1].cost || b[1].input - a[1].input,
+  );
+  const total = sum(src, filters);
+  if (rows.length === 0) return <p className="muted">고른 조건에 맞는 기록이 없어요.</p>;
+  return (
+    <div className="table-wrap">
+      <table className="table costs-breakdown" data-testid="costs-breakdown">
+        <thead>
+          <tr>
+            <th>{by === "model" ? "모델" : by === "account" ? "계좌" : by === "kind" ? "종류" : "날짜"}</th>
+            <th className="num">호출</th>
+            <th className="num">입력</th>
+            <th className="num">캐시 읽기</th>
+            <th className="num">출력 (추론)</th>
+            <th className="num">요금</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(([k, t]) => (
+            <tr key={k}>
+              <td>{rowLabel(k, by, data)}</td>
+              <td className="num">{fmtNum(t.calls)}</td>
+              <td className="num" title={fmtNum(t.input)}>
+                {fmtTokens(t.input)}
+              </td>
+              <td
+                className="num"
+                title={t.cache_known < t.calls ? "캐시 읽기를 알려 주지 않은 호출이 있어요" : undefined}
               >
-                {pv.label}
-              </button>
-            );
-          })}
-        </div>
-        <div className="model-chips" role="group" aria-label="모델">
-          {providerModels.map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              className={m.id === model.id ? "active" : ""}
-              aria-pressed={m.id === model.id}
-              onClick={() => onModel(m.id)}
-            >
-              {m.name}
-              <small>{m.tier}</small>
-            </button>
+                {fmtTokens(t.cache_read)}
+                {t.cache_known < t.calls && t.calls > 0 ? <small className="muted">＊</small> : null}
+              </td>
+              <td className="num" title={fmtNum(t.output)}>
+                {fmtTokens(t.output)}
+                {t.reasoning > 0 && <small className="muted"> ({fmtTokens(t.reasoning)})</small>}
+              </td>
+              <td className="num">
+                <b>{money(t.cost)}</b>
+                {t.unpriced > 0 && (
+                  <small className="muted costs-unpriced"> +단가 모름 {fmtNum(t.unpriced)}회</small>
+                )}
+              </td>
+            </tr>
           ))}
-        </div>
-      </div>
+        </tbody>
+        <tfoot>
+          <tr>
+            <th>합계</th>
+            <td className="num">{fmtNum(total.calls)}</td>
+            <td className="num">{fmtTokens(total.input)}</td>
+            <td className="num">{fmtTokens(total.cache_read)}</td>
+            <td className="num">{fmtTokens(total.output)}</td>
+            <td className="num">
+              <b>{money(total.cost)}</b>
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+      <p className="muted costs-small">
+        입력에는 캐시 읽기가 들어 있어요. 출력 괄호는 그중 추론 토큰. ＊ 표시는 캐시 읽기를 알려 주지 않은
+        호출(자체 서버 등)이 섞여 있다는 뜻이에요.
+      </p>
+    </div>
+  );
+}
 
-      <div className="costs-proj">
-        <span className="kpi-label">
-          {monthLong(p.month)} 예상 · {model.name}
-        </span>
-        <b className="costs-big" data-testid="projection">
-          {money(projected)}
-        </b>
-        <span className="kpi-sub">
-          {p.basis_days > 0 ? (
-            <>
-              오늘까지 {money(spent)} + 하루 {money(daily)} × 남은 거래일 {p.remaining_trading_days}일
-              {p.method === "schedule" && model.per_session ? (
-                <>
-                  {" "}
-                  (세션 1회 평균 {money(model.per_session[scenario])} × 지금 일정 하루 {p.sessions_per_day}회
-                  + 답장 — 최근 {p.basis_window_days}일 세션 {p.basis_sessions}회 기준)
-                </>
-              ) : (
-                <>
-                  {" "}
-                  (최근 {p.basis_window_days}일 중 사용한 {p.basis_days}일 기준)
-                </>
-              )}
-            </>
-          ) : (
-            <>
-              오늘까지 {money(spent)} (최근 {p.basis_window_days}일 동안 사용한 날이 없어 남은 거래일{" "}
-              {p.remaining_trading_days}일은 더하지 않았어요)
-            </>
-          )}
-        </span>
-        <span className="costs-small muted">
-          100만 토큰당 입력 {fmtUsdPrice(model.price.input)} · 캐시 입력 {fmtUsdPrice(model.price.cached)}
-          {model.price.cache_write != null && <> · 캐시 쓰기 {fmtUsdPrice(model.price.cache_write)}</>} · 출력{" "}
-          {fmtUsdPrice(model.price.output)}
-          {model.price.long_from != null && (
-            <> · 호출당 입력 {fmtTokens(model.price.long_from)} 토큰 초과 시 장문 요금</>
-          )}
-        </span>
-        {model.note && <small className="muted">{model.note}</small>}
-      </div>
+// ---------- 공식 기록 대조 ----------
+const STATUS_KO: Record<LlmOfficialProvider["status"], string> = {
+  ok: "맞춰 봄",
+  no_key: "키 없음",
+  unsupported: "공식 조회 없음",
+  error: "조회 실패",
+};
 
-      <MonthBars
-        cols={cols}
-        sel={sel}
-        onSelect={onSelect}
-        label={`${model.name} 월별 예상 요금`}
-        maxText={money}
-        testId="cost-chart"
-      />
-      <p className="mbars-detail">
-        <b>{monthLong(selMonth.month)}</b>
-        <span>
-          <i className="sw cost-spent" /> {money(model.months[selMonth.month]?.[scenario] ?? 0)}
-        </span>
-        {selMonth.month === p.month && (
-          <span>
-            <i className="sw cost-proj" /> 이번 달 예상 {money(projected)}
-          </span>
-        )}
+function Official({ data, money }: { data: LlmCosts; money: (v: number) => string }) {
+  const q = useLlmOfficial(data.month);
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const refresh = async () => {
+    setBusy(true);
+    try {
+      const fresh = await get<LlmOfficial>(
+        `/api/llm/costs/official?month=${encodeURIComponent(data.month)}&refresh=true`,
+      );
+      qc.setQueryData(["llm-official", data.month], fresh);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="card costs-official" aria-label="공식 기록과 맞춰 보기">
+      <div className="card-head">
+        <h2>공식 기록과 맞춰 보기 · {monthLong(data.month)}</h2>
+        <button type="button" className="btn ghost" onClick={refresh} disabled={busy || q.isFetching}>
+          {busy ? "불러오는 중…" : "다시 불러오기"}
+        </button>
+      </div>
+      {q.isPending ? (
+        <p className="muted">공식 기록 불러오는 중…</p>
+      ) : q.isError || !q.data ? (
+        <p className="error">불러오지 못했어요: {errorText(q.error)}</p>
+      ) : (
+        <ul className="costs-official-list">
+          {q.data.providers.map((p) => (
+            <li key={p.provider} data-testid={`official-${p.provider}`}>
+              <div className="costs-official-head">
+                <b>{p.label}</b>
+                <span className={`pill st-${p.status}`}>{STATUS_KO[p.status]}</span>
+              </div>
+              <p className="muted costs-small">{p.note}</p>
+              <OfficialBody p={p} money={money} />
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="muted costs-small">
+        공식 기록은 UTC 날짜 기준이라, 위 한국 날짜 합계와 하루 경계가 달라요.
       </p>
     </section>
   );
 }
 
-// ---------- 12개 모델 비교표 ----------
-const SORT_LABEL: Record<SortKey, string> = {
-  name: "모델",
-  input: "입력",
-  output: "출력",
-  spent: "지금까지",
-  projection: "이번 달 예상",
-};
+function Diff({ a, b, money }: { a: number; b: number; money: (v: number) => string }) {
+  const d = b - a;
+  if (Math.abs(d) < 0.00005) return <span className="muted">같음</span>;
+  return <span className={d > 0 ? "up" : "down"}>{`${d > 0 ? "+" : "-"}${money(Math.abs(d))}`}</span>;
+}
 
-function CompareTable({
-  data,
-  scenario,
-  money,
-  selectedId,
-  onModel,
-}: {
-  data: LlmCosts;
-  scenario: LlmScenario;
-  money: (v: number) => string;
-  selectedId: string | undefined;
-  onModel: (id: string) => void;
-}) {
-  const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({ key: "projection", dir: "asc" });
-  const month = data.projection.month;
-  const rows = sortModels(data.models, sort.key, sort.dir, month, scenario);
-  const { cheapest, priciest } = extremes(data.models, scenario);
-  const maxProj = Math.max(0, ...data.models.map((m) => m.projection[scenario]));
-
-  const head = (key: SortKey, className = "") => {
-    const on = sort.key === key;
+function OfficialBody({ p, money }: { p: LlmOfficialProvider; money: (v: number) => string }) {
+  if (p.windows?.length) {
     return (
-      <th
-        className={className}
-        aria-sort={on ? (sort.dir === "asc" ? "ascending" : "descending") : undefined}
-      >
-        <button
-          type="button"
-          className="sort"
-          onClick={() =>
-            setSort(on ? { key, dir: sort.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" })
-          }
-        >
-          {SORT_LABEL[key]}
-          <span aria-hidden>{on ? (sort.dir === "asc" ? " ▲" : " ▼") : ""}</span>
-        </button>
-      </th>
-    );
-  };
-
-  return (
-    <section className="card">
-      <div className="card-head">
-        <h2>12개 모델 비교</h2>
-        <span className="muted">
-          {monthLong(month)} · {SCENARIO_KO[scenario]} · 가격은 100만 토큰당 $
-        </span>
-      </div>
-      <div className="table-scroll">
-        <table className="table costs-table" data-testid="costs-table">
-          <thead>
-            <tr>
-              <th>회사</th>
-              {head("name")}
-              <th>등급</th>
-              {head("input", "r")}
-              <th className="r">캐시 입력</th>
-              {head("output", "r")}
-              {head("spent", "r")}
-              {head("projection", "r")}
-              <th aria-label="예상 요금 막대" />
+      <table className="table compact costs-official-table">
+        <thead>
+          <tr>
+            <th>기간</th>
+            <th className="num">공식</th>
+            <th className="num">장부</th>
+            <th className="num">공식 − 장부</th>
+          </tr>
+        </thead>
+        <tbody>
+          {p.windows.map((w) => (
+            <tr key={w.key}>
+              <td>{w.label}</td>
+              <td className="num">{money(w.official.cost)}</td>
+              <td className="num">{money(w.ledger.cost)}</td>
+              <td className="num">
+                <Diff a={w.ledger.cost} b={w.official.cost} money={money} />
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {rows.map((m) => {
-              const proj = m.projection[scenario];
-              const tag = m.id === cheapest ? "cheapest" : m.id === priciest ? "priciest" : "";
-              return (
-                <tr
-                  key={m.id}
-                  data-model={m.id}
-                  className={[tag, m.id === selectedId ? "selected" : ""].filter(Boolean).join(" ")}
-                >
-                  <td>{providerLabel(m.provider)}</td>
-                  <td className="wrap costs-name">
-                    <button type="button" className="link" onClick={() => onModel(m.id)}>
-                      {m.name}
-                    </button>
-                    {tag === "cheapest" && <span className="pill cheap">가장 저렴</span>}
-                    {tag === "priciest" && <span className="pill pricey">가장 비쌈</span>}
-                    {m.note && <small className="muted costs-note">{m.note}</small>}
-                  </td>
-                  <td>{m.tier}</td>
-                  <td className="r">{fmtUsdPrice(m.price.input)}</td>
-                  <td className="r">
-                    {fmtUsdPrice(m.price.cached)}
-                    {m.price.cache_write != null && (
-                      <small className="muted costs-note">쓰기 {fmtUsdPrice(m.price.cache_write)}</small>
-                    )}
-                  </td>
-                  <td className="r">{fmtUsdPrice(m.price.output)}</td>
-                  <td className="r">{money(spentThisMonth(m, month, scenario))}</td>
-                  <td className="r costs-proj-cell">
-                    <b>{money(proj)}</b>
-                  </td>
-                  <td className="costs-bar-cell">
-                    <span className="cost-bar" aria-hidden>
-                      <i style={{ width: `${maxProj > 0 ? (proj / maxProj) * 100 : 0}%` }} />
-                    </span>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
+          ))}
+        </tbody>
+      </table>
+    );
+  }
+  if (p.rows?.length) {
+    return (
+      <table className="table compact costs-official-table">
+        <thead>
+          <tr>
+            <th>모델</th>
+            <th className="num">요청 (공식/장부)</th>
+            <th className="num">입력 (공식/장부)</th>
+            <th className="num">공식 요금</th>
+            <th className="num">장부 요금</th>
+          </tr>
+        </thead>
+        <tbody>
+          {p.rows.map((r) => (
+            <tr key={r.model}>
+              <td>{r.model}</td>
+              <td className="num">
+                {r.official ? fmtNum(r.official.requests) : "—"} / {fmtNum(r.ledger.calls)}
+              </td>
+              <td className="num">
+                {r.official ? fmtTokens(r.official.input) : "—"} / {fmtTokens(r.ledger.input)}
+              </td>
+              <td className="num">{r.official ? money(r.official.cost) : "—"}</td>
+              <td className="num">{money(r.ledger.cost)}</td>
+            </tr>
+          ))}
+          {(p.official_other ?? 0) > 0 && (
+            <tr>
+              <td className="muted">모델 밖 항목 (도구 등)</td>
+              <td />
+              <td />
+              <td className="num">{money(p.official_other ?? 0)}</td>
+              <td />
+            </tr>
+          )}
+        </tbody>
+      </table>
+    );
+  }
+  if (p.ledger) {
+    return (
+      <p className="costs-small">
+        장부 (UTC 달): 호출 {fmtNum(p.ledger.calls)}회 · {money(p.ledger.cost)}
+      </p>
+    );
+  }
+  return null;
 }
 
 function Footnotes({ data, rate }: { data: LlmCosts; rate: number | null }) {
@@ -646,19 +842,27 @@ function Footnotes({ data, rate }: { data: LlmCosts; rate: number | null }) {
   });
   return (
     <section className="card costs-notes">
-      <h3>읽기 전에</h3>
+      <h3>요금은 이렇게 정해요</h3>
       <ul>
         <li>
-          토큰 수는 지금 모델 토크나이저 기준이라, 다른 모델은 같은 글도 토큰 수가 달라 실제 청구액과 차이가
-          날 수 있어요.
+          <b>OpenRouter</b>: 응답마다 OpenRouter 가 적어 준 요금(usage.cost)을 그대로 남겨요. 캐시·추론이 이미
+          반영돼 있어요.
         </li>
         <li>
-          ‘캐시 적용’은 세션 안에서 바로 전 호출의 입력이 다음 호출에 그대로 들어가는 만큼을 캐시로 본
-          추정이에요. OpenAI·Google 은 자동으로 캐시되고, Anthropic 은 캐시 설정이 필요하며 캐시 쓰기
-          요금(입력의 1.25배)이 붙어요.
+          <b>OpenAI·Google</b>: 응답의 토큰으로 공식 단가를 곱해요. 캐시 읽기는 캐시 단가, OpenAI 캐시 쓰기는
+          입력의 1.25배(30분)·2.5배(12시간), 추론 토큰은 출력 단가예요. Google 이 출력에 넣지 않은 생각 토큰은
+          합계에서 찾아 출력 단가로 더해요.
         </li>
         <li>
-          가격은 각 회사 공식 가격표 기준이에요
+          <b>자체 서버(무료)</b>는 0원이에요. 단가표에 없는 모델은 0원으로 치지 않고 ‘단가 모름’으로 따로
+          세요.
+        </li>
+        <li>
+          요금 장부 전에 쌓인 기록은 캐시 적중을 알 수 없어 예전 추정으로 계산했어요(‘예전 기록 추정’).
+          국장·미장·전략 실험실·뉴스 룸 기록을 한 장부에 모았어요.
+        </li>
+        <li>
+          단가는 각 회사 공식 가격표 기준이에요
           {links.length > 0 && (
             <>
               {" "}
@@ -672,9 +876,8 @@ function Footnotes({ data, rate }: { data: LlmCosts; rate: number | null }) {
               )
             </>
           )}
-          . 확인일 {data.checked}.
+          . 확인일 {data.checked}. 예정된 인상은 그날부터 반영해요.
         </li>
-        <li>예정된 가격 인상은 해당 월부터 반영해요 (표의 가격은 오늘 기준).</li>
         <li>
           환율은 토스 원/달러 기준이에요
           {rate ? ` ($1 = ${fmtIndicator(rate, "원")})` : " (지금은 받지 못해 $ 로만 보여요)"}.

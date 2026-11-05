@@ -180,7 +180,7 @@ describe("⏰ 판단 주기 카드", () => {
     const out = chips().filter((c) => c.classList.contains("sched-out"));
     expect(out.map((c) => c.textContent)).toEqual(["08:00", "16:00", "17:00"]);
     expect(screen.getByText("장 시간 밖 — 분석만 하고 주문은 다음 장에")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "LLM 비용 화면" })).toHaveAttribute("href", "/costs");
+    expect(screen.getByRole("link", { name: "LLM 요금 화면" })).toHaveAttribute("href", "/costs");
     expect(screen.getByText("화면에서 정한 값")).toBeInTheDocument();
     const next = within(screen.getByRole("list", { name: "다음 실행" })).getAllByRole("listitem");
     expect(next[0]).toHaveTextContent("판단 세션");
