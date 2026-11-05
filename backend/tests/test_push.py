@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import secrets
@@ -148,6 +149,70 @@ async def test_hub_sends_only_enabled_categories(tmp_path: Path) -> None:
         await t
     assert [p["title"] for _, p in sender.sent] == ["🛑 킬 스위치 작동"]
     assert c.push.state()["prefs"] == {"fills": True, "risk": True, "alerts": False, "agent": False}
+
+
+async def _drain(n: PushNotifier) -> None:
+    while n._tasks:
+        for t in list(n._tasks):
+            await t
+
+
+async def test_orders_in_one_session_become_one_summary(tmp_path: Path) -> None:
+    """판단 세션 중 체결·차단은 한 건씩이 아니라 세션이 끝날 때 '판단 #N 결과' 하나로 (D-61)."""
+    names = {"005930": "삼성전자", "000660": "SK하이닉스", "035420": "NAVER"}
+    c = make_container(tmp_path, at(D, 10))
+    sender = FakeSender()
+    n = PushNotifier(
+        c.kv, _vapid_key(), "https://github.com", names=lambda s: names[s], sender=sender, prefix="[미장] "
+    )
+    n.quiet_sec = 0.01
+    c.hub.listeners = [n.on_audit]
+    n.subscribe(GOOGLE, "p", "a", "Android")
+    running = True
+    n.busy = lambda: running
+    c.hub.audit("FILL", "BUY 3주 @ 70,100.00", "005930", price=70100.0, quantity=3)
+    c.hub.audit("FILL", "SELL 2주 @ 50,000.00", "000660", price=50000.0, quantity=2)
+    c.hub.audit("RISK_BLOCK", "1회 주문 한도 초과", "035420", side="BUY", quantity=10)
+    await asyncio.sleep(0.05)
+    assert sender.sent == []  # 세션이 끝나기 전에는 보내지 않는다
+    running = False
+    c.hub.audit("AGENT_RUN", "세션 #7 DONE", None, run_id=7)
+    await _drain(n)
+    assert [p for _, p in sender.sent] == [
+        {
+            "title": "[미장] 🤖 판단 #7 결과 — 매수 1건 · 매도 1건 · 차단 1건",
+            "body": "🟢 매수 삼성전자 3주 @ 70,100원\n🔴 매도 SK하이닉스 2주 @ 50,000원\n"
+            "🛑 NAVER 매수 10주 — 1회 주문 한도 초과",
+            "url": "/portfolio",
+        }
+    ]
+
+    # 주문 없는 세션: '판단 완료' 알림을 켠 때만
+    sender.sent.clear()
+    c.hub.audit("AGENT_RUN", "세션 #8 DONE", None, run_id=8)
+    n.set_prefs({"agent": True})
+    c.hub.audit("AGENT_RUN", "세션 #9 FAILED", None, run_id=9)
+    await _drain(n)
+    assert [p["title"] for _, p in sender.sent] == ["[미장] 🤖 판단 #9 실패 — 주문 없음"]
+
+
+async def test_fills_outside_a_session_are_batched(tmp_path: Path) -> None:
+    """세션 밖 체결(지정가·손절 등)은 마지막 건 뒤 잠깐 조용하면 한 번에. 끈 종류는 담지 않는다."""
+    c = make_container(tmp_path, at(D, 10))
+    sender = FakeSender()
+    n = PushNotifier(c.kv, _vapid_key(), "https://github.com", names=lambda s: "삼성전자", sender=sender)
+    n.quiet_sec = 0.01
+    c.hub.listeners = [n.on_audit]
+    n.subscribe(GOOGLE, "p", "a", "Android")
+    n.set_prefs({"risk": False})
+    for q in (1, 2, 3, 4, 5, 6, 7):
+        c.hub.audit("FILL", f"SELL {q}주 @ 70,000.00", "005930", price=70000.0, quantity=q)
+    c.hub.audit("RISK_BLOCK", "일일 손실 한도", "005930", side="BUY", quantity=1)
+    await _drain(n)
+    assert len(sender.sent) == 1
+    msg = sender.sent[0][1]
+    assert msg["title"] == "📈 체결 7건"
+    assert msg["body"].split("\n")[-1] == "외 1건" and len(msg["body"].split("\n")) == 7
 
 
 async def test_unsubscribed_devices_are_removed(tmp_path: Path) -> None:

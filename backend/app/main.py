@@ -6,7 +6,6 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI
@@ -14,23 +13,15 @@ from starlette.middleware.gzip import GZipMiddleware
 
 from app.api import llm_extra, routes, ws
 from app.container import Container, announce_boot, build_container
-from app.core.config import BACKEND_DIR, Settings, get_settings
+from app.core.config import Settings, get_settings
 from app.core.logging import setup_logging
+from app.db.migrate import migrate
 from app.engine.events import SYSTEM
 
 log = logging.getLogger(__name__)
 
 
-def _migrate(url: str) -> None:
-    from alembic import command
-    from alembic.config import Config
-
-    if url.startswith("sqlite:///"):
-        Path(url.removeprefix("sqlite:///")).parent.mkdir(parents=True, exist_ok=True)
-    cfg = Config(str(Path(BACKEND_DIR) / "alembic.ini"))
-    cfg.set_main_option("script_location", str(Path(BACKEND_DIR) / "app" / "db" / "migrations"))
-    cfg.attributes["url"] = url
-    command.upgrade(cfg, "head")
+_migrate = migrate  # 예전 이름 (테스트·스크립트 호환)
 
 
 GZIP_MIN_BYTES = 1024  # 이보다 작은 응답은 압축하지 않는다 (B4). WebSocket(/ws)은 압축 대상이 아니다
@@ -132,6 +123,7 @@ async def _start_kr(c: Container, settings: Settings) -> asyncio.Task[None] | No
     except Exception:
         log.exception("초기 시세 동기화 실패")
     await c.scheduler.maintenance()  # 하루 한 번 정리를 기동 때도 한 번 (실패해도 기동은 계속)
+    _start_lab(c)
     if settings.is_live:
         await _check_live_account(c)
     if not settings.enable_scheduler:
@@ -157,6 +149,7 @@ async def _start_us(u: Container) -> asyncio.Task[None] | None:
     except Exception:
         log.exception("미장 초기 시세 동기화 실패")
     await u.scheduler.maintenance()
+    _start_lab(u)
     if s.us_is_live:
         await _check_live_account(u)
     if not s.enable_scheduler:
@@ -172,6 +165,18 @@ async def _start_us(u: Container) -> asyncio.Task[None] | None:
         f"{u.scheduler.describe()}, LLM: {model}{when}",
     )
     return asyncio.create_task(u.runner.resume_pending())
+
+
+def _start_lab(c: Container) -> None:
+    """전략 실험실 (D-62): 켜 둔 시나리오 스택을 미리 만든다 (기록 DB 마이그레이션 포함). 실패해도 기동은 계속."""
+    if c.lab is None:
+        return
+    try:
+        c.lab.ensure()
+        if c.lab.stacks:
+            log.info("전략 시나리오(%s): %s", c.code, ", ".join(c.lab.stacks))
+    except Exception:
+        log.exception("전략 시나리오 준비 실패")
 
 
 async def _check_live_account(c: Any) -> None:

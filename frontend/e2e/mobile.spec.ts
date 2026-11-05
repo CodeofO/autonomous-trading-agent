@@ -83,10 +83,6 @@ test("모바일: 본문만 스크롤하고, 화면마다 스크롤 위치를 기
   await expect.poll(() => scrollTop(page)).toBeGreaterThan(300);
   expect(Number(await page.evaluate("document.scrollingElement.scrollTop"))).toBe(0);
   await expect(page.locator(".topbar")).toHaveClass(/scrolled/);
-  // 내리면 상단 바 아랫줄(⚙️ 설정 포함)이 접힌다 → 조금 올리면 다시 펴진다
-  await expect(page.locator(".topbar")).toHaveClass(/compact/);
-  await page.mouse.wheel(0, -60);
-  await expect(page.locator(".topbar")).not.toHaveClass(/compact/);
   const kept = await scrollTop(page);
 
   // 다른 화면은 맨 위에서 시작 → 돌아오면 아까 위치
@@ -139,17 +135,18 @@ const swipeContent = (page: Page, dx: number) =>
     fire("touchend", 190 + dx, false);
   }, dx);
 
-test("모바일: 옆으로 넘기면 옆 탭으로, 내리면 상단 바 아랫줄이 접힌다", async ({ page }) => {
+test("모바일: 옆으로 넘기면 옆 탭으로, 내려도 상단 바 높이는 그대로", async ({ page }) => {
   await page.goto("/?m=kr");
   await expect(page.getByText("총자산")).toBeVisible();
-  // 내리면 시장 전환·설정·상태 칩 줄을 접고, 올리면 다시 편다
+  // 상단 바가 접혔다 펴지며 본문이 튀지 않게 — 스크롤 전후 본문(스크롤 상자) 위치·높이가 같다
+  const before = await scroller(page).boundingBox();
   await page.mouse.move(195, 500);
   await page.mouse.wheel(0, 500);
-  await expect(page.locator(".topbar")).toHaveClass(/compact/);
-  await expect(page.getByRole("group", { name: "시장 보기" })).toBeHidden();
-  await page.mouse.wheel(0, -120);
-  await expect(page.locator(".topbar")).not.toHaveClass(/compact/);
+  await expect.poll(() => scrollTop(page)).toBeGreaterThan(200);
+  await page.waitForTimeout(300);
+  expect(await scroller(page).boundingBox()).toEqual(before);
   await expect(page.getByRole("group", { name: "시장 보기" })).toBeVisible();
+  await page.mouse.wheel(0, -500);
 
   await swipeContent(page, -140);
   await expect(page).toHaveURL(/\/room$/);

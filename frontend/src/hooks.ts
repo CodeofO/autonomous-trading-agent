@@ -20,24 +20,28 @@ export const useSystem = (m?: MarketCode, opts: { enabled?: boolean; refetchInte
   });
 };
 
+/** 평가금·지표 갱신 주기 (D-61): 장이 닫혀 있어도 시간외·데이마켓·환율로 값이 움직이므로 웹소켓 연결과
+ *  관계없이 늘 이 주기로 다시 받는다 (서버는 현재가를 5초, 주요 지표를 15초 캐시한다) */
+export const PORTFOLIO_POLL_MS = 10_000;
+export const INDICATORS_POLL_MS = 15_000;
+
 /** 계좌 (실시세 평가금 때문에 주기적으로). 체결·주문 이벤트가 오면 바로 다시 받는다 */
-export const usePortfolio = () => {
-  const api = useApi();
-  const every = useLiveInterval(api.market, 10_000);
+export const usePortfolio = (m?: MarketCode) => {
+  const api = useApi(m);
   return useQuery({
     queryKey: api.key("portfolio"),
     queryFn: () => api.get<Portfolio>("/api/portfolio"),
-    refetchInterval: every,
+    refetchInterval: PORTFOLIO_POLL_MS,
   });
 };
 
-// 주요 지표: 서버가 60초 캐시하므로 1분마다. 실패해도 직전 값을 그대로 두고 오류는 띄우지 않는다 (재시도는 앱 기본값 1회)
+// 주요 지표: 실패해도 직전 값을 그대로 두고 오류는 띄우지 않는다 (재시도는 앱 기본값 1회)
 export const useMarketIndicators = () =>
   useQuery({
     queryKey: ["market-indicators"],
     queryFn: () => get<MarketIndicators>("/api/market/indicators"),
-    refetchInterval: 60_000,
-    staleTime: 55_000,
+    refetchInterval: INDICATORS_POLL_MS,
+    staleTime: INDICATORS_POLL_MS - 1000,
     placeholderData: keepPreviousData,
     refetchOnWindowFocus: false,
   });

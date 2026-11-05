@@ -633,6 +633,26 @@ export interface ScheduleInfo {
   max_sessions?: number;
   /** 시각을 계산한 거래일 "YYYY-MM-DD" (시장 날짜) */
   day?: string;
+  /** 켠 장외 세션과 그 안의 판단 시각 (D-61). times 는 위 일정과 겹치지 않는 것만 — 예전 서버에는 없다 */
+  extended?: ScheduleExtSession[];
+  /** 장외 세션 판단은 세션 끝 몇 분 전까지 */
+  ext_cutoff_minutes?: number;
+  /** 일정 범위 + 장외 세션을 합친 하루 판단 수 */
+  total?: number;
+  /** times 중 켠 장외 세션 안에 드는 시각 (그 시간에도 주문을 받는다) */
+  in_extended?: string[];
+}
+
+export interface ScheduleExtSession {
+  key: string;
+  label: string;
+  /** 세션 시각 "HH:MM" (시장 시각 / 한국 시각) — 미장 데이마켓은 자정을 넘는다 */
+  start: string;
+  end: string;
+  start_kst: string;
+  end_kst: string;
+  times: string[];
+  times_kst: string[];
 }
 
 export interface ScheduleUpdate {
@@ -758,3 +778,91 @@ export interface ExtendedHoursInfo {
 }
 
 export type ExtendedHoursUpdate = Partial<Record<ExtendedSessionKey, boolean>>;
+
+// ---------- 전략 실험실 (GET /api/lab, 미장 /api/us/lab — D-62) ----------
+
+export interface LabStyle {
+  id: string;
+  name: string;
+  emoji: string;
+  persona: string;
+  summary: string;
+  tags: string[];
+  /** 매니저 프롬프트에 들어가는 판단 원칙 (기본 매니저는 null — 설정 > 매니저의 투자 정책) */
+  policy: string | null;
+}
+
+export interface LabRow {
+  id: string;
+  /** main = 주 계좌(실거래 가능), scenario = 전략 시나리오(모의 전용) */
+  kind: "main" | "scenario";
+  name: string;
+  emoji: string;
+  persona: string;
+  summary: string;
+  live: boolean;
+  equity?: number;
+  cash?: number;
+  initial_cash?: number | null;
+  return_pct?: number | null;
+  positions?: number;
+  top_positions?: { symbol: string; name: string; weight: number; pnl_pct: number }[];
+  invested_pct?: number;
+  fills?: number;
+  runs?: number;
+  since?: string | null;
+  last_run?: { id: number; at: string | null; status: string; summary: string } | null;
+  running: boolean;
+  /** 계좌를 읽지 못했을 때 */
+  error?: string;
+}
+
+export interface LabView {
+  market: MarketCode;
+  currency: Currency;
+  /** 주 계좌가 실거래 계좌인지 */
+  live: boolean;
+  main: string;
+  enabled: string[];
+  max_scenarios: number;
+  styles: LabStyle[];
+  rows: LabRow[];
+  round_running: boolean;
+  running: string | null;
+  llm: string | null;
+  next_run: { name: string; at: string } | null;
+}
+
+export interface LabDetail {
+  id: string;
+  positions: {
+    symbol: string;
+    name: string;
+    quantity: number;
+    avg_price: number;
+    last_price: number;
+    market_value: number;
+    pnl_pct: number;
+  }[];
+  orders: {
+    id: number;
+    symbol: string;
+    name: string;
+    side: string;
+    quantity: number;
+    status: string;
+    filled_qty: number;
+    avg_fill_price: number | null;
+    created_at: string | null;
+    reason: string | null;
+  }[];
+  runs: {
+    id: number;
+    trigger: string;
+    status: string;
+    started_at: string | null;
+    summary: string;
+    market_view: string;
+  }[];
+  equity: { ts: string | null; equity: number }[];
+}

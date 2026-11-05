@@ -3302,6 +3302,25 @@ label.memo-settings-toggle {
   font-size: 10.5px;
   color: var(--text-dim);
 }
+.sched-ext {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+}
+.sched-ext-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+.chip.sched-ext-chip {
+  background: rgba(94, 92, 230, 0.1);
+  border-color: rgba(94, 92, 230, 0.4);
+}
 .chip.sched-out {
   background: rgba(255, 159, 10, 0.12);
   border-color: rgba(255, 159, 10, 0.55);
@@ -4347,7 +4366,7 @@ kbd,
   }
 }
 
-/* ---------- 휴대폰: 가로 넘기기 · 내리면 상단 바 접기 ---------- */
+/* ---------- 휴대폰: 가로 넘기기 (상단 바는 스크롤해도 높이가 그대로 — D-61) ---------- */
 @media (max-width: 760px) {
   /* 넘기는 동안만 본문이 손가락을 조금 따라온다 (ui/swipe.ts) */
   .page.swiping {
@@ -4356,48 +4375,53 @@ kbd,
   .page.swiping.settle {
     transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
   }
-  /* 내리면 둘째·셋째 줄(시장 전환·설정·상태 칩)을 접는다 — 조금이라도 올리면 다시 편다 */
-  .topbar .mkt-switch,
-  .topbar .top-settings,
-  .topbar .top-info {
-    max-height: 64px;
-    transition:
-      max-height 0.22s ease,
-      opacity 0.16s ease,
-      margin 0.22s ease,
-      padding 0.22s ease,
-      visibility 0s linear 0s;
-  }
-  .topbar.compact {
-    row-gap: 0;
-  }
-  .topbar.compact .mkt-switch,
-  .topbar.compact .top-settings,
-  .topbar.compact .top-info {
-    max-height: 0;
-    opacity: 0;
-    margin-block: 0;
-    padding-block: 0;
-    border-width: 0;
-    overflow: hidden;
-    pointer-events: none;
-    visibility: hidden;
-    transition:
-      max-height 0.22s ease,
-      opacity 0.12s ease,
-      margin 0.22s ease,
-      padding 0.22s ease,
-      visibility 0s linear 0.22s;
-  }
 }
 @media (max-width: 760px) and (prefers-reduced-motion: reduce) {
-  .topbar .mkt-switch,
-  .topbar .top-settings,
-  .topbar .top-info,
-  .topbar.compact .mkt-switch,
-  .topbar.compact .top-settings,
-  .topbar.compact .top-info,
   .page.swiping.settle {
     transition: none;
   }
+}
+
+/* ---------- 포트폴리오 '전체' 보기: 국장·미장 한 화면 (D-61) ---------- */
+.pf-all-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.pf-all-head h2 {
+  margin: 0;
+}
+.pf-all-sum {
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+.pf-all-markets {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 8px;
+}
+.pf-all-markets li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel-2);
+}
+.pf-all-markets b {
+  font-size: 17px;
+}
+.pf-all-note {
+  margin: 8px 0 0;
+  font-size: 12px;
+}
+.table td.pf-mkt {
+  text-align: center;
+  width: 2.5em;
 }

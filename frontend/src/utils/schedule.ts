@@ -55,6 +55,37 @@ export function scheduleTimes(start: string, end: string, interval: number): str
   return out;
 }
 
+/** 장외 세션 판단은 세션 끝 몇 분 전까지 (서버 EXT_CUTOFF 와 같다) */
+export const EXT_CUTOFF_MINUTES = 10;
+
+/**
+ * 장외 세션 [start, end) 안의 판단 시각 — 서버(scheduler.ext_session_times)와 같은 규칙.
+ * 자정부터 주기로 딱 떨어지는 시각, 세션 시작 ~ 끝 cutoff 분 전. 끝이 시작보다 이르면 자정을 넘는 세션(미장 데이마켓).
+ */
+export function extSessionTimes(
+  start: string,
+  end: string,
+  interval: number,
+  cutoff: number = EXT_CUTOFF_MINUTES,
+): string[] {
+  const s = toMinutes(start);
+  let e = toMinutes(end);
+  if (!Number.isFinite(s) || !Number.isFinite(e) || !(interval > 0)) return [];
+  if (e <= s) e += 1440;
+  const out: string[] = [];
+  for (let t = Math.ceil(s / interval) * interval; t <= e - cutoff; t += interval) out.push(fromMinutes(t));
+  return out;
+}
+
+/** 시각이 [start, end) 세션 안인지 (자정을 넘는 세션도) */
+export function inWindow(time: string, start: string, end: string): boolean {
+  const t = toMinutes(time);
+  const s = toMinutes(start);
+  const e = toMinutes(end);
+  if (![t, s, e].every(Number.isFinite)) return false;
+  return e > s ? t >= s && t < e : t >= s || t < e;
+}
+
 /** 주문을 낼 수 없는 시각: 장 시작 30분 전보다 이르거나 주문 마감 시각 이후(마감 시각 포함 — 서버와 같은 규칙, 시장 시각 기준) */
 export function outsideMarketTimes(times: string[], hours: ScheduleInfo["market_hours"]): string[] {
   const from = toMinutes(hours.open) - PRE_OPEN_MINUTES;

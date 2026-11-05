@@ -2,7 +2,9 @@
 
 토스 Open API 의 시장 지표(`/market-indicators`)는 코스피·코스닥·한국 국채(KR_BOND_*)만 제공한다.
 미국 지수는 없어서 지수를 따라가는 ETF(QQQ·SPY) 시세로 대신하고, 화면에 'QQQ ETF' 처럼 표시한다.
-전일 대비는 일봉의 바로 전 거래일 종가(최신순 두 번째 봉)와 비교한다. 1분 캐시로 호출 수를 묶는다.
+전일 대비는 일봉의 바로 전 거래일 종가(최신순 두 번째 봉)와 비교한다.
+현재가(지수·ETF·환율)는 15초, 일봉(전일 종가·추이선)은 10분 캐시 — 장이 닫혀 있어도 시간외·데이마켓·환율
+움직임이 화면에 바로 보이게 하면서 호출 수는 묶는다 (D-61).
 """
 
 from __future__ import annotations
@@ -29,7 +31,8 @@ INDICATORS: tuple[tuple[str, str, str, str, str | None], ...] = (
     ("KR_BOND_10Y", "국고채 10년", "bond", "%", None),
 )
 SPARK_DAYS = 30
-TTL_SEC = 60.0
+TTL_SEC = 15.0  # 현재가
+CANDLE_TTL_SEC = 600.0  # 일봉 (하루에 한 번 바뀐다)
 
 
 def _f(v: Any) -> float | None:
@@ -70,12 +73,17 @@ def _row(
 
 
 class MarketIndicators:
-    def __init__(self, client: TossClient, clock: Clock, ttl: float = TTL_SEC) -> None:
+    def __init__(
+        self, client: TossClient, clock: Clock, ttl: float = TTL_SEC, candle_ttl: float = CANDLE_TTL_SEC
+    ) -> None:
         self.client = client
         self.clock = clock
         self.ttl = ttl
+        self.candle_ttl = candle_ttl
         self._cache: dict[str, Any] | None = None
         self._at = 0.0
+        self._candles: dict[str, list[float]] = {}
+        self._candles_at = 0.0
         self._lock = asyncio.Lock()
 
     async def snapshot(self) -> dict[str, Any]:
@@ -92,6 +100,27 @@ class MarketIndicators:
             log.warning("주요 지표 조회 실패 (%s): %s", what, type(e).__name__)
             return default
 
+    async def _closes(self) -> dict[str, list[float]]:
+        """지표별 일봉 종가(오래된 순). 10분 캐시 — 받지 못한 지표만 다음 현재가 갱신 때 다시 받는다."""
+        expired = time.monotonic() - self._candles_at > self.candle_ttl
+        tc = self.client
+        got: dict[str, list[float]] = {}
+        for key, _name, kind, _unit, _note in INDICATORS:
+            if kind == "fx" or (not expired and key in self._candles):
+                continue
+            rows: list[dict[str, Any]] | None
+            if kind == "etf":
+                res = await self._safe(f"{key} 일봉", partial(tc.candles, key, "1d", SPARK_DAYS), None)
+                rows = res[0] if res is not None else None
+            else:
+                rows = await self._safe(f"{key} 일봉", partial(tc.index_candles, key, SPARK_DAYS), None)
+            if rows is not None:
+                got[key] = _closes(rows)
+        self._candles.update(got)  # 다시 받다 실패한 지표는 직전 일봉을 그대로 쓴다
+        if expired:
+            self._candles_at = time.monotonic()
+        return self._candles
+
     async def _fetch(self) -> list[dict[str, Any]]:
         tc = self.client
         kr = [k for k, _, kind, _, _ in INDICATORS if kind in ("index", "bond")]
@@ -99,16 +128,15 @@ class MarketIndicators:
         idx_px = await self._safe("지수 현재가", partial(tc.index_prices, tuple(kr)), [])
         us_px = await self._safe("미국 ETF 현재가", partial(tc.prices, us), {})
         fx = await self._safe("환율", tc.exchange_rate, {})
+        closes = await self._closes()
         last = {str(r.get("symbol")): _f(r.get("lastPrice")) for r in idx_px}
         out: list[dict[str, Any]] = []
         for key, name, kind, unit, note in INDICATORS:
             if kind in ("index", "bond"):
-                candles = await self._safe(f"{key} 일봉", partial(tc.index_candles, key, SPARK_DAYS), [])
-                out.append(_row(key, name, kind, unit, note, last.get(key), _closes(candles)))
+                out.append(_row(key, name, kind, unit, note, last.get(key), closes.get(key, [])))
             elif kind == "etf":
-                res = await self._safe(f"{key} 일봉", partial(tc.candles, key, "1d", SPARK_DAYS), ([], None))
                 px = us_px.get(key)
-                out.append(_row(key, name, kind, unit, note, px[0] if px else None, _closes(res[0])))
+                out.append(_row(key, name, kind, unit, note, px[0] if px else None, closes.get(key, [])))
             else:  # 환율: 토스는 현재 환율과 방향(UP/DOWN)만 준다
                 row = _row(key, name, kind, unit, note, _f(fx.get("rate")), [])
                 d = str(fx.get("rateChangeType") or "").upper()

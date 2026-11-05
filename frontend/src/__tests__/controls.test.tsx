@@ -93,7 +93,7 @@ describe("레이아웃", () => {
         .getAllByRole("link")
         .map((a) => a.getAttribute("href"));
     expect(group("매일 보기")).toEqual(["/", "/room", "/portfolio", "/news"]);
-    expect(group("매니저·분석")).toEqual(["/agent", "/backtest", "/logs"]);
+    expect(group("매니저·분석")).toEqual(["/agent", "/lab", "/backtest", "/logs"]);
     expect(within(nav).getByRole("link", { name: "홈" })).toHaveAttribute("aria-current", "page");
     expect(within(nav).queryByRole("link", { name: "설정" })).not.toBeInTheDocument();
     expect(within(nav).queryByRole("link", { name: /LLM 비용/ })).not.toBeInTheDocument();

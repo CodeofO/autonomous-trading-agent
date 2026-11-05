@@ -15,6 +15,10 @@
 그 밖: 매 1분 지정가·장전 주문 체결·당일 만료·손절/익절 감시(`intraday`, 장 시작 1분 전 ~ 마감 5분 뒤에만),
 일봉 갱신(장 시작 1시간 전 ~ 마감 30분 뒤에만 10분마다 — 국장·미장 같음, B6), 하루 한 번 데이터 정리(`maintenance`, B7).
 거래일과 관계없이 매일 같은 한국 시각에 도는 작업(`daily`, 예: 뉴스 룸 07·12·17시, D-56)도 같은 분배기·실행 기록을 쓴다.
+
+장외 세션 판단(D-61): 설정에서 켠 장외 세션(국장 프리·애프터, 미장 데이·프리·애프터) 안에서도 같은 주기의 딱 떨어지는
+시각(시장 현지 시각, 자정 기준)에 판단한다 — 세션 끝 10분 전까지. 시각은 토스 장 운영 캘린더가 날마다 준 세션 시각
+(서머타임 반영)을 쓰고, 일정 범위·기본 일정과 겹치는 시각은 한 번만 돈다. 미장 데이마켓은 뉴욕 자정을 넘긴다.
 """
 
 from __future__ import annotations
@@ -30,7 +34,7 @@ from zoneinfo import ZoneInfo
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from app.core.clock import KST
-from app.core.market_calendar import CONTINUOUS_CLOSE, REGULAR_OPEN, Session
+from app.core.market_calendar import CONTINUOUS_CLOSE, EXT_LABEL, REGULAR_OPEN, ExtSession, Session
 from app.engine import decision_schedule as dsched
 from app.engine.decision_schedule import ScheduleConfig
 from app.engine.engine import TradingEngine
@@ -51,6 +55,8 @@ REFRESH_BEFORE = timedelta(
     minutes=60
 )  # 일봉 갱신(10분)은 장 시작 1시간 전 ~ 마감 30분 뒤에만 (국장·미장, B6)
 REFRESH_AFTER = timedelta(minutes=30)
+EXT_CUTOFF = timedelta(minutes=10)  # 장외 세션 판단은 세션 끝 10분 전까지 (정규장 주문 마감과 같은 역할)
+DEFAULT_EXT_INTERVAL = 60  # 기본 일정이 '하루 2회 모드'(간격 0)일 때 장외 세션 판단 주기
 DECISIONS = ("morning", "hourly")
 TZ_LABEL = {"KR": "한국 시각", "US": "미국 동부 시각"}
 
@@ -144,6 +150,26 @@ def custom_job_times(s: Session, cfg: ScheduleConfig, tz: ZoneInfo) -> list[tupl
     return out
 
 
+def ext_session_times(x: ExtSession, interval_minutes: int, tz: ZoneInfo) -> list[datetime]:
+    """장외 세션 x 안의 판단 시각: 현지 자정부터 주기로 딱 떨어지는 시각, 세션 시작 ~ 끝 10분 전 (D-61)."""
+    if interval_minutes <= 0:
+        return []
+    local = x.start.astimezone(tz)
+    midnight = local.replace(hour=0, minute=0, second=0, microsecond=0)
+    since = (local - midnight).total_seconds() / 60
+    first = -(-int(since) // interval_minutes) * interval_minutes
+    t = (midnight + timedelta(minutes=first)).astimezone(x.start.tzinfo)
+    if t < x.start:  # 초 단위 시작(드묾)
+        t += timedelta(minutes=interval_minutes)
+    out: list[datetime] = []
+    last = x.end - EXT_CUTOFF
+    step = timedelta(minutes=interval_minutes)
+    while t <= last:
+        out.append(t)
+        t += step  # 절대 시간으로 더한다 (자정을 넘는 데이마켓도 그대로)
+    return out
+
+
 class Scheduler:
     """국장 스케줄러 (그리고 미장 `SessionScheduler` 의 바탕). 1분 디스패처 방식 (D-51)."""
 
@@ -159,6 +185,8 @@ class Scheduler:
         self._tasks: set[asyncio.Task[None]] = set()
         self._calendar_day: date | None = None
         self.daily: list[DailyJob] = []  # 매일 도는 작업 (D-56) — 조립할 때 붙인다
+        # 전략 실험실 (D-62): 주 계좌 판단이 끝나면 켠 시나리오도 차례로, 장중 1분 감시도 같이
+        self.lab: Any = None
 
     # ------------------------------------------------------------ 설정
     @property
@@ -186,11 +214,37 @@ class Scheduler:
         return [(datetime.combine(d, t, KST), name) for t, name in kr_default_times(self.default_interval)]
 
     def plan(self, d: date, cfg: ScheduleConfig | None) -> list[tuple[datetime, str]]:
-        """거래일 d(시장 현지 날짜)의 일정. 휴장일이면 []."""
+        """거래일 d(시장 현지 날짜)의 일정 + 켠 장외 세션 판단 (D-61). 휴장일이면 []."""
+        base = self.plan_base(d, cfg)
+        if not base:
+            return []
+        seen = {at for at, name in base if name in DECISIONS}
+        extra = [(at, "hourly") for _x, times in self.ext_plan(d, cfg) for at in times if at not in seen]
+        if not extra:
+            return base
+        return sorted(base + extra, key=lambda x: x[0])  # 안정 정렬 (같은 시각이면 판단이 리포트보다 앞)
+
+    def plan_base(self, d: date, cfg: ScheduleConfig | None) -> list[tuple[datetime, str]]:
+        """장외 세션 판단을 뺀 일정 (설정 화면이 '일정 범위'와 '장외 세션'을 나눠 보여 줄 때)."""
         if cfg is None:
             return self.default_jobs(d)
         s = self.engine.cal.session(d)
         return custom_job_times(s, cfg, self.tz) if s is not None else []
+
+    def ext_interval(self, cfg: ScheduleConfig | None) -> int:
+        if cfg is not None:
+            return cfg.interval
+        return self.default_interval if self.default_interval > 0 else DEFAULT_EXT_INTERVAL
+
+    def ext_plan(self, d: date, cfg: ScheduleConfig | None) -> list[tuple[ExtSession, list[datetime]]]:
+        """거래일 d 의 켠 장외 세션과 그 안의 판단 시각 (캘린더에 세션 시각이 있는 날만)."""
+        cal = self.engine.cal
+        interval = self.ext_interval(cfg)
+        return [
+            (x, ext_session_times(x, interval, self.tz))
+            for x in cal.extended_sessions()
+            if x.day == d and x.name in cal.extended_enabled
+        ]
 
     def jobs_for(self, d: date) -> list[tuple[datetime, str]]:
         return self.plan(d, self.config())
@@ -268,10 +322,18 @@ class Scheduler:
         return keys
 
     def _job(self, name: str) -> Job:
-        if name == "morning":
-            return self.engine.morning
-        if name == "hourly":
-            return self.engine.hourly
+        if name in DECISIONS:
+            main = self.engine.morning if name == "morning" else self.engine.hourly
+
+            async def decide() -> None:
+                try:
+                    await main()
+                finally:
+                    # 시나리오 차례는 판단 잠금(_busy) 밖에서 — 오래 걸려도 다음 주 계좌 판단을 막지 않는다
+                    if self.lab is not None and self.lab.enabled():
+                        self._spawn(self.lab.run_round(name))
+
+            return decide
 
         async def report() -> None:
             await build_daily_report(self.engine)
@@ -318,6 +380,17 @@ class Scheduler:
                 t.add_done_callback(self._tasks.discard)
         return ran
 
+    def _spawn(self, coro: Awaitable[Any]) -> None:
+        t: asyncio.Task[Any] = asyncio.ensure_future(coro)
+        self._tasks.add(t)
+        t.add_done_callback(self._tasks.discard)
+
+    async def intraday(self) -> None:
+        """장중 1분 감시: 주 계좌 → 켠 전략 시나리오."""
+        await self.engine.intraday()
+        if self.lab is not None:
+            await self.lab.intraday()
+
     async def refresh(self) -> None:
         """10분 일봉 갱신 — 장 시작 1시간 전 ~ 마감 30분 뒤에만 (밖에서는 일봉·자산이 바뀌지 않는다)."""
         if self._near_session(self.engine.clock.now()):
@@ -329,7 +402,10 @@ class Scheduler:
         이벤트 루프에서 바로 돈다(모의계좌 상태를 주문 처리와 번갈아 고치지 않게). 몇 ms 짜리 작업이다.
         """
         e = self.engine
-        return run_maintenance(e.db, e.clock.now(), e.broker)
+        out = run_maintenance(e.db, e.clock.now(), e.broker)
+        if self.lab is not None:
+            self.lab.maintenance()
+        return out
 
     def _near_session(self, now: datetime) -> bool:
         cal = self.engine.cal
@@ -373,7 +449,7 @@ class Scheduler:
             misfire_grace_time=50,
         )
         self._sched.add_job(
-            self._guarded("intraday", self.engine.intraday, busy_skip=False),
+            self._guarded("intraday", self.intraday, busy_skip=False),
             "interval",
             minutes=1,
             id="intraday",
@@ -443,11 +519,13 @@ class Scheduler:
         s, jobs = self._reference()
         times = [f"{at.astimezone(self.tz):%H:%M}" for at, name in jobs if name in DECISIONS]
         label = TZ_LABEL.get(self.market_code, "")
+        ext = [EXT_LABEL[x.name] for x, ts in self.ext_plan(s.day, cfg) if ts]
+        more = f", 장외 {'·'.join(ext)} 포함" if ext else ""
         if cfg is not None:
             a, b = dsched.hhmm(cfg.start), dsched.hhmm(cfg.end)
-            return f"판단 {a}~{b} {dsched.interval_label(cfg.interval)}마다 {len(times)}회({label})"
+            return f"판단 {a}~{b} {dsched.interval_label(cfg.interval)}마다 {len(times)}회({label}{more})"
         span = f"{times[0]}~{times[-1]} " if times else ""
-        return f"판단 기본 일정 {span}{len(times)}회({label}, 장중 {self.default_interval}분 간격)"
+        return f"판단 기본 일정 {span}{len(times)}회({label}, 장중 {self.default_interval}분 간격{more})"
 
     def schedule_info(self) -> dict[str, Any]:
         """에이전트 구조 화면용: 다음(또는 오늘) 거래일 판단 시각 — 한국 시각.
@@ -475,12 +553,21 @@ class Scheduler:
         tz = self.tz
         cfg = self.config()
         s, jobs = self._reference()
-        dec = [at for at, name in jobs if name in DECISIONS]
         rep = next((at for at, name in jobs if name == "report"), s.close + REPORT_DELAY)
         default = self.default_view(s)
+        ext = self.ext_plan(s.day, cfg)
+        ext_times = {t for _x, ts in ext for t in ts}
+        # 일정 범위(또는 기본 일정)의 판단 — 장외 세션에서만 생긴 시각은 아래 extended 에 따로
+        base = self.plan_base(s.day, cfg)
+        dec = [at for at, name in base if name in DECISIONS]
+        in_base = set(dec)
+        total = len({at for at, name in jobs if name in DECISIONS})
 
         def hm(t: datetime) -> str:
             return f"{t.astimezone(tz):%H:%M}"
+
+        def kst(t: datetime) -> str:
+            return f"{t.astimezone(KST):%H:%M}"
 
         return {
             "market": self.market_code,
@@ -497,6 +584,23 @@ class Scheduler:
             "market_hours": {"open": hm(s.open), "close": hm(s.close), "order_cutoff": hm(s.order_cutoff)},
             # 주문을 받지 않는 시각 (장전 접수·정규장·설정에서 켠 장외 세션 밖) — 주문 접수 규칙(fill_basis) 그대로
             "outside_market": [hm(t) for t in dec if cal.fill_basis(t) is None],
+            # 켠 장외 세션과 그 안의 판단 시각 (D-61). times 는 위 일정과 겹치지 않는 것만
+            "extended": [
+                {
+                    "key": x.name,
+                    "label": EXT_LABEL[x.name],
+                    "start": hm(x.start),
+                    "end": hm(x.end),
+                    "start_kst": kst(x.start),
+                    "end_kst": kst(x.end),
+                    "times": [hm(t) for t in ts if t not in in_base],
+                    "times_kst": [kst(t) for t in ts if t not in in_base],
+                }
+                for x, ts in ext
+            ],
+            "ext_cutoff_minutes": int(EXT_CUTOFF.total_seconds() // 60),
+            "total": total,
+            "in_extended": [hm(t) for t in dec if t in ext_times],
             "report_at": hm(rep),
             "next_runs": self.next_runs(6),
         }

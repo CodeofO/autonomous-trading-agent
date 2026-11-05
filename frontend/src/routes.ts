@@ -53,6 +53,10 @@ export const BacktestPage = lazyWithPreload(
   },
   (m) => m.Backtest,
 );
+export const LabPage = lazyWithPreload(
+  () => import("./pages/Lab"),
+  (m) => m.Lab,
+);
 export const SettingsPage = lazyWithPreload(
   () => import("./pages/Settings"),
   (m) => m.Settings,
@@ -78,6 +82,7 @@ const BY_PREFIX: [prefix: string, page: Preloadable][] = [
   ["/portfolio", PortfolioPage],
   ["/stock", StockPage],
   ["/backtest", BacktestPage],
+  ["/lab", LabPage],
   ["/settings", SettingsPage],
   ["/costs", CostsPage],
   ["/logs", LogsPage],

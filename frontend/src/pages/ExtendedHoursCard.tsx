@@ -8,7 +8,7 @@ import { EXTENDED_API, extendedHoursKey, extendedHoursQuery } from "./settingsQu
 import { sessionTimeText } from "../utils/extended";
 import { MARKET_TABS } from "../utils/schedule";
 
-/** 🌙 장외 주문 — 프리마켓·애프터마켓(미장은 데이마켓도)에서 주문을 받을지 시장마다 켜고 끈다 (D-57) */
+/** 🌙 장외 거래 — 프리마켓·애프터마켓(미장은 데이마켓도)에서도 판단·주문할지 시장마다 켜고 끈다 (D-57, D-61) */
 export function ExtendedHoursCard() {
   const kr = useQuery(extendedHoursQuery("KR"));
   const us = useQuery(extendedHoursQuery("US"));
@@ -22,7 +22,7 @@ export function ExtendedHoursCard() {
   return (
     <section className="card ext-card" aria-labelledby="ext-title">
       <div className="card-head">
-        <h2 id="ext-title">🌙 장외 주문</h2>
+        <h2 id="ext-title">🌙 장외 거래</h2>
         <div className="seg sched-tabs" role="tablist" aria-label="시장">
           {MARKET_TABS.filter((t) => t.key === "KR" || usVisible).map((t) => (
             <button
@@ -39,7 +39,8 @@ export function ExtendedHoursCard() {
         </div>
       </div>
       <p className="muted sched-lead">
-        켠 세션에서만 주문을 받아요. 시각은 토스 장 운영 정보를 날마다 받아 그대로 써서{" "}
+        켠 세션에서도 위 <b>판단 주기</b>대로 판단하고 주문을 받아요 (세션 끝 10분 전까지). 시각은 토스 장
+        운영 정보를 날마다 받아 그대로 써서{" "}
         {current === "US" ? "서머타임·휴장·조기 마감이" : "NXT 휴장·단축 운영이"} 자동으로 반영돼요.
       </p>
       {data ? (
@@ -62,7 +63,7 @@ function ExtendedEditor({ market, data }: { market: MarketCode; data: ExtendedHo
       const [key, on] = Object.entries(body)[0] ?? [];
       const label = d.sessions.find((s) => s.key === key)?.label ?? "장외";
       const m = MARKET_META[market];
-      toast(`${m.flag} ${m.name} ${label} 주문을 ${on ? "켰어요" : "껐어요"} ✓`);
+      toast(`${m.flag} ${m.name} ${label} 거래를 ${on ? "켰어요 — 그 시간에도 판단해요" : "껐어요"} ✓`);
     },
   });
   const anyOn = data.sessions.some((s) => s.enabled);
@@ -85,7 +86,7 @@ function ExtendedEditor({ market, data }: { market: MarketCode; data: ExtendedHo
                 className="switch"
                 checked={s.enabled}
                 disabled={save.isPending}
-                aria-label={`${s.label} 주문`}
+                aria-label={`${s.label} 거래`}
                 onChange={(e) => save.mutate({ [s.key]: e.target.checked })}
               />
             </label>
@@ -94,7 +95,7 @@ function ExtendedEditor({ market, data }: { market: MarketCode; data: ExtendedHo
       </ul>
       {!data.calendar_known && (
         <p className="muted ext-note">
-          ⚠️ 아직 토스 장 운영 정보를 받지 못했어요. 받기 전에는 켜 두어도 장외 주문을 받지 않아요.
+          ⚠️ 아직 토스 장 운영 정보를 받지 못했어요. 받기 전에는 켜 두어도 장외 판단·주문을 하지 않아요.
         </p>
       )}
       {anyOn && data.live && (

@@ -31,6 +31,8 @@ from app.agent.prompts import (
     SYSTEM_PROMPT,
     US_ACCOUNT_DESC,
     US_DEFAULT_POLICY,
+    US_EXT_OFF,
+    US_EXT_ON,
     US_MARKET_NOTES,
 )
 from app.agent.rule_agent import rule_based_decisions
@@ -44,6 +46,7 @@ from app.engine.events import ANALYST, SYSTEM, USER, EventHub
 from app.engine.orders import OrderManager
 from app.engine.settings_store import SettingsStore
 from app.risk.rules import OrderIntent
+from app.strategies import styles
 from app.strategies.rules import Strategy
 
 log = logging.getLogger(__name__)
@@ -54,6 +57,9 @@ TRIGGER_KO = {
     "afternoon": "🌤️ 오후 점검",
     "manual": "👆 수동 실행",
 }
+
+
+STRATEGY_KEY = "strategy"  # kv: {"id": 전략 id} — 없으면 기본 매니저 (D-62)
 
 
 class AgentRunner:
@@ -153,7 +159,14 @@ class AgentRunner:
     def persona(self) -> dict[str, str]:
         return {**DEFAULT_PERSONA, **self.settings.get("agent_persona")}
 
+    def style_id(self) -> str:
+        """이 매니저가 따르는 투자 전략 (D-62). 주 계좌는 전략 실험실에서 고른 것, 시나리오는 그 시나리오 전략."""
+        return str(self.settings.get(STRATEGY_KEY).get("id") or styles.DEFAULT_ID)
+
     def policy(self) -> str:
+        style = styles.get(self.style_id())
+        if style is not None and style.id != styles.DEFAULT_ID:
+            return style.policy(self.us)
         default = US_DEFAULT_POLICY if self.us else DEFAULT_POLICY
         return str(self.settings.get("agent_policy").get("text") or default)
 
@@ -167,7 +180,10 @@ class AgentRunner:
         cal = self.orders.risk.cal
         s = cal.next_session(self.clock.now())
         return "\n" + US_MARKET_NOTES.format(
-            open_kst=f"{s.open.astimezone(KST):%H:%M}", close_kst=f"{s.close.astimezone(KST):%H:%M}"
+            open_kst=f"{s.open.astimezone(KST):%H:%M}",
+            close_kst=f"{s.close.astimezone(KST):%H:%M}",
+            order_hours=cal.order_hours_text(),
+            ext_notes=US_EXT_ON if cal.extended_enabled else US_EXT_OFF,
         )
 
     def _tools(self) -> list[dict[str, Any]]:

@@ -256,3 +256,106 @@ def test_extended_hours_api_per_market(tmp_path: Path) -> None:
         assert not any(x["enabled"] for x in us["sessions"])  # 국장 설정과 따로
         assert c.put("/api/us/extended-hours", json={"day_market": True}).status_code == 200
         assert c.get("/api/us/extended-hours").json()["sessions"][0]["enabled"] is True
+
+
+# ====================================================================== 장외 세션 판단 일정 (D-61)
+def _stub(calls: list[str], name: str) -> Any:
+    async def run() -> None:
+        calls.append(name)
+
+    return run
+
+
+async def test_kr_after_market_adds_decisions_until_ten_minutes_before_end(tmp_path: Path) -> None:
+    from app.main import create_app
+
+    clock = SimulatedClock(kst(2026, 11, 4, 8, 20))
+    s = Settings(database_url="sqlite://", data_dir=tmp_path, enable_scheduler=False, auth_enabled=False)
+    with TestClient(create_app(s, toss_client=FakeTossClient(clock), clock=clock)) as c:
+        kr = c.app.state.container  # type: ignore[attr-defined]
+        kr.cal.apply_toss_calendar(
+            {"today": kr_entry("2026-11-04"), "nextBusinessDay": kr_entry("2026-11-05")}
+        )
+        c.put("/api/schedule", json={"start": "08:00", "end": "16:00", "interval_minutes": 60})
+        off = c.get("/api/schedule").json()
+        assert off["extended"] == [] and off["total"] == 9
+        c.put("/api/extended-hours", json={"after_market": True})
+        sc = c.get("/api/schedule").json()
+        assert sc["times"] == [f"{h:02d}:00" for h in range(8, 17)]  # 일정 범위는 그대로
+        assert sc["extended"] == [
+            {
+                "key": "after_market",
+                "label": "애프터마켓",
+                "start": "15:40",
+                "end": "20:00",
+                "start_kst": "15:40",
+                "end_kst": "20:00",
+                "times": ["17:00", "18:00", "19:00"],  # 16:00 은 일정 범위와 겹쳐 한 번만, 19:50 까지
+                "times_kst": ["17:00", "18:00", "19:00"],
+            }
+        ]
+        assert sc["total"] == 12 and sc["outside_market"] == ["08:00"]  # 프리마켓은 꺼져 있음
+        assert "장외 애프터마켓 포함" in kr.scheduler.describe()
+
+        calls: list[str] = []
+        kr.engine.hourly = _stub(calls, "hourly")
+        kr.scheduler._calendar_day = kr.cal.local_date(kst(2026, 11, 4, 18))  # 가짜 토스로 캘린더를 덮지 않게
+        clock.set(kst(2026, 11, 4, 18, 0))
+        assert await kr.scheduler.tick(wait=True) == ["2026-11-04 18:00 hourly"]
+        assert calls == ["hourly"]
+
+
+async def test_us_day_market_decisions_cross_new_york_midnight(tmp_path: Path) -> None:
+    from app.main import create_app
+
+    clock = SimulatedClock(kst(2026, 11, 4, 8, 0))  # 뉴욕 11/3 18:00 (표준시)
+    s = Settings(database_url="sqlite://", data_dir=tmp_path, enable_scheduler=False, auth_enabled=False)
+    with TestClient(create_app(s, toss_client=FakeTossClient(clock), clock=clock)) as c:
+        us = c.app.state.containers["US"]  # type: ignore[attr-defined]
+        us.cal.apply_toss_calendar(
+            {
+                "today": us_entry("2026-11-04", "2026-11-05", edt=False),
+                "nextBusinessDay": us_entry("2026-11-05", "2026-11-06", edt=False),
+            }
+        )
+        c.put("/api/us/schedule", json={"start": "09:00", "end": "16:00", "interval_minutes": 60})
+        on = {"day_market": True, "pre_market": True, "after_market": True}
+        assert c.put("/api/us/extended-hours", json=on).status_code == 200
+        sc = c.get("/api/us/schedule").json()
+        assert sc["day"] == "2026-11-04"
+        by = {x["key"]: x for x in sc["extended"]}
+        # 데이마켓: 한국 09:00~16:50 = 뉴욕 전날 19:00~02:50 → 자정을 넘어 02:00 까지
+        assert by["day_market"]["times"] == [
+            "19:00",
+            "20:00",
+            "21:00",
+            "22:00",
+            "23:00",
+            "00:00",
+            "01:00",
+            "02:00",
+        ]
+        assert by["day_market"]["times_kst"][0] == "09:00" and by["day_market"]["times_kst"][-1] == "16:00"
+        assert by["pre_market"]["times"] == [
+            "04:00",
+            "05:00",
+            "06:00",
+            "07:00",
+            "08:00",
+        ]  # 09:00 은 일정 범위에
+        assert by["after_market"]["times"] == ["17:00"]  # 16:00~18:00, 끝 10분 전까지
+        assert sc["total"] == 8 + 8 + 5 + 1 and sc["outside_market"] == []
+        assert sc["in_extended"] == ["09:00", "16:00"]
+
+        calls: list[str] = []
+        us.engine.hourly = _stub(calls, "hourly")
+        us.engine.morning = _stub(calls, "morning")
+        now = kst(2026, 11, 4, 10, 0)  # 데이마켓 = 뉴욕 11/3 20:00 — 11/4 거래일 일정으로 돈다
+        us.scheduler._calendar_day = us.cal.local_date(now)
+        clock.set(now)
+        assert await us.scheduler.tick(wait=True) == ["2026-11-04 10:00 hourly"]
+        assert us.scheduler.next_runs(1)[0] == {"name": "hourly", "at": "2026-11-04T11:00:00+09:00"}
+        # 데이마켓을 끄면 그 시각은 빠진다
+        c.put("/api/us/extended-hours", json={"day_market": False})
+        assert c.get("/api/us/schedule").json()["total"] == 8 + 5 + 1
+        assert us.scheduler.next_runs(1)[0]["at"] == "2026-11-04T18:00:00+09:00"  # 프리마켓 04:00 (뉴욕)

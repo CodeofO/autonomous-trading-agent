@@ -24,9 +24,11 @@ export const currencyOf = (m: MarketCode): Currency => MARKET_META[m].currency;
 
 export const isMarketCode = (v: unknown): v is MarketCode => v === "KR" || v === "US";
 
-/** '전체' 보기로 볼 수 있는 화면: 한눈에 보기(/)와 시장과 관계없는 LLM 비용·뉴스 룸 */
+/** '전체' 보기로 볼 수 있는 화면: 한눈에 보기(/), 포트폴리오·주문(두 시장을 한 화면에, D-61),
+ *  시장과 관계없는 LLM 비용·뉴스 룸 */
 export const isAllRoute = (pathname: string) =>
   pathname === "/" ||
+  pathname === "/portfolio" ||
   pathname === "/costs" ||
   pathname.startsWith("/costs/") ||
   pathname === "/news" ||

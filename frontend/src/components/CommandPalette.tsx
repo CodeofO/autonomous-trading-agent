@@ -45,6 +45,12 @@ const PAGES: { to: string; icon: string; label: string; keywords: string }[] = [
   { to: "/memo", icon: "📌", label: "매니저 › 메모 카드", keywords: "memo 매니저 메모 카드 기억" },
   { to: "/portfolio", icon: "📒", label: "포트폴리오·주문", keywords: "portfolio 자산 주문 체결 결정" },
   { to: "/backtest", icon: "🧪", label: "백테스트", keywords: "backtest 백테스트 전략" },
+  {
+    to: "/lab",
+    icon: "⚗️",
+    label: "전략 실험실",
+    keywords: "lab 전략 시나리오 비교 피터린치 워런버핏 그레이엄 모멘텀 가치주",
+  },
   { to: "/settings", icon: "⚙️", label: "설정", keywords: "settings 설정" },
   { to: "/logs", icon: "📜", label: "이벤트 로그", keywords: "logs 로그 감사 기록" },
   { to: "/costs", icon: "💸", label: "설정 › LLM 비용", keywords: "costs 비용 요금 토큰 llm" },

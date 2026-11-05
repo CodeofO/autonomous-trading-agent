@@ -3,7 +3,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ScheduleInfo, ScheduleUpdate } from "../api/types";
 import { ScheduleSettings } from "../pages/ScheduleSettings";
 import {
+  extSessionTimes,
   fromMinutes,
+  inWindow,
   intervalLabel,
   kstShift,
   kstText,
@@ -122,6 +124,25 @@ describe("판단 시각 계산 (서버와 같은 규칙)", () => {
     expect(validateSchedule("08:00", "17:00", 7, INTERVALS)).toMatch(/고를 수 없는 주기/);
     expect(validateSchedule("00:00", "23:55", 5, INTERVALS)).toMatch(/288회로 너무 많아요 \(최대 96회\)/);
     expect(validateSchedule("08:05", "08:55", 60, INTERVALS)).toMatch(/판단 시각이 하나도 없어요/);
+  });
+
+  it("장외 세션 판단 시각: 세션 끝 10분 전까지, 자정을 넘는 데이마켓도 (서버와 같은 규칙)", () => {
+    expect(extSessionTimes("15:40", "20:00", 60)).toEqual(["16:00", "17:00", "18:00", "19:00"]);
+    expect(extSessionTimes("16:00", "18:00", 60)).toEqual(["16:00", "17:00"]);
+    expect(extSessionTimes("19:00", "02:50", 60)).toEqual([
+      "19:00",
+      "20:00",
+      "21:00",
+      "22:00",
+      "23:00",
+      "00:00",
+      "01:00",
+      "02:00",
+    ]);
+    expect(extSessionTimes("08:00", "08:50", 30)).toEqual(["08:00", "08:30"]);
+    expect(inWindow("01:00", "19:00", "02:50")).toBe(true);
+    expect(inWindow("03:00", "19:00", "02:50")).toBe(false);
+    expect(inWindow("08:00", "08:00", "08:50")).toBe(true);
   });
 
   it("주기 이름과 한국 시각 변환", () => {
@@ -256,6 +277,42 @@ describe("⏰ 판단 주기 카드", () => {
         { url: "/api/us/schedule", body: { start: "09:30", end: "16:00", interval_minutes: 60 } },
       ]),
     );
+  });
+
+  it("켠 장외 세션의 판단 시각을 따로 보여 주고, 주기를 바꾸면 같이 다시 계산한다", async () => {
+    const withExt: ScheduleInfo = {
+      ...info(KR_BASE, { start: "08:00", end: "16:00", interval_minutes: 60 }, true),
+      extended: [
+        {
+          key: "after_market",
+          label: "애프터마켓",
+          start: "15:40",
+          end: "20:00",
+          start_kst: "15:40",
+          end_kst: "20:00",
+          times: ["17:00", "18:00", "19:00"],
+          times_kst: ["17:00", "18:00", "19:00"],
+        },
+      ],
+      total: 12,
+    };
+    mockFetch({ "/api/schedule": withExt, "/api/us/schedule": apiError(404, "Not Found") });
+    renderWithProviders(<ScheduleSettings />);
+    expect(await screen.findByTestId("sched-count")).toHaveTextContent("하루 12회");
+    const ext = screen.getByRole("list", { name: "애프터마켓 판단 시각" });
+    expect(
+      within(ext)
+        .getAllByRole("listitem")
+        .map((li) => li.textContent),
+    ).toEqual(["17:00", "18:00", "19:00"]);
+    fireEvent.change(screen.getByLabelText("주기"), { target: { value: "120" } });
+    // 08:00~16:00 · 2시간 → 08·10·12·14·16 / 장외 18:00 만 따로 (16:00 은 일정과 겹침)
+    expect(screen.getByTestId("sched-count")).toHaveTextContent("하루 6회");
+    expect(
+      within(screen.getByRole("list", { name: "애프터마켓 판단 시각" }))
+        .getAllByRole("listitem")
+        .map((li) => li.textContent),
+    ).toEqual(["18:00"]);
   });
 
   it("예전 서버(404)면 카드를 그리지 않는다", async () => {

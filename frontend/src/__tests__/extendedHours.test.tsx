@@ -58,7 +58,7 @@ const US_DAY: ExtendedSession = {
   },
 };
 
-describe("장외 주문 카드", () => {
+describe("장외 거래 카드", () => {
   it("세션 시각을 한국 시각(미장은 뉴욕 시각도)으로 보여 준다", () => {
     expect(sessionTimeText(PRE, "KR")).toBe("08:00~08:50");
     expect(sessionTimeText(US_DAY, "US")).toBe("한국 09:00~16:50 · 뉴욕 19:00~02:50");
@@ -82,11 +82,11 @@ describe("장외 주문 카드", () => {
       "/api/us/extended-hours": { ...kr(), market: "US", sessions: [US_DAY] },
     });
     renderWithProviders(<ExtendedHoursCard />);
-    const sw = await screen.findByRole("checkbox", { name: "애프터마켓 주문" });
+    const sw = await screen.findByRole("checkbox", { name: "애프터마켓 거래" });
     expect(screen.getByText("진행 중")).toBeInTheDocument();
     expect(sw).not.toBeChecked();
     fireEvent.click(sw);
-    await waitFor(() => expect(screen.getByRole("checkbox", { name: "애프터마켓 주문" })).toBeChecked());
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: "애프터마켓 거래" })).toBeChecked());
     expect(bodies).toEqual([{ after_market: true }]);
     expect(screen.getByText(/세션이 끝나면 미체결분을 취소/)).toBeInTheDocument();
   });
@@ -100,7 +100,7 @@ describe("장외 주문 카드", () => {
     expect(await screen.findByText(/실제 주문이 나가요/)).toBeInTheDocument();
   });
 
-  it("토스 장 운영 정보를 못 받았으면 장외 주문을 받지 않는다고 알린다", async () => {
+  it("토스 장 운영 정보를 못 받았으면 장외 판단·주문을 하지 않는다고 알린다", async () => {
     mockFetch({
       "/api/extended-hours": kr({ calendar_known: false }),
       "/api/us/extended-hours": { ...kr(), market: "US", sessions: [US_DAY] },

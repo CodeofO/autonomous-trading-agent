@@ -38,7 +38,6 @@ import {
   TAB_ITEMS,
   TABS,
   tabIndex,
-  topbarCompact,
   type NavItem,
 } from "./nav";
 import { Sheet } from "./Sheet";
@@ -594,16 +593,12 @@ function useMobileNav(pathname: string, screen: string, active: number) {
   useEffect(() => {
     const el = scroller.current;
     if (!el) return;
-    let lastY = el.scrollTop;
+    // 상단 바 높이는 스크롤하는 동안 바꾸지 않는다 — 바가 접히고 펴질 때마다 본문이 100px 가까이
+    // 위아래로 튀어 '휙휙 내려가는' 느낌이 났다 (D-61). 내리면 그림자만 단다
     const onScroll = () => {
       const y = el.scrollTop;
       positions.current.set(current.current, y);
-      const bar = topbar.current;
-      bar?.classList.toggle("scrolled", y > 2);
-      // 휴대폰: 내리면 상단 바 둘째·셋째 줄(시장 전환·설정·상태 칩)을 접고, 올리면 다시 편다
-      if (bar && isMobile())
-        bar.classList.toggle("compact", topbarCompact(bar.classList.contains("compact"), lastY, y));
-      lastY = y;
+      topbar.current?.classList.toggle("scrolled", y > 2);
     };
     el.addEventListener("scroll", onScroll, { passive: true });
     // 보이는 본문 높이 — 트레이딩 룸 채팅이 상단 바와 탭바 사이를 꽉 채우는 데 쓴다

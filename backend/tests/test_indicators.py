@@ -97,10 +97,20 @@ async def test_one_failure_keeps_the_rest_and_cache_limits_calls() -> None:
 
     n = len(fake.calls)
     await ind.snapshot()
-    assert len(fake.calls) == n  # 1분 안에는 다시 부르지 않는다
+    assert len(fake.calls) == n  # 15초 안에는 다시 부르지 않는다
+    # 현재가 캐시가 지나면 현재가는 다시 받고, 실패했던 일봉(KOSDAQ)만 다시 시도한다
     ind.ttl = 0
     await ind.snapshot()
-    assert len(fake.calls) == 2 * n
+    again = fake.calls[n:]
+    assert "index_candles:KOSPI" not in again and "index_candles:KOSDAQ" in again
+    fake.fail = set()
+    await ind.snapshot()
+    m = len(fake.calls)
+    await ind.snapshot()  # 일봉이 다 있으면 현재가 3번만
+    assert len(fake.calls) - m == 3
+    ind.candle_ttl = 0
+    await ind.snapshot()  # 일봉 캐시가 지나면 일봉도 다시
+    assert any(c.startswith("index_candles") for c in fake.calls[m + 3 :])
 
 
 def test_indicators_endpoint(tmp_path: Path) -> None:

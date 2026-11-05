@@ -28,6 +28,7 @@ from app.core.config import Settings
 from app.core.logging import register_secret
 from app.core.market import MarketSpec, spec_for
 from app.core.market_calendar import MarketCalendar
+from app.db.migrate import in_memory, migrate
 from app.db.models import (
     AgentDecision,
     AgentRun,
@@ -46,6 +47,7 @@ from app.engine import extended_hours
 from app.engine.engine import TradingEngine
 from app.engine.events import SYSTEM, EventHub
 from app.engine.push import PushNotifier
+from app.engine.scenarios import ScenarioLab
 from app.engine.scheduler import DailyJob, Scheduler, SessionScheduler
 from app.engine.settings_store import SettingsStore
 from app.engine.trades import trade_ledger
@@ -59,6 +61,7 @@ from app.research.newsroom import SLOTS as NEWS_SLOTS
 from app.research.newsroom import NewsRoom
 from app.research.service import ResearchService
 from app.risk.rules import RiskConfig
+from app.strategies import styles
 
 log = logging.getLogger(__name__)
 
@@ -91,6 +94,8 @@ class Container:
     # LLM 무료/유료 선택·모델·테스트용 엔드포인트가 들어 있는 kv (= 국장 kv). 미장 스택도 이것을 읽는다
     llm_kv: SettingsStore | None = None
     newsroom: NewsRoom | None = None  # 뉴스 룸 (D-56, 국장 스택에만 — 시장과 관계없는 공용 화면)
+    lab: ScenarioLab | None = None  # 전략 실험실 (D-62, 시장 스택마다 — 시나리오 스택에는 없음)
+    scenario: str | None = None  # 이 스택이 전략 시나리오면 그 전략 id
 
     @property
     def code(self) -> str:
@@ -434,12 +439,13 @@ def build_container(
         market=spec,
     )
     engine.runner = runner
+    push.busy = lambda: runner.running  # 판단 세션 중 체결·차단은 세션이 끝날 때 한 알림으로 (D-61)
     scheduler = Scheduler(engine, settings.agent_interval_minutes)
     # 뉴스 룸 (D-56): 매니저와 같은 활성 LLM 으로 요약(선택). 뉴스 키가 있을 때만 07·12·17시 자동 갱신
     newsroom = NewsRoom(db, clock, kv, news=news, llm=lambda: runner.llm, audit=hub.audit)
     if newsroom.available:
         scheduler.daily.append(DailyJob("newsroom", NEWS_SLOTS, newsroom.scheduled))
-    return Container(
+    c = Container(
         settings,
         db,
         clock,
@@ -461,6 +467,7 @@ def build_container(
         kv,
         newsroom=newsroom,
     )
+    return _with_lab(c)
 
 
 def _build_us(
@@ -586,8 +593,9 @@ def _build_us(
         market=spec,
     )
     engine.runner = runner
+    push.busy = lambda: runner.running
     scheduler = SessionScheduler(engine, settings.us_interval_minutes)
-    return Container(
+    c = Container(
         settings,
         db,
         clock,
@@ -607,4 +615,132 @@ def _build_us(
         trading,
         spec,
         llm_kv,
+    )
+    return _with_lab(c)
+
+
+# ====================================================================== 전략 실험실 (D-62)
+def _with_lab(c: Container) -> Container:
+    c.lab = ScenarioLab(c, build_scenario)
+    c.scheduler.lab = c.lab
+    return c
+
+
+def scenario_db_url(settings: Settings, code: str, sid: str) -> str:
+    """시나리오 기록 DB: 시장 DB 가 메모리면 메모리(테스트), 아니면 data/scenarios/{시장}_{전략}.db"""
+    if in_memory(settings.database_url):
+        return "sqlite://"
+    return f"sqlite:///{Path(settings.data_dir) / 'scenarios' / f'{code.lower()}_{sid}.db'}"
+
+
+def build_scenario(main: Container, sid: str) -> Container:
+    """전략 시나리오 스택: 자기 가상 계좌·기록 DB·매니저. 시세·캘린더·일봉 저장소·LLM 은 주 계좌 스택 것을 같이 쓴다.
+
+    언제나 모의계좌(PaperBroker, trading_mode="paper") — PaperBroker 는 모의가 아니면 주문을 거부한다(실거래 차단).
+    휴대폰 알림·유료 구글 검색은 붙이지 않는다.
+    """
+    style = styles.get(sid)
+    if style is None:
+        raise ValueError(f"없는 전략: {sid}")
+    settings, spec, clock = main.settings, main.market, main.clock
+    assert spec is not None
+    url = scenario_db_url(settings, spec.code, sid)
+    db = Database(url)
+    if in_memory(url):
+        db.create_all()
+    else:
+        migrate(url)
+    kv = SettingsStore(db)
+    if not kv.get("risk"):  # 처음 만들 때 주 계좌 리스크 설정을 그대로 (공정한 비교)
+        kv.set("risk", main.kv.get("risk") or RiskConfig().model_dump())
+    kv.set("strategy", {"id": sid})
+    kv.set("agent_persona", {"name": style.persona, "emoji": style.emoji})
+    research = ResearchService(clock, dart=main.research.dart, news=main.research.news_client, google=None)
+    us = spec.code == "US"
+    costs = (
+        PaperCosts(spec.commission_rate, spec.sell_tax_rate, spec.slippage_bps, spec.max_volume_participation)
+        if us
+        else PaperCosts(
+            settings.paper_commission_rate,
+            settings.paper_sell_tax_rate,
+            settings.paper_slippage_bps,
+            settings.paper_max_volume_participation,
+        )
+    )
+    broker = PaperBroker(
+        db,
+        main.store,
+        main.cal,
+        clock,
+        initial_cash=spec.initial_cash if us else settings.paper_initial_cash,
+        trading_mode="paper",
+        costs=costs,
+        quotes=main.toss,
+        round_price=spec.round_price if us else None,
+        keep_closed_orders=PAPER_KEEP_CLOSED_ORDERS,
+    )
+    hub = EventHub(db, clock)
+    seed_defaults(db, kv, spec)
+    _reset_on_source_change(db, kv, broker, hub, SOURCE)
+    engine = TradingEngine(db, clock, main.cal, main.store, broker, hub, kv, toss=main.toss, market=spec)
+
+    def trades(limit: int = 20) -> dict[str, Any]:
+        since = kv.get("account_source").get("since")
+        return trade_ledger(
+            db,
+            main.store.name_of,
+            datetime.fromisoformat(since) if since else None,
+            limit,
+            **({"currency": spec.currency} if us else {}),
+        )
+
+    toolbox = ToolBox(
+        engine.portfolio,
+        main.store,
+        research,
+        clock,
+        screener=main.toss.screen,
+        quote=broker.get_quote,
+        market=spec,
+    )
+    toolbox.toss = main.toss
+    toolbox.trades = trades
+    runner = AgentRunner(
+        db,
+        clock,
+        hub,
+        toolbox,
+        engine.orders,
+        kv,
+        main.runner.llm,
+        tool_mode=settings.llm_tool_mode,
+        max_steps=settings.llm_max_steps,
+        strategies=engine.enabled_strategies,
+        names=main.store.name_of,
+        live=False,
+        market=spec,
+    )
+    engine.runner = runner
+    push = PushNotifier(kv, None, settings.vapid_subject, names=main.store.name_of, now=clock.now)
+    return Container(
+        settings,
+        db,
+        clock,
+        main.cal,
+        main.store,
+        broker,
+        hub,
+        kv,
+        research,
+        engine,
+        runner,
+        Scheduler(engine, 0),  # 시작하지 않는다 — 주 계좌 스케줄러가 차례를 정한다
+        main.toss,
+        main.secret_key,
+        push,
+        main.indicators,
+        None,
+        spec,
+        main.llm_kv,
+        scenario=sid,
     )

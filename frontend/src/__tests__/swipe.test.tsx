@@ -2,7 +2,7 @@ import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Route, Routes, useLocation } from "react-router-dom";
 import { Layout } from "../components/Layout";
-import { swipeTarget, topbarCompact } from "../components/nav";
+import { swipeTarget } from "../components/nav";
 import { blocksSwipe, swipeDirection } from "../ui/swipe";
 import { clearToasts, toast } from "../ui/toast";
 import { mockFetch, renderWithProviders } from "./utils";
@@ -37,13 +37,6 @@ describe("넘기기 판정", () => {
     expect(swipeTarget("/stock/005930", "right", true)).toBe(-1);
     expect(swipeTarget("/settings/llm", "right", false)).toBeNull(); // 앱 안에 뒤로 갈 곳이 없으면 그대로
     expect(swipeTarget("/agent", "left", true)).toBeNull();
-  });
-
-  it("상단 바는 내리면 접고, 조금이라도 올리면 펴고, 맨 위 근처에서는 항상 편다", () => {
-    expect(topbarCompact(false, 100, 140)).toBe(true);
-    expect(topbarCompact(true, 300, 280)).toBe(false);
-    expect(topbarCompact(true, 300, 302)).toBe(true); // 작은 흔들림은 그대로
-    expect(topbarCompact(true, 80, 40)).toBe(false);
   });
 
   it("가로 스크롤 상자·입력칸·차트 위에서는 넘기지 않는다", () => {

@@ -1,7 +1,10 @@
 """휴대폰 알림 (Web Push, D-39).
 
 홈 화면에 추가한 웹앱(iOS 16.4+)·안드로이드·데스크톱 브라우저가 구독하면, 감사 로그 중 체결·리스크 차단·
-킬 스위치·오류(선택: 에이전트 판단 완료·일일 리포트)를 알림으로 보낸다. 구독 목록과 알림 종류는
+킬 스위치·오류(선택: 에이전트 판단 완료·일일 리포트)를 알림으로 보낸다.
+
+체결·리스크 차단은 한 건씩 보내지 않고 묶는다 (D-61): 판단 세션 중 생긴 것은 세션이 끝날 때 '판단 #N 결과'
+알림 하나로, 세션 밖(지정가 체결·손절 등)은 마지막 건 뒤 1분 조용하면 한 번에. 구독 목록과 알림 종류는
 app_settings 'push' 에 두고, VAPID 개인키는 .env 로만 받는다. 구독 주소(endpoint)는 기기별 비밀 주소라
 API 응답·로그에 내보내지 않는다.
 """
@@ -39,6 +42,9 @@ PUSH_HOSTS = (
 GONE = (404, 410)  # 구독이 해지된 기기 → 목록에서 지운다
 MAX_DEVICES = 20
 TTL_SEC = 6 * 3600  # 휴대폰이 꺼져 있어도 6시간 안에 켜지면 받는다
+BATCH_QUIET_SEC = 60.0  # 세션 밖 체결·차단: 마지막 건 뒤 이만큼 조용하면 묶어서 한 번 보낸다
+BATCHED = ("FILL", "RISK_BLOCK")  # 묶어서 보내는 감사 로그 종류
+MAX_LINES = 6  # 요약 알림 본문에 넣는 건수 (나머지는 '외 N건')
 
 Sender = Callable[[dict[str, Any], str], Awaitable[int]]  # (구독 정보, 본문) → HTTP 상태 코드
 NO_KEY = ".env 에 VAPID_PRIVATE_KEY 가 없어요. ./run.sh 로 다시 실행하면 자동으로 만들어 넣어요."
@@ -96,6 +102,11 @@ class PushNotifier:
         self._send: Sender = sender or self._webpush
         self._loop: asyncio.AbstractEventLoop | None = None
         self._tasks: set[asyncio.Task[Any]] = set()
+        # 묶음 알림 (D-61): 아직 보내지 않은 체결·차단, 판단 세션 진행 중인지(조립할 때 runner 와 잇는다)
+        self._batch: list[dict[str, str]] = []
+        self._gen = 0
+        self.quiet_sec = BATCH_QUIET_SEC
+        self.busy: Callable[[], bool] = lambda: False
 
     # ------------------------------------------------------------ 상태
     @property
@@ -201,14 +212,62 @@ class PushNotifier:
             )
         elif t == "REPORT":
             out = ("agent", {"title": "📊 일일 리포트", "body": msg, "url": "/"})
-        if out and self.live:
-            out[1]["title"] = "[실거래] " + out[1]["title"]
-        if out and self.prefix:
-            out[1]["title"] = self.prefix + out[1]["title"]
+        if out:
+            self._decorate(out[1])
         return out
+
+    def _decorate(self, payload: dict[str, str]) -> dict[str, str]:
+        if self.live:
+            payload["title"] = "[실거래] " + payload["title"]
+        if self.prefix:
+            payload["title"] = self.prefix + payload["title"]
+        return payload
+
+    @staticmethod
+    def _line(category: str, payload: dict[str, str]) -> str:
+        """묶음 알림 본문 한 줄: '🟢 매수 삼성전자 3주 @ 70,100원' / '🛑 삼성전자 매수 10주 — 한도 초과'."""
+        if category == "fills":
+            side = payload["title"].split(" ")[-2]  # '[미장] 매수 체결' → '매수'
+            return f"{'🟢' if side == '매수' else '🔴'} {side} {payload['body']}"
+        return f"🛑 {payload['body']}"
+
+    def summary(
+        self, items: list[dict[str, str]], *, run_id: Any = None, failed: bool = False
+    ) -> dict[str, str]:
+        """묶음 알림 하나. run_id 가 있으면 판단 세션 결과, 없으면 세션 밖 체결·차단 모음."""
+        fills = [i for i in items if i["cat"] == "fills"]
+        buys = sum(1 for i in fills if i["side"] == "BUY")
+        sells = len(fills) - buys
+        blocks = len(items) - len(fills)
+        counts = [
+            t
+            for n, t in ((buys, f"매수 {buys}건"), (sells, f"매도 {sells}건"), (blocks, f"차단 {blocks}건"))
+            if n
+        ]
+        head = " · ".join(counts) or "주문 없음"
+        lines = [i["line"] for i in items[:MAX_LINES]]
+        if len(items) > MAX_LINES:
+            lines.append(f"외 {len(items) - MAX_LINES}건")
+        if run_id is not None:
+            title = f"🤖 판단 #{run_id} {'실패' if failed else '결과'} — {head}"
+        elif fills:
+            title = f"📈 체결 {len(fills)}건" + (f" · 차단 {blocks}건" if blocks else "")
+        else:
+            title = f"🛑 리스크 차단 {blocks}건"
+        body = "\n".join(lines) if lines else "이번 판단에서는 주문을 내지 않았어요."
+        return self._decorate({"title": title, "body": body, "url": "/portfolio" if fills else "/room"})
+
+    def _take(self) -> list[dict[str, str]]:
+        items, self._batch = self._batch, []
+        self._gen += 1  # 기다리던 세션 밖 묶음 발송은 취소
+        return items
 
     def on_audit(self, ev: dict[str, Any]) -> None:
         if not self.available:
+            return
+        t = ev.get("type")
+        if t == "AGENT_RUN":
+            self._run_done(ev)
             return
         m = self.message(ev)
         if m is None:
@@ -217,7 +276,40 @@ class PushNotifier:
         d = self._data()
         if not d["subs"] or not d["prefs"].get(category):
             return
-        self._schedule(self.broadcast(payload))
+        if t not in BATCHED:
+            self._schedule(self.broadcast(payload))
+            return
+        side = str((ev.get("payload") or {}).get("side") or str(ev.get("message", "")).split(" ", 1)[0])
+        self._batch.append({"cat": category, "side": side.upper(), "line": self._line(category, payload)})
+        self._gen += 1
+        self._schedule(self._flush_later(self._gen))
+
+    def _run_done(self, ev: dict[str, Any]) -> None:
+        """판단 세션 끝: 그동안 모인 체결·차단을 결과 알림 하나로 (주문이 없으면 '판단 완료' 알림을 켠 때만)."""
+        items = self._take()
+        d = self._data()
+        if not d["subs"] or not (items or d["prefs"].get("agent")):
+            return
+        p = ev.get("payload") or {}
+        failed = str(ev.get("message", "")).endswith("FAILED")
+        self._schedule(self.broadcast(self.summary(items, run_id=p.get("run_id", "?"), failed=failed)))
+
+    async def _flush_later(self, gen: int) -> None:
+        """세션 밖 체결·차단: 마지막 건 뒤 quiet_sec 동안 새 건이 없으면 묶어서 보낸다. 판단 세션 중이면 세션 끝에 같이."""
+        while True:
+            await asyncio.sleep(self.quiet_sec)
+            if gen != self._gen:
+                return  # 새 건이 왔다 → 그 건의 타이머가 보낸다
+            if not self.busy():
+                break
+        await self.flush()
+
+    async def flush(self) -> dict[str, int]:
+        """모인 체결·차단을 지금 한 번에 보낸다 (없으면 보내지 않음)."""
+        items = self._take()
+        if not items:
+            return {"sent": 0, "failed": 0, "removed": 0}
+        return await self.broadcast(self.summary(items))
 
     def bind_loop(self, loop: asyncio.AbstractEventLoop) -> None:
         """동기 API(스레드풀)에서 남긴 감사 로그도 알림을 보낼 수 있도록 서버 이벤트 루프를 기억한다."""

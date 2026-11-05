@@ -15,6 +15,7 @@ from app.api.routes import (
     chat,
     control,
     extended,
+    lab,
     llm,
     market,
     markets,
@@ -49,6 +50,7 @@ for _m in (
     reports,
     markets,
     newsroom,
+    lab,
 ):
     router.include_router(_m.router)
 

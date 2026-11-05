@@ -40,6 +40,13 @@ export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
         hint: "에이전트 구조 · 기억 · 메모 카드",
       },
       {
+        to: "/lab",
+        label: "전략 실험실",
+        short: "전략",
+        icon: "⚗️",
+        hint: "여러 투자 전략을 모의계좌로 동시에 비교 · 주 계좌 전략 고르기",
+      },
+      {
         to: "/backtest",
         label: "백테스트",
         short: "백테스트",
@@ -98,16 +105,4 @@ export function swipeTarget(pathname: string, dir: "left" | "right", canBack: bo
     return j >= 0 && j < TAB_ITEMS.length ? TAB_ITEMS[j].to : null;
   }
   return dir === "right" && canBack ? -1 : null;
-}
-
-/** 내릴 때 상단 바를 접는 기준: 맨 위 근처는 항상 펴고, 이만큼 이상 내리면 접고, 이만큼 올리면 편다(px) */
-const COMPACT_TOP = 56;
-const COMPACT_STEP = 6;
-
-/** 스크롤 위치 변화 → 상단 바를 접을지 (순수 함수, 작은 흔들림은 무시) */
-export function topbarCompact(compact: boolean, lastY: number, y: number): boolean {
-  if (y < COMPACT_TOP) return false;
-  if (y - lastY > COMPACT_STEP) return true;
-  if (lastY - y > COMPACT_STEP) return false;
-  return compact;
 }

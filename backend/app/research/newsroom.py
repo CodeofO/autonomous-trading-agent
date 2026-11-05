@@ -44,7 +44,7 @@ SLOTS: tuple[time, ...] = (time(7, 0), time(12, 0), time(17, 0))  # 한국 시�
 KV = "news_room"  # {summary: bool, last_error, last_attempt}
 KEEP_DAYS = 14  # 이보다 오래된 판은 지운다
 PER_QUERY = 20  # 검색어 하나당 받는 기사 수 (네이버 display 최대 100)
-PER_SECTION = 8  # 섹션마다 보여 주는 기사 수
+PER_SECTION = 5  # 섹션마다 보여 주는 기사 수 (최대)
 MAX_AGE = timedelta(hours=24)  # 이보다 오래된 기사는 뺀다
 SAME_STORY = 0.45  # 제목 단어 자카드 유사도가 이 이상이면 같은 사건으로 묶는다
 MANUAL_COOLDOWN = timedelta(seconds=60)  # 수동 새로고침 최소 간격 (유료 LLM 연타 방지)
@@ -402,6 +402,8 @@ class NewsRoom:
         edition = None
         if row is not None:
             payload = copy.deepcopy(row.payload)
+            for sec in payload.get("sections") or []:  # 예전 판(섹션당 8개)도 지금 한도까지만
+                sec["items"] = list(sec.get("items") or [])[:PER_SECTION]
             fill_impact(payload.get("sections") or [])  # 증시 영향이 없는 예전 판(D-59 전)은 규칙 기반으로
             edition = {
                 "id": row.id,

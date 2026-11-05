@@ -8,6 +8,9 @@ import { toast } from "../ui/toast";
 import { scheduleKey, scheduleQuery } from "./settingsQueries";
 import { fmtDateTime } from "../utils/format";
 import {
+  EXT_CUTOFF_MINUTES,
+  extSessionTimes,
+  inWindow,
   intervalLabel,
   kstShift,
   kstText,
@@ -120,7 +123,24 @@ function ScheduleEditor({ market, data }: { market: MarketCode; data: ScheduleIn
 
   // 저장된 값 그대로면 서버가 계산한 시각을, 바꾸는 중이면 같은 규칙으로 화면에서 계산한다
   const times = dirty ? scheduleTimes(v.start, v.end, v.interval_minutes) : data.times;
-  const outside = new Set(dirty ? outsideMarketTimes(times, data.market_hours) : data.outside_market);
+  // 켠 장외 세션(D-61): 그 안에서도 같은 주기로 판단한다 — 일정 범위와 겹치는 시각은 한 번만
+  const extSessions = data.extended ?? [];
+  const inBase = new Set(times);
+  const cutoff = data.ext_cutoff_minutes ?? EXT_CUTOFF_MINUTES;
+  const extRows = extSessions.map((x) => ({
+    ...x,
+    times: dirty
+      ? extSessionTimes(x.start, x.end, v.interval_minutes, cutoff).filter((t) => !inBase.has(t))
+      : x.times,
+  }));
+  const extCount = extRows.reduce((n, x) => n + x.times.length, 0);
+  const outside = new Set(
+    dirty
+      ? outsideMarketTimes(times, data.market_hours).filter(
+          (t) => !extSessions.some((x) => inWindow(t, x.start, x.end)),
+        )
+      : data.outside_market,
+  );
   const shown = times.slice(0, MAX_CHIPS);
 
   const edit = (patch: Partial<ScheduleUpdate>) => {
@@ -219,7 +239,12 @@ function ScheduleEditor({ market, data }: { market: MarketCode; data: ScheduleIn
 
       <div className="sched-preview" role="group" aria-label="판단 시각 미리 보기">
         <div className="sched-preview-head">
-          <b data-testid="sched-count">하루 {times.length}회</b>
+          <b data-testid="sched-count">하루 {times.length + extCount}회</b>
+          {extCount > 0 && (
+            <small className="muted">
+              (일정 {times.length} + 장외 {extCount})
+            </small>
+          )}
           <span className="muted">{dirty ? "저장하면 이렇게 바뀌어요" : "지금 일정"}</span>
         </div>
         {times.length > 0 ? (
@@ -243,6 +268,39 @@ function ScheduleEditor({ market, data }: { market: MarketCode; data: ScheduleIn
           </ul>
         ) : (
           <p className="muted sched-none">이 설정에는 판단 시각이 없어요.</p>
+        )}
+        {extRows.length > 0 && (
+          <div className="sched-ext" role="group" aria-label="장외 세션 판단">
+            {extRows.map((x) => (
+              <div key={x.key} className="sched-ext-row">
+                <div className="sched-ext-head">
+                  <b>🌙 {x.label}</b>
+                  <small className="muted num">
+                    {x.start}~{x.end}
+                    {kst ? "" : ` · 한국 ${x.start_kst}~${x.end_kst}`}
+                  </small>
+                  <small className="muted">{x.times.length}회</small>
+                </div>
+                {x.times.length > 0 ? (
+                  <ul className="time-chips sched-chips" aria-label={`${x.label} 판단 시각`}>
+                    {x.times.slice(0, MAX_CHIPS).map((t) => (
+                      <li key={t} className="chip sched-ext-chip">
+                        {t}
+                        {!kst && <small className="sched-kst">한국 {kstText(t, shift)}</small>}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="muted sched-none">이 주기로는 세션 안에 따로 도는 시각이 없어요.</p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+        {extRows.length === 0 && (
+          <p className="muted sched-cost">
+            아래 🌙 장외 거래를 켜면 그 세션에서도 같은 주기로 판단하고 주문해요.
+          </p>
         )}
         {outside.size > 0 && (
           <p className="sched-legend">

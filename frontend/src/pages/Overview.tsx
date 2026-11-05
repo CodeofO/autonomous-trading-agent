@@ -38,7 +38,7 @@ export function Overview() {
   const q = useQuery({
     queryKey: OVERVIEW_KEY,
     queryFn: () => get<OverviewData>("/api/overview"),
-    refetchInterval: 30_000,
+    refetchInterval: 15_000, // 장 밖에서도 평가금이 움직인다 (D-61)
   });
   const data = q.data;
 

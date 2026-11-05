@@ -14,6 +14,7 @@ import {
   BacktestPage,
   CostsPage,
   DashboardPage,
+  LabPage,
   LoginPage,
   LogsPage,
   MemoRoute,
@@ -86,6 +87,7 @@ function AppRoutes() {
         <Route path="portfolio" element={<PortfolioPage />} />
         <Route path="stock/:symbol" element={<StockPage />} />
         <Route path="backtest" element={<BacktestPage />} />
+        <Route path="lab" element={<LabPage />} />
         {/* /settings 는 주제 목록(넓은 화면은 목록 + LLM 모델), /settings/llm·risk… 는 주제 하나 */}
         <Route path="settings/:section?" element={<SettingsPage />} />
         <Route path="costs" element={<CostsPage />} />
