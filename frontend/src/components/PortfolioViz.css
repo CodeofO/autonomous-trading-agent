@@ -1,0 +1,373 @@
+/* 포트폴리오 시각화 (D-68): 비중 도넛 · 모자이크(트리맵). 색은 범주형 8색(종목) + 회색 둘(기타·현금),
+   모자이크는 수익률 발산형(손실 파랑 ↔ 이익 빨강, 0 근처 회색). 밝은·어두운 화면 단계를 따로 둔다 */
+.viz-donut,
+.viz-mosaic-wrap {
+  --viz-1: #2a78d6;
+  --viz-2: #eb6834;
+  --viz-3: #1baf7a;
+  --viz-4: #eda100;
+  --viz-5: #e87ba4;
+  --viz-6: #008300;
+  --viz-7: #6250d6;
+  --viz-8: #e34948;
+  --viz-other: #a8a7a0;
+  --viz-cash: #d9d8d2;
+  --viz-pm3: #256abf;
+  --viz-pm2: #5598e7;
+  --viz-pm1: #b7d3f6;
+  --viz-p0: #ecebe7;
+  --viz-pp1: #f6c4c3;
+  --viz-pp2: #ec8a89;
+  --viz-pp3: #d63b3a;
+  --viz-on-strong: #ffffff;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .viz-donut,
+  :root:not([data-theme="light"]) .viz-mosaic-wrap {
+    --viz-1: #3987e5;
+    --viz-2: #d95926;
+    --viz-3: #199e70;
+    --viz-4: #c98500;
+    --viz-5: #d55181;
+    --viz-6: #008300;
+    --viz-7: #9085e9;
+    --viz-8: #e66767;
+    --viz-other: #6b6a64;
+    --viz-cash: #45443f;
+    --viz-pm3: #3987e5;
+    --viz-pm2: #2a5fa8;
+    --viz-pm1: #1d3457;
+    --viz-p0: #383835;
+    --viz-pp1: #5a2a2b;
+    --viz-pp2: #a33c3c;
+    --viz-pp3: #e66767;
+  }
+}
+
+.viz-modes {
+  flex: none;
+}
+.viz-s1 {
+  fill: var(--viz-1);
+  background: var(--viz-1);
+}
+.viz-s2 {
+  fill: var(--viz-2);
+  background: var(--viz-2);
+}
+.viz-s3 {
+  fill: var(--viz-3);
+  background: var(--viz-3);
+}
+.viz-s4 {
+  fill: var(--viz-4);
+  background: var(--viz-4);
+}
+.viz-s5 {
+  fill: var(--viz-5);
+  background: var(--viz-5);
+}
+.viz-s6 {
+  fill: var(--viz-6);
+  background: var(--viz-6);
+}
+.viz-s7 {
+  fill: var(--viz-7);
+  background: var(--viz-7);
+}
+.viz-s8 {
+  fill: var(--viz-8);
+  background: var(--viz-8);
+}
+.viz-other {
+  fill: var(--viz-other);
+  background: var(--viz-other);
+}
+.viz-cash {
+  fill: var(--viz-cash);
+  background: var(--viz-cash);
+}
+
+/* ---------- 도넛 ---------- */
+.viz-donut {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 20px;
+  align-items: center;
+}
+.viz-donut-chart {
+  position: relative;
+  width: 220px;
+  aspect-ratio: 1;
+}
+.viz-donut-chart svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.viz-slice {
+  stroke: var(--panel);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+.viz-slice.dim {
+  opacity: 0.35;
+}
+.viz-donut-center {
+  position: absolute;
+  inset: 26%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 1px;
+  pointer-events: none;
+  line-height: 1.25;
+  min-width: 0;
+}
+.viz-donut-center small {
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+.viz-center-name {
+  font-size: 13px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.viz-center-big {
+  font-size: 17px;
+}
+.viz-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.viz-legend li {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) 52px 112px 64px;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 13.5px;
+}
+.viz-legend li.on {
+  background: var(--panel-2);
+}
+.viz-legend li.sub {
+  padding-left: 22px;
+  font-size: 12.5px;
+}
+.viz-legend li.sub .viz-sw {
+  width: 6px;
+  height: 6px;
+  justify-self: center;
+}
+.viz-expand {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--text);
+  cursor: pointer;
+}
+.viz-expand:hover {
+  text-decoration: underline;
+}
+.viz-sw {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+.viz-legend-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.viz-legend-w,
+.viz-legend-v,
+.viz-legend-p {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.viz-note {
+  margin: 10px 0 0;
+  font-size: 12px;
+}
+
+/* ---------- 모자이크 ---------- */
+.viz-mosaic {
+  position: relative;
+  height: 340px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+/* 종목이 많으면(전체 보기 등) 칸이 너무 작아지지 않게 더 높게 */
+.viz-mosaic.many {
+  height: 440px;
+}
+.viz-tile {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 1px;
+  padding: 7px 8px;
+  border-radius: 6px;
+  overflow: hidden;
+  color: var(--text);
+  text-decoration: none;
+  line-height: 1.2;
+  background: var(--viz-p0);
+  transition: filter 0.12s ease;
+}
+a.viz-tile:hover,
+a.viz-tile:focus-visible {
+  filter: brightness(1.08);
+  outline: 2px solid var(--text);
+  outline-offset: -2px;
+}
+.viz-tile-name {
+  font-weight: 700;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.viz-tile-sym {
+  font-size: 11px;
+  opacity: 0.8;
+  white-space: nowrap;
+}
+.viz-tile-nums {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.viz-tile.md {
+  padding: 4px 6px;
+}
+.viz-tile.md .viz-tile-name {
+  font-size: 12px;
+}
+.viz-tile.md .viz-tile-sym {
+  display: none;
+}
+.viz-tile.md .viz-tile-nums {
+  font-size: 11px;
+}
+.viz-tile.sm > * {
+  display: none;
+}
+.viz-tile.pm3 {
+  background: var(--viz-pm3);
+  color: var(--viz-on-strong);
+}
+.viz-tile.pm2 {
+  background: var(--viz-pm2);
+}
+.viz-tile.pm1 {
+  background: var(--viz-pm1);
+}
+.viz-tile.pp0 {
+  background: var(--viz-p0);
+}
+.viz-tile.pp1 {
+  background: var(--viz-pp1);
+}
+.viz-tile.pp2 {
+  background: var(--viz-pp2);
+}
+.viz-tile.pp3 {
+  background: var(--viz-pp3);
+  color: var(--viz-on-strong);
+}
+.viz-tile.cash {
+  background: var(--panel-2);
+  color: var(--text-dim);
+  border: 1px dashed var(--border);
+}
+.viz-scale {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  font-size: 12px;
+}
+.viz-scale-sw {
+  width: 18px;
+  height: 10px;
+  border-radius: 3px;
+}
+.viz-scale-sw.pm3 {
+  background: var(--viz-pm3);
+}
+.viz-scale-sw.pm2 {
+  background: var(--viz-pm2);
+}
+.viz-scale-sw.pm1 {
+  background: var(--viz-pm1);
+}
+.viz-scale-sw.pp0 {
+  background: var(--viz-p0);
+}
+.viz-scale-sw.pp1 {
+  background: var(--viz-pp1);
+}
+.viz-scale-sw.pp2 {
+  background: var(--viz-pp2);
+}
+.viz-scale-sw.pp3 {
+  background: var(--viz-pp3);
+}
+.viz-scale-note {
+  margin-left: 8px;
+}
+
+@media (max-width: 760px) {
+  .viz-donut {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    gap: 12px;
+  }
+  .viz-donut-chart {
+    width: min(220px, 70vw);
+  }
+  .viz-legend {
+    width: 100%;
+  }
+  .viz-legend li {
+    grid-template-columns: 10px minmax(0, 1fr) 48px 62px;
+    padding: 7px 4px;
+  }
+  .viz-legend-v {
+    display: none;
+  }
+  .viz-mosaic {
+    height: 300px;
+  }
+  .viz-mosaic.many {
+    height: 420px;
+  }
+  .viz-scale-note {
+    flex-basis: 100%;
+    margin-left: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .viz-slice,
+  .viz-tile {
+    transition: none;
+  }
+}

@@ -2,7 +2,7 @@ import { memo, useMemo, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Currency, Decision, FillRow, MarketCode, Order, Overview } from "../api/types";
-import { HoldingsTable } from "../components/HoldingsTable";
+import { CombinedAllocation, HoldingsCard } from "../components/PortfolioViz";
 import { SkeletonCards } from "../components/Skeleton";
 import { usePortfolio } from "../hooks";
 import { errorText, get, marketApi } from "../api/client";
@@ -17,6 +17,7 @@ import {
 } from "../market";
 import { toast } from "../ui/toast";
 import { ACTION_KO, BASIS_KO, fmtDateTime, fmtNum, fmtWon, money, price, STATUS_KO } from "../utils/format";
+import type { AllocSource } from "../utils/allocation";
 import { OVERVIEW_KEY } from "../utils/overview";
 
 const OPEN_STATUSES = new Set(["PENDING", "SUBMITTED", "PARTIALLY_FILLED"]);
@@ -70,10 +71,7 @@ function MarketPortfolio() {
 
   return (
     <div className="stack">
-      <section className="card">
-        <h2>보유 종목</h2>
-        <HoldingsTable positions={pf.data?.positions ?? []} />
-      </section>
+      <HoldingsCard title="보유 종목" positions={pf.data?.positions ?? []} cash={pf.data?.cash} />
 
       <section className="card">
         <h2>미체결 주문 ({open.length})</h2>
@@ -351,6 +349,16 @@ function PortfolioAll({ markets }: { markets: MarketCode[] }) {
     [krDec.data, usDec.data],
   );
 
+  // 전체 비중 (D-68): 미장은 토스 원/달러 환율로 원화로 바꿔 한 그림에. 환율이 없으면 합치지 않는다
+  const fx = overview.data?.fx.usdkrw ?? null;
+  const allocSources = useMemo<AllocSource[]>(() => {
+    const out: AllocSource[] = [];
+    if (krPf.data) out.push({ market: "KR", positions: krPf.data.positions, cash: krPf.data.cash });
+    if (hasUS && usPf.data && fx)
+      out.push({ market: "US", positions: usPf.data.positions, cash: usPf.data.cash, rate: fx });
+    return out;
+  }, [krPf.data, usPf.data, hasUS, fx]);
+
   if (krPf.isPending || krOrders.isPending || krFills.isPending)
     return <SkeletonCards heights={[120, 180, 180, 140, 220]} label="포트폴리오 불러오는 중" />;
 
@@ -388,14 +396,21 @@ function PortfolioAll({ markets }: { markets: MarketCode[] }) {
         </p>
       </section>
 
+      {fx ? (
+        <CombinedAllocation
+          sources={allocSources}
+          fxNote={`미장은 토스 원/달러 환율 ${fmtNum(fx, 2)}원으로 바꿔 원화로 보여요.`}
+        />
+      ) : null}
+
       {markets.map((m) => (
         <MarketScope key={m} m={m}>
-          <section className="card">
-            <h2>
-              {MARKET_META[m].flag} {MARKET_META[m].name} 보유 종목
-            </h2>
-            <HoldingsTable positions={pfOf(m).data?.positions ?? []} loading={pfOf(m).isPending} />
-          </section>
+          <HoldingsCard
+            title={`${MARKET_META[m].flag} ${MARKET_META[m].name} 보유 종목`}
+            positions={pfOf(m).data?.positions ?? []}
+            cash={pfOf(m).data?.cash}
+            loading={pfOf(m).isPending}
+          />
         </MarketScope>
       ))}
 
