@@ -9,7 +9,9 @@ import {
   dayLong,
   daysOf,
   FILTER_KEYS,
+  addTo,
   groupBy,
+  matches,
   isFiltered,
   kindLabel,
   marketLabel,
@@ -25,7 +27,6 @@ import {
   SOURCE_ORDER,
   strategyLabel,
   sum,
-  tokenStack,
   type FilterKey,
   type Filters,
   type Totals,
@@ -76,6 +77,7 @@ function CostsView({
   const unitPrice = (v: number) => (currency === "krw" && rate ? fmtKrwFromUsd(v, rate) : fmtUsdPrice(v));
 
   const monthGroups = useMemo(() => data.groups.filter((g) => g.month === data.month), [data]);
+  const palette = useMemo(() => modelPalette(data.groups, filters), [data, filters]);
   const total = sum(monthGroups, filters);
   const today =
     data.month === data.today.slice(0, 7)
@@ -164,8 +166,6 @@ function CostsView({
         </div>
       </section>
 
-      <PriceTable prices={data.prices ?? []} current={data.current_model} price={unitPrice} />
-
       {empty ? (
         <section className="card">
           <p className="muted empty" data-testid="costs-empty">
@@ -216,6 +216,8 @@ function CostsView({
             <Bars
               keys={data.months}
               totals={groupBy(data.groups, (g) => g.month, filters)}
+              byModel={byColModel(data.groups, (g) => g.month, filters, palette)}
+              palette={palette}
               sel={data.months.indexOf(data.month)}
               onSelect={(i) => {
                 onMonth(data.months[i]);
@@ -227,6 +229,7 @@ function CostsView({
               money={money}
               testId="month-chart"
             />
+            <ModelLegend palette={palette} metric={metric} />
           </section>
 
           <section className="card">
@@ -236,11 +239,13 @@ function CostsView({
             <DayBars
               data={data}
               filters={filters}
+              palette={palette}
               metric={metric}
               money={money}
               sel={dayIdx}
               onSelect={setDayIdx}
             />
+            <ModelLegend palette={palette} metric={metric} />
           </section>
 
           <section className="card">
@@ -265,6 +270,7 @@ function CostsView({
 
       <Official data={data} money={money} />
       <Footnotes data={data} rate={rate} />
+      <PriceTable prices={data.prices ?? []} current={data.current_model} price={unitPrice} />
     </div>
   );
 }
@@ -367,8 +373,8 @@ function Seg<T extends string>({
 interface BarCol {
   key: string;
   label: string;
-  /** 아래에서 위로 쌓는 조각 */
-  segs: { value: number; cls: string }[];
+  /** 아래에서 위로 쌓는 조각 (모델마다 색) */
+  segs: { key: string; value: number; color: string }[];
   title: string;
 }
 
@@ -432,9 +438,9 @@ function MonthBars({
                   y -= h;
                   return h > 0 ? (
                     <rect
-                      key={s.cls}
-                      className={s.cls}
-                      data-seg={s.cls}
+                      key={s.key}
+                      style={{ fill: s.color }}
+                      data-seg={s.key}
                       data-value={s.value}
                       x={i * COL_W + 1.6}
                       y={y}
@@ -467,28 +473,127 @@ function MonthBars({
   );
 }
 
-function segsOf(t: Totals, metric: Metric) {
-  if (metric === "cost") return [{ value: t.cost, cls: "cost-spent" }];
-  const s = tokenStack(t);
-  return [
-    { value: s.cached, cls: "llm-cached" },
-    { value: s.rest, cls: "llm-input" },
-    { value: s.output, cls: "llm-output" },
-  ];
+/** 모델별 색 — 범주형 8색을 요금(같으면 토큰) 큰 순서로, 9번째부터는 '기타' 회색 */
+const MODEL_COLORS = ["#3182f6", "#f59e0b", "#10b981", "#8b5cf6", "#ef4444", "#06b6d4", "#ec4899", "#84cc16"];
+const OTHER = "기타";
+const OTHER_COLOR = "#9ca3af";
+
+interface Palette {
+  /** 색을 받은 모델(+ 있으면 '기타') — 쌓는 순서 */
+  order: string[];
+  color: (key: string) => string;
+  /** 모델 → 막대에서 쓰는 이름(색을 못 받은 모델은 '기타') */
+  keyOf: (model: string) => string;
+  /** 거른 조건 안의 모델별 합계 */
+  totals: Map<string, Totals>;
 }
 
-function titleOf(head: string, t: Totals, money: (v: number) => string) {
+function modelPalette(groups: LlmLedgerGroup[], filters: Filters): Palette {
+  const per = groupBy(groups, (g) => g.model || "모름", filters);
+  const ranked = [...per.entries()]
+    .sort((a, b) => b[1].cost - a[1].cost || b[1].input + b[1].output - (a[1].input + a[1].output))
+    .map(([m]) => m);
+  const named = ranked.slice(0, MODEL_COLORS.length);
+  const colors = new Map(named.map((m, i) => [m, MODEL_COLORS[i]]));
+  const totals = new Map<string, Totals>();
+  for (const [m, t] of per) {
+    const k = colors.has(m) ? m : OTHER;
+    merge(totals.get(k) ?? totals.set(k, sum([])).get(k)!, t);
+  }
+  return {
+    order: ranked.length > named.length ? [...named, OTHER] : named,
+    color: (k) => colors.get(k) ?? OTHER_COLOR,
+    keyOf: (m) => (colors.has(m || "모름") ? m || "모름" : OTHER),
+    totals,
+  };
+}
+
+/** 합계 더하기 (모델 여러 개를 '기타' 하나로) */
+function merge(into: Totals, t: Totals): void {
+  into.calls += t.calls;
+  into.input += t.input;
+  into.cache_read += t.cache_read;
+  into.cache_known += t.cache_known;
+  into.output += t.output;
+  into.reasoning += t.reasoning;
+  into.cost += t.cost;
+  into.unpriced += t.unpriced;
+}
+
+/** 칸(달·날짜)마다 모델별 합계 */
+function byColModel<G extends LlmLedgerGroup>(
+  groups: G[],
+  col: (g: G) => string,
+  filters: Filters,
+  palette: Palette,
+): Map<string, Map<string, Totals>> {
+  const out = new Map<string, Map<string, Totals>>();
+  for (const g of groups) {
+    if (!matches(g, filters)) continue;
+    const c = col(g);
+    const m = palette.keyOf(g.model);
+    const row = out.get(c) ?? out.set(c, new Map()).get(c)!;
+    addTo(row.get(m) ?? row.set(m, sum([])).get(m)!, g);
+  }
+  return out;
+}
+
+const metricValue = (t: Totals, metric: Metric) => (metric === "cost" ? t.cost : t.input + t.output);
+
+function segsOf(models: Map<string, Totals> | undefined, metric: Metric, palette: Palette) {
+  return palette.order.map((m) => ({
+    key: m,
+    value: models?.get(m) ? metricValue(models.get(m)!, metric) : 0,
+    color: palette.color(m),
+  }));
+}
+
+function titleOf(
+  head: string,
+  t: Totals,
+  models: Map<string, Totals> | undefined,
+  metric: Metric,
+  palette: Palette,
+  money: (v: number) => string,
+) {
+  const lines = palette.order
+    .filter((m) => models?.get(m) && metricValue(models.get(m)!, metric) > 0)
+    .map((m) => {
+      const x = models!.get(m)!;
+      return `  ${m}: ${metric === "cost" ? money(x.cost) : `${fmtTokens(x.input + x.output)} 토큰`}`;
+    });
   return [
     head,
     `요금 ${money(t.cost)}${t.unpriced ? ` (+단가 모름 ${fmtNum(t.unpriced)}회)` : ""}`,
     `호출 ${fmtNum(t.calls)}회`,
     `입력 ${fmtNum(t.input)} (캐시 읽기 ${fmtNum(t.cache_read)}) · 출력 ${fmtNum(t.output)} 토큰`,
+    ...(lines.length ? ["모델별", ...lines] : []),
   ].join("\n");
+}
+
+/** 모델 색 범례 (월별·일별 같은 색) — 고른 지표에서 값이 있는 모델만 */
+function ModelLegend({ palette, metric }: { palette: Palette; metric: Metric }) {
+  const shown = palette.order.filter((m) => {
+    const t = palette.totals.get(m);
+    return t && metricValue(t, metric) > 0;
+  });
+  if (shown.length === 0) return null;
+  return (
+    <ul className="costs-model-legend" aria-label="모델 색">
+      {shown.map((m) => (
+        <li key={m}>
+          <i className="sw" style={{ background: palette.color(m) }} aria-hidden /> {m}
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 function Bars({
   keys,
   totals,
+  byModel,
+  palette,
   sel,
   onSelect,
   colLabel,
@@ -500,6 +605,8 @@ function Bars({
 }: {
   keys: string[];
   totals: Map<string, Totals>;
+  byModel: Map<string, Map<string, Totals>>;
+  palette: Palette;
   sel: number | null;
   onSelect: (i: number) => void;
   colLabel: (k: string, i: number) => string;
@@ -512,17 +619,24 @@ function Bars({
   const zero = sum([]);
   const cols: BarCol[] = keys.map((k, i) => {
     const t = totals.get(k) ?? zero;
-    return { key: k, label: colLabel(k, i), segs: segsOf(t, metric), title: titleOf(title(k), t, money) };
+    const models = byModel.get(k);
+    return {
+      key: k,
+      label: colLabel(k, i),
+      segs: segsOf(models, metric, palette),
+      title: titleOf(title(k), t, models, metric, palette, money),
+    };
   });
   const k = sel != null ? keys[sel] : null;
   const t = (k && totals.get(k)) || zero;
+  const models = k ? byModel.get(k) : undefined;
   return (
     <>
       <MonthBars
         cols={cols}
         sel={sel}
         onSelect={onSelect}
-        label={metric === "cost" ? "요금" : "토큰 (캐시 읽기 · 입력 나머지 · 출력)"}
+        label={metric === "cost" ? "모델별 요금" : "모델별 토큰 (입력 + 출력)"}
         maxText={(v) => (metric === "cost" ? money(v) : `${fmtTokens(v)} 토큰`)}
         testId={testId}
         dense={dense}
@@ -530,20 +644,23 @@ function Bars({
       {k && (
         <p className="mbars-detail" data-testid={`${testId}-detail`}>
           <b>{title(k)}</b>
-          <span>
-            <i className="sw cost-spent" /> {money(t.cost)}
-            {t.unpriced > 0 && <small className="muted"> +단가 모름 {fmtNum(t.unpriced)}회</small>}
+          <span>{money(t.cost)}</span>
+          {t.unpriced > 0 && <small className="muted">+단가 모름 {fmtNum(t.unpriced)}회</small>}
+          {palette.order
+            .filter((m) => models?.get(m) && metricValue(models.get(m)!, metric) > 0)
+            .map((m) => {
+              const x = models!.get(m)!;
+              return (
+                <span key={m}>
+                  <i className="sw" style={{ background: palette.color(m) }} aria-hidden /> {m}{" "}
+                  {metric === "cost" ? money(x.cost) : `${fmtTokens(x.input + x.output)} 토큰`}
+                </span>
+              );
+            })}
+          <span className="muted">
+            호출 {fmtNum(t.calls)}회 · 입력 {fmtTokens(t.input)} (캐시 읽기 {fmtTokens(t.cache_read)}) · 출력{" "}
+            {fmtTokens(t.output)}
           </span>
-          <span>
-            <i className="sw llm-cached" /> 캐시 읽기 {fmtTokens(t.cache_read)}
-          </span>
-          <span>
-            <i className="sw llm-input" /> 입력 나머지 {fmtTokens(Math.max(0, t.input - t.cache_read))}
-          </span>
-          <span>
-            <i className="sw llm-output" /> 출력 {fmtTokens(t.output)}
-          </span>
-          <span className="muted">호출 {fmtNum(t.calls)}회</span>
         </p>
       )}
     </>
@@ -553,6 +670,7 @@ function Bars({
 function DayBars({
   data,
   filters,
+  palette,
   metric,
   money,
   sel,
@@ -560,6 +678,7 @@ function DayBars({
 }: {
   data: LlmCosts;
   filters: Filters;
+  palette: Palette;
   metric: Metric;
   money: (v: number) => string;
   sel: number | null;
@@ -567,17 +686,15 @@ function DayBars({
 }) {
   const days = daysOf(data.month, data.today);
   if (days.length === 0) return <p className="muted">이 달은 아직 날짜가 없어요.</p>;
-  const totals = groupBy(data.daily, (g) => g.day, filters);
   return (
     <Bars
       keys={days}
-      totals={totals}
+      totals={groupBy(data.daily, (g) => g.day, filters)}
+      byModel={byColModel(data.daily, (g) => g.day, filters, palette)}
+      palette={palette}
       sel={sel}
       onSelect={(i) => onSelect(i === sel ? null : i)}
-      colLabel={(d) => {
-        const n = Number(d.slice(8));
-        return n === 1 || n % 5 === 0 ? String(n) : "";
-      }}
+      colLabel={(d) => String(Number(d.slice(8)))} // 모든 날짜를 적는다
       title={dayLong}
       metric={metric}
       money={money}

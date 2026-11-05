@@ -271,11 +271,12 @@ describe("LLM 요금 화면", () => {
     expect(screen.getByText("gpt-6.1-sol", { selector: ".costs-model" })).toBeInTheDocument();
   });
 
-  it("요금 카드 바로 밑에 주요 모델 단가표: 지금 모델 강조, 캐시 쓰기·예정된 인상, 자체 서버 0", async () => {
+  it("페이지 맨 아래에 주요 모델 단가표: 지금 모델 강조, 캐시 쓰기·예정된 인상, 자체 서버 0", async () => {
     mockCosts();
     renderWithProviders(<Costs />);
     const card = await screen.findByRole("region", { name: "주요 모델 단가" });
-    expect(screen.getByTestId("costs-total").closest("section")!.nextElementSibling).toBe(card);
+    expect(card.nextElementSibling).toBeNull(); // 가장 아래
+    expect(card.parentElement!.lastElementChild).toBe(card);
     const rows = within(card).getAllByRole("row");
     const sol = rows.find((r) => r.textContent?.includes("GPT-6.1 Sol"))!;
     expect(sol).toHaveAttribute("aria-current", "true");
@@ -329,6 +330,28 @@ describe("LLM 요금 화면", () => {
     fireEvent.click(screen.getByRole("button", { name: "날짜" }));
     const days = within(screen.getByTestId("costs-breakdown")).getAllByRole("row");
     expect(days[1]).toHaveTextContent("11월 5일 (목)");
+  });
+
+  it("월별·일별 막대는 모델별 색으로 쌓고, 같은 색 범례를 보여 준다", async () => {
+    mockCosts();
+    renderWithProviders(<Costs />);
+    const month = await screen.findByTestId("month-chart");
+    const nov = month.querySelector('[data-col="2026-11"]')!;
+    const segs = Array.from(nov.querySelectorAll("rect[data-seg]")).map((r) => r.getAttribute("data-seg"));
+    expect(segs).toContain("gpt-6.1-sol");
+    const sol = nov.querySelector('rect[data-seg="gpt-6.1-sol"]') as SVGRectElement;
+    const legends = screen.getAllByRole("list", { name: "모델 색" });
+    expect(legends).toHaveLength(2); // 월별·일별
+    expect(sol.style.fill).toBeTruthy();
+    expect(legends[0]).toHaveTextContent("gpt-6.1-sol");
+  });
+
+  it("일별 막대 아래에 모든 날짜를 적는다", async () => {
+    mockCosts();
+    renderWithProviders(<Costs />);
+    const day = await screen.findByTestId("day-chart");
+    const labels = Array.from(day.querySelectorAll(".mbars-labels button")).map((b) => b.textContent);
+    expect(labels).toEqual(["1", "2", "3", "4", "5"]); // 오늘(11/5)까지
   });
 
   it("월별 막대를 누르면 그 달의 일별 기록을 다시 받는다", async () => {
