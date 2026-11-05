@@ -28,6 +28,9 @@ def test_health(tmp_path) -> None:  # type: ignore[no-untyped-def]
     r = client.get("/api/health")
     assert r.status_code == 200
     assert r.json()["trading_mode"] == "paper"
+    # 서버가 뜰 때마다 바뀌는 값 — 화면이 재배포를 알아채고 스스로 새로고침한다
+    boot = r.json()["boot"]
+    assert isinstance(boot, str) and len(boot) == 12 and client.get("/api/health").json()["boot"] == boot
 
 
 @pytest.mark.parametrize("value", ["real", "prod", "sandbox"])

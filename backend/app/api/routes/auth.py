@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import secrets
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
@@ -13,6 +14,8 @@ from app.api.routes.common import C, U
 from app.db.models import User
 
 router = APIRouter()
+# 이 서버 프로세스가 뜰 때마다 새로 정하는 값 — 재배포(재시작)되면 바뀌어 열려 있는 화면이 스스로 새로고침한다
+BOOT_ID = secrets.token_hex(6)
 
 
 # ====================================================================== 인증
@@ -23,7 +26,8 @@ class Credentials(BaseModel):
 
 @router.get("/health")
 def health(c: C) -> dict[str, str]:
-    return {"status": "ok", "trading_mode": c.settings.trading_mode}
+    """로그인 없이 부르는 상태 확인. boot: 서버 재시작마다 바뀌는 값 (화면 자동 새로고침, frontend/src/version.ts)."""
+    return {"status": "ok", "trading_mode": c.settings.trading_mode, "boot": BOOT_ID}
 
 
 @router.get("/auth/status")
