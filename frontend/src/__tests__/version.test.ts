@@ -31,7 +31,10 @@ describe("재배포 감지 → 자동 새로고침", () => {
 
   it("서버 boot 가 처음 본 값과 달라지면(서버 재배포) 바뀐 것, 재시작 중(못 받음)은 바뀐 것으로 보지 않는다", async () => {
     let boot: string | null = "b1";
-    const check = makeVersionCheck({ index: async () => null, boot: async () => boot }, "/assets/index-AAA.js");
+    const check = makeVersionCheck(
+      { index: async () => null, boot: async () => boot },
+      "/assets/index-AAA.js",
+    );
     expect(await check()).toBe(false); // 처음 본 값을 기억
     boot = null; // 서버가 다시 뜨는 중 (502)
     expect(await check()).toBe(false);
@@ -51,7 +54,10 @@ describe("재배포 감지 → 자동 새로고침", () => {
   });
 
   it("개발 서버처럼 지금 입구를 모르면 화면 비교는 하지 않는다", async () => {
-    const check = makeVersionCheck({ index: async () => html("/assets/index-BBB.js"), boot: async () => null }, null);
+    const check = makeVersionCheck(
+      { index: async () => html("/assets/index-BBB.js"), boot: async () => null },
+      null,
+    );
     expect(await check()).toBe(false);
   });
 
@@ -70,7 +76,10 @@ describe("재배포 감지 → 자동 새로고침", () => {
 
   it("1분 안에 다시 새로고침하지 않는다 (무한 새로고침 방지)", () => {
     const store = new Map<string, string>();
-    const s = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => store.set(k, v) };
+    const s = {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => store.set(k, v),
+    };
     expect(mayReload(s, 1_000_000)).toBe(true);
     expect(mayReload(s, 1_030_000)).toBe(false);
     expect(mayReload(s, 1_061_000)).toBe(true);

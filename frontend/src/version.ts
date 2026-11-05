@@ -137,7 +137,8 @@ export function startVersionWatch(): () => void {
     } catch {
       /* 다음 차례에 다시 */
     }
-    if (!stopped) timer = window.setTimeout(tick, document.visibilityState === "hidden" ? HIDDEN_POLL_MS : POLL_MS);
+    if (!stopped)
+      timer = window.setTimeout(tick, document.visibilityState === "hidden" ? HIDDEN_POLL_MS : POLL_MS);
   };
 
   // 다시 보이거나 네트워크가 돌아오면 바로 확인 (휴대폰에서 앱으로 돌아왔을 때)
