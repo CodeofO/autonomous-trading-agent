@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from sqlalchemy import Integer, create_engine, func, insert, select, text
+from sqlalchemy import Integer, create_engine, func, insert, inspect, select, text
 from sqlalchemy.engine import make_url
 
 log = logging.getLogger(__name__)
@@ -66,8 +66,12 @@ def copy_all(src_url: str, dst_url: str) -> dict[str, int]:
     src, dst = create_engine(src_url), create_engine(dst_url)
     out: dict[str, int] = {}
     try:
+        have = set(inspect(src).get_table_names())  # 옛 DB 에 아직 없는 새 테이블은 건너뛴다
         with src.connect() as s, dst.begin() as d:
             for table in Base.metadata.sorted_tables:  # 외래키 순서
+                if table.name not in have:
+                    out[table.name] = 0
+                    continue
                 if d.execute(select(func.count()).select_from(table)).scalar_one():
                     raise RuntimeError(f"옮길 곳에 이미 행이 있어요: {table.name} — 옮기지 않아요")
                 rows = [dict(r._mapping) for r in s.execute(select(table))]

@@ -51,7 +51,12 @@ def test_copy_all_keeps_rows_and_ids(tmp_path: Path) -> None:
     migrate(src)
     migrate(dst)
     _seed(src)
+    eng = create_engine(src)
+    with eng.begin() as con:  # 옛 DB 에는 새 테이블이 아직 없다 (예: 0007 의 미장 DB 에 benchmark_daily)
+        con.execute(text("DROP TABLE benchmark_daily"))
+    eng.dispose()
     counts = copy_all(src, dst)
+    assert counts["benchmark_daily"] == 0
     assert counts["paper_account"] == 1 and counts["agent_runs"] == 1 and counts["equity_snapshots"] == 1
     eng = create_engine(dst)
     with eng.connect() as con:
