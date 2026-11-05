@@ -155,22 +155,43 @@
   gap: 6px;
   margin: 8px 0;
 }
+/* 전역 label(세로로 쌓기)·input(가득 찬 폭·여백·테두리) 규칙을 이 알약 버튼에서는 되돌린다 */
 .lab-main-opt {
   display: inline-flex;
+  flex-direction: row;
   align-items: center;
   gap: 6px;
-  padding: 8px 12px;
+  padding: 8px 14px 8px 12px;
   border: 1px solid var(--border);
   border-radius: 999px;
   cursor: pointer;
   min-height: 40px;
+  font-size: 14px;
+  color: var(--text);
+  white-space: nowrap;
 }
 .lab-main-opt.on {
   border-color: var(--accent, #3182f6);
   background: rgba(49, 130, 246, 0.08);
+  font-weight: 600;
 }
-.lab-main-opt input {
+.lab-main-opt input[type="radio"] {
+  flex: none;
+  width: 16px;
+  height: 16px;
   margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  accent-color: var(--accent, #3182f6);
+}
+.lab-main-opt input[type="radio"]:focus {
+  outline: none;
+}
+.lab-main-opt:has(input:focus-visible) {
+  outline: 2px solid var(--accent, #3182f6);
+  outline-offset: 2px;
 }
 @media (max-width: 760px) {
   .lab-rows {
