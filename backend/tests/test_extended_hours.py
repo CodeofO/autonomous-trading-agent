@@ -359,3 +359,47 @@ async def test_us_day_market_decisions_cross_new_york_midnight(tmp_path: Path) -
         c.put("/api/us/extended-hours", json={"day_market": False})
         assert c.get("/api/us/schedule").json()["total"] == 8 + 5 + 1
         assert us.scheduler.next_runs(1)[0]["at"] == "2026-11-04T18:00:00+09:00"  # 프리마켓 04:00 (뉴욕)
+
+
+# ====================================================================== 자산 추이 (장외 세션 스냅샷)
+async def test_equity_snapshots_every_10_minutes_in_enabled_extended_session(tmp_path: Path) -> None:
+    """켠 장외 세션에서도 10분마다 자산을 기록한다 — 자산 추이 끝이 총자산(실시간)과 어긋나지 않게.
+
+    끈 장외 세션은 예전처럼 기록하지 않는다 (마감 뒤 한 번만)."""
+    from sqlalchemy import func, select
+
+    from app.db.models import EquitySnapshot
+
+    c = make_container(tmp_path, kst(2026, 11, 4, 15, 30))
+    c.cal.apply_toss_calendar(
+        {
+            "previousBusinessDay": kr_entry("2026-11-03"),
+            "today": kr_entry("2026-11-04"),
+            "nextBusinessDay": kr_entry("2026-11-05"),
+        }
+    )
+
+    def n() -> int:
+        with c.db.session() as s:
+            return int(s.scalar(select(func.count()).select_from(EquitySnapshot)) or 0)
+
+    async def step(h: int, mi: int, job: str) -> int:
+        c.clock.set(kst(2026, 11, 4, h, mi))
+        before = n()
+        await (c.engine.intraday() if job == "intraday" else c.engine.sync_data())
+        return n() - before
+
+    assert await step(15, 30, "intraday") == 1  # 정규장 마감 자산 (예전과 같음)
+    # 애프터마켓 꺼짐: 기록하지 않는다
+    assert await step(17, 0, "intraday") == 0
+    assert await step(17, 5, "sync") == 0
+    # 애프터마켓 켬: 1분 감시가 10분마다, 일봉 갱신·판단 뒤에는 최근 10분 안에 기록이 없을 때만
+    c.cal.extended_enabled = frozenset({"after_market"})
+    assert await step(17, 10, "intraday") == 1
+    assert await step(17, 11, "intraday") == 0
+    assert await step(17, 15, "sync") == 0
+    assert await step(17, 20, "intraday") == 1
+    assert await step(17, 31, "sync") == 1
+    # 애프터마켓이 끝나면(20:00) 다시 기록하지 않는다
+    assert await step(20, 10, "intraday") == 0
+    assert await step(21, 0, "sync") == 0

@@ -258,8 +258,13 @@ export const EquityChart = memo(function EquityChart({
   useEffect(() => {
     const a = api.current;
     if (!a || samePoints(a.shown, points)) return;
+    // 끝의 '지금' 점은 10초마다 값·시각이 바뀐다 — 점 수가 그대로면 보던 확대·위치를 지키고,
+    // 처음이거나 새 스냅샷이 붙어 점 수가 바뀔 때만 전체를 맞춘다
+    const ts = a.chart.timeScale();
+    const keep = a.shown !== null && a.shown.length === points.length ? ts.getVisibleLogicalRange() : null;
     a.series.setData(equityData(points));
-    a.chart.timeScale().fitContent();
+    if (keep) ts.setVisibleLogicalRange(keep);
+    else ts.fitContent();
     a.shown = points;
   }, [points, currency, hasData]);
 

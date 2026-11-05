@@ -149,6 +149,41 @@ describe("차트는 한 번 만들고 데이터만 바꾼다", () => {
     expect(series.setData.mock.calls[0][0]).toHaveLength(3);
   });
 
+  it("끝의 '지금' 점만 바뀌면 보던 확대·위치를 지키고, 점 수가 바뀔 때만 전체를 맞춘다", () => {
+    vi.mocked(createChart).mockClear();
+    const snaps = [
+      { t: "2026-11-04T20:50:00+00:00", v: 9965.82 },
+      { t: "2026-11-04T21:00:00+00:00", v: 9960.82 },
+    ];
+    const live = (t: string, v: number) => [...snaps, { t, v }];
+    const view = renderWithProviders(<EquityChart points={live("2026-11-05T20:48:00+09:00", 10012.68)} />);
+    const chart = vi.mocked(createChart).mock.results[0].value as {
+      addSeries: ReturnType<typeof vi.fn>;
+      timeScale: () => {
+        fitContent: ReturnType<typeof vi.fn>;
+        setVisibleLogicalRange: ReturnType<typeof vi.fn>;
+      };
+    };
+    const series = chart.addSeries.mock.results.at(-1)!.value as { setData: ReturnType<typeof vi.fn> };
+    const time = chart.timeScale();
+    time.fitContent.mockClear();
+    time.setVisibleLogicalRange.mockClear();
+    series.setData.mockClear();
+
+    view.rerender(<EquityChart points={live("2026-11-05T20:48:10+09:00", 10013.1)} />);
+    expect(series.setData).toHaveBeenCalledTimes(1);
+    expect(series.setData.mock.calls[0][0].at(-1).value).toBe(10013.1); // 차트 끝 = 지금 총자산
+    expect(time.fitContent).not.toHaveBeenCalled();
+    expect(time.setVisibleLogicalRange).toHaveBeenCalledTimes(1);
+
+    view.rerender(
+      <EquityChart
+        points={[...live("2026-11-05T20:50:00+09:00", 10011), { t: "2026-11-05T20:50:10+09:00", v: 10012 }]}
+      />,
+    );
+    expect(time.fitContent).toHaveBeenCalledTimes(1);
+  });
+
   it("점이 없으면 차트를 만들지 않는다 (빈 자리만)", () => {
     vi.mocked(createChart).mockClear();
     renderWithProviders(<EquityChart points={[]} />);

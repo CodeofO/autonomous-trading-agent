@@ -12,6 +12,7 @@ import { usePersona, usePortfolio, useShowTools, useSystem } from "../hooks";
 import { useChat } from "../live/hooks";
 import { invalidateNames, MARKET_META, useApi, useCurrency } from "../market";
 import { toast } from "../ui/toast";
+import { withLivePoint } from "../utils/equity";
 import { fmtDateTime, fmtPct, JOB_KO, money, MONEY_FMT, pctFmt, signClass } from "../utils/format";
 
 /**
@@ -78,6 +79,9 @@ function Kpis() {
   );
 }
 
+/** 자산 스냅샷을 다시 받는 간격 — 스냅샷은 10분마다 쌓이고, 그 사이는 '지금' 점이 메운다 */
+const EQUITY_POLL_MS = 60_000;
+
 function EquityCard() {
   const api = useApi();
   const cur = useCurrency();
@@ -85,9 +89,14 @@ function EquityCard() {
   const equity = useQuery({
     queryKey: api.key("equity"),
     queryFn: () => api.get<{ ts: string; equity: number }[]>("/api/equity?limit=1000"),
+    refetchInterval: EQUITY_POLL_MS,
   });
   // 받은 데이터가 그대로면 같은 배열 — 차트가 다시 그리지 않는다
-  const points = useMemo(() => (equity.data ?? []).map((p) => ({ t: p.ts, v: p.equity })), [equity.data]);
+  const snaps = useMemo(() => (equity.data ?? []).map((p) => ({ t: p.ts, v: p.equity })), [equity.data]);
+  // 끝에 '지금' 점(총자산과 같은 값·시각)을 붙여 차트 마지막 값 = 위 총자산
+  const asOf = pf?.as_of;
+  const total = pf?.equity;
+  const points = useMemo(() => withLivePoint(snaps, { as_of: asOf, equity: total }), [snaps, asOf, total]);
   return (
     <section className="card">
       <div className="card-head">

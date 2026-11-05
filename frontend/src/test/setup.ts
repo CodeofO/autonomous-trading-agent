@@ -8,10 +8,16 @@ afterEach(() => clearToasts());
 // jsdom 에는 canvas 가 없어 차트 라이브러리는 가짜로 대체
 vi.mock("lightweight-charts", () => {
   const series = { setData: vi.fn(), applyOptions: vi.fn() };
+  // 가로축은 한 객체 — 테스트가 맞춤(fitContent)·보던 범위 지키기를 셀 수 있게
+  const time = {
+    fitContent: vi.fn(),
+    getVisibleLogicalRange: vi.fn(() => ({ from: 0, to: 1 })),
+    setVisibleLogicalRange: vi.fn(),
+  };
   const chart = {
     addSeries: vi.fn(() => series),
     priceScale: vi.fn(() => ({ applyOptions: vi.fn() })),
-    timeScale: vi.fn(() => ({ fitContent: vi.fn() })),
+    timeScale: vi.fn(() => time),
     applyOptions: vi.fn(),
     remove: vi.fn(),
   };

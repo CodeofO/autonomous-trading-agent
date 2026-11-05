@@ -287,6 +287,10 @@ class TradingEngine:
             await self.snapshot_equity()
         await self.check_exits()
         if s is None:
+            # 켠 장외 세션(데이·프리·애프터마켓)에서도 시세가 움직이고 주문이 체결된다 — 10분마다 기록해
+            # 자산 추이가 실시간 총자산과 어긋나지 않게 한다 (장외 세션이 끝난 뒤 몇 분은 감시만)
+            if now.minute % 10 == 0 and self.cal.extended_at(now) is not None:
+                await self.snapshot_equity()
             return
         # 장중 10분마다 + 마감 뒤 첫 감시 때 한 번(그날 마감 자산)
         if now.minute % 10 == 0 or (now >= s.close and not self._has_close_snapshot(s)):
@@ -315,12 +319,12 @@ class TradingEngine:
     async def snapshot_if_due(self) -> bool:
         """일봉 갱신·판단 세션 뒤 자산 스냅샷 기록 규칙 (B6). 기록했으면 True.
 
-        - 장중 감시 구간: 최근 10분 안에 기록이 없을 때만 (1분 감시가 10분마다·체결 직후 기록한다)
+        - 장중 감시 구간·켠 장외 세션: 최근 10분 안에 기록이 없을 때만 (1분 감시가 10분마다·체결 직후 기록한다)
         - 그 밖: 그 거래일 마감 뒤 첫 한 번만. 휴장일·장 시작 전에는 기록하지 않는다(자산이 바뀌지 않음)
-        자산 곡선(`/api/equity`)은 장중 점들과 마감 점으로 이어진다.
+        자산 곡선(`/api/equity`)은 장중·장외 점들과 마감 점으로 이어진다.
         """
         now = self.clock.now()
-        if self._session_window(now) is not None:
+        if self._session_window(now) is not None or self.cal.extended_at(now) is not None:
             if self._has_snapshot(now - SNAPSHOT_EVERY + timedelta(seconds=1), now + timedelta(seconds=1)):
                 return False
         else:
