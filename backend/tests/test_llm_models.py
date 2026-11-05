@@ -71,7 +71,7 @@ def test_lists_models_and_switches_within_provider(tmp_path: Path) -> None:
         assert r["profiles"]["paid"]["model"] == "gpt-6.1-terra" and _opts(r)["gpt-6.1-terra"]["selected"]
         assert app.runner.llm.model == "gpt-6.1-terra" and app.runner.llm.api == "responses"
         assert c.get("/api/system").json()["llm"]["model"] == "gpt-6.1-terra"
-        assert app.kv.get(MODEL_KEY) == {"model": "gpt-6.1-terra"}  # 재시작해도 유지
+        assert app.kv.get(MODEL_KEY) == {"model": "gpt-6.1-terra", "provider": "openai"}  # 재시작해도 유지
         assert build_llm(app.settings, "paid", app.kv).model == "gpt-6.1-terra"  # type: ignore[union-attr]
         assert "gpt-6.1-terra" in c.get("/api/chat").text
 
@@ -121,5 +121,5 @@ def test_custom_endpoint_offers_only_env_model(tmp_path: Path) -> None:
         )
         assert not any(m["available"] for m in paid["models"][1:])
         sol = next(m for m in paid["models"] if m["id"] == "gpt-6.1-sol")
-        assert "자체 서버" in sol["reason"]
+        assert "OPENAI_API_KEY" in sol["reason"]  # 자체 게이트웨이 키는 OpenAI 키가 아니다
         assert c.put("/api/llm/model", json={"model": "gpt-6.1-sol"}).status_code == 400

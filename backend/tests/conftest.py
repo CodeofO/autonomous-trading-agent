@@ -67,6 +67,9 @@ def _isolate_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "APP_SECRET_KEY",
         "AUTH_ENABLED",
         "GEMINI_API_KEY",
+        "OPENAI_API_KEY",
+        "OPENROUTER_API_KEY",
+        "OPENAI_ADMIN_KEY",
     ):
         monkeypatch.delenv(key, raising=False)
     from app.core.config import Settings

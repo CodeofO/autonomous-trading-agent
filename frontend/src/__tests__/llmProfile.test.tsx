@@ -217,6 +217,7 @@ const withModels = (active: LlmProfileName = "paid", models = MODELS): LlmProfil
         provider_label: "OpenAI",
         env_model: "my-model",
         models,
+        providers: { openai: true, google: false, openrouter: false },
       },
     },
   };
@@ -245,12 +246,14 @@ function mockModelApi(initial: LlmProfiles, onPut?: (model: string) => Response 
 const modelSelect = () => screen.findByRole("combobox", { name: "유료 모델" });
 
 describe("유료 모델 고르기 (설정)", () => {
-  it("제공사와 제공사별 묶음을 보여 주고, 감지되지 않은 제공사 모델은 고를 수 없다", async () => {
+  it("제공사 키와 제공사별 묶음을 보여 주고, 키가 없는 제공사 모델은 고를 수 없다", async () => {
     mockModelApi(withModels());
     renderWithProviders(<LlmProfileSettings />);
     const select = await modelSelect();
-    expect(screen.getByText(/제공사:/)).toHaveTextContent("제공사: OpenAI (.env 키로 감지)");
-    expect(select).toHaveValue("gpt-main");
+    const keys = screen.getByRole("list", { name: "제공사 키" });
+    expect(keys).toHaveTextContent("OpenAI 키 있음");
+    expect(keys).toHaveTextContent("Google 키 없음");
+    expect(select).toHaveValue("openai|gpt-main");
 
     const groups = Array.from(select.querySelectorAll("optgroup")).map((g) => g.label);
     expect(groups).toEqual(["OpenAI", "Google", ".env"]); // Anthropic 은 쓰지 않는다 (D-66)
@@ -262,39 +265,39 @@ describe("유료 모델 고르기 (설정)", () => {
     expect(option(/Gemini Pro/)).toBeDisabled();
     expect(option(/Gemini Pro/)).toHaveTextContent("— 키 필요");
     expect(option(/my-model \(\.env\)/)).toBeDisabled();
-    // 못 쓰는 이유 전체 문장
-    expect(screen.getByText("Google: Google 키가 .env 에 없어요")).toBeInTheDocument();
   });
 
-  it("다른 OpenAI 모델을 고르면 확인 창을 거쳐 PUT /api/llm/model {model}", async () => {
+  it("다른 OpenAI 모델을 고르면 확인 창을 거쳐 PUT /api/llm/model {model, provider}", async () => {
     const { fetchMock, puts } = mockModelApi(withModels());
     renderWithProviders(<LlmProfileSettings />);
-    fireEvent.change(await modelSelect(), { target: { value: "gpt-mini" } });
+    fireEvent.change(await modelSelect(), { target: { value: "openai|gpt-mini" } });
 
     const dialog = screen.getByRole("dialog", { name: "유료 모델을 바꿀까요?" });
     expect(dialog).toHaveTextContent("호출마다 실제 요금이 나가요");
-    expect(dialog).toHaveTextContent("GPT Mini");
+    expect(dialog).toHaveTextContent("OpenAI · GPT Mini");
     expect(dialog).toHaveTextContent("입력 $0.1 / 출력 $0.4 (100만 토큰당)");
     expect(dialog).toHaveTextContent("다음 판단·답장부터 적용돼요");
     expect(puts).toEqual([]);
 
     fireEvent.click(within(dialog).getByRole("button", { name: "이 모델로 바꾸기" }));
-    await waitFor(() => expect(puts).toEqual([{ method: "PUT", body: { model: "gpt-mini" } }]));
+    await waitFor(() =>
+      expect(puts).toEqual([{ method: "PUT", body: { model: "gpt-mini", provider: "openai" } }]),
+    );
     expect(fetchMock.mock.calls.some(([url]) => url === "/api/llm/model")).toBe(true);
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(await screen.findByText(/유료 모델을 바꿨어요 ✓ \(GPT Mini\)/)).toBeInTheDocument();
-    expect(await modelSelect()).toHaveValue("gpt-mini");
+    expect(await modelSelect()).toHaveValue("openai|gpt-mini");
   });
 
   it("확인 창에서 취소하면 보내지 않고 원래 모델로 돌아간다", async () => {
     const { puts } = mockModelApi(withModels());
     renderWithProviders(<LlmProfileSettings />);
     const select = await modelSelect();
-    fireEvent.change(select, { target: { value: "gpt-top" } });
-    expect(select).toHaveValue("gpt-top");
+    fireEvent.change(select, { target: { value: "openai|gpt-top" } });
+    expect(select).toHaveValue("openai|gpt-top");
     fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "취소" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(select).toHaveValue("gpt-main");
+    expect(select).toHaveValue("openai|gpt-main");
     expect(puts).toEqual([]);
   });
 
@@ -303,29 +306,19 @@ describe("유료 모델 고르기 (설정)", () => {
     mockModelApi(withModels(), () => apiError(409, detail));
     renderWithProviders(<LlmProfileSettings />);
     const select = await modelSelect();
-    fireEvent.change(select, { target: { value: "gpt-mini" } });
+    fireEvent.change(select, { target: { value: "openai|gpt-mini" } });
     fireEvent.click(screen.getByRole("button", { name: "이 모델로 바꾸기" }));
     const dialog = screen.getByRole("dialog");
     expect(await within(dialog).findByText(new RegExp(`${detail} — 잠시 후 다시 시도해 주세요`))).toHaveClass(
       "error",
     );
     fireEvent.click(within(dialog).getByRole("button", { name: "취소" }));
-    expect(select).toHaveValue("gpt-main");
+    expect(select).toHaveValue("openai|gpt-main");
     expect(screen.getByText(new RegExp(detail))).toHaveClass("error");
   });
 
-  it("제공사를 모르면 '알 수 없는 엔드포인트'", async () => {
-    const data = withModels();
-    data.profiles.paid.provider = null;
-    data.profiles.paid.provider_label = null;
-    mockModelApi(data);
-    renderWithProviders(<LlmProfileSettings />);
-    await modelSelect();
-    expect(screen.getByText(/제공사:/)).toHaveTextContent("제공사: 알 수 없는 엔드포인트");
-  });
-
-  it("유료가 미설정이면 모델 목록을 그리지 않는다", async () => {
-    const data = withModels("free");
+  it("유료가 미설정이고 고를 모델도 없으면 모델 목록을 그리지 않는다", async () => {
+    const data = withModels("free", []);
     data.profiles.paid = { ...data.profiles.paid, ...UNCONFIGURED };
     mockModelApi(data);
     renderWithProviders(<LlmProfileSettings />);

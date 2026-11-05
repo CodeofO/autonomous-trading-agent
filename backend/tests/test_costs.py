@@ -551,4 +551,3 @@ def test_price_list_for_comparison() -> None:
     # 인상일이 지나면 새 단가가 오늘 단가, 예정 없음
     later = {r["id"]: r for r in price_list(date(2026, 12, 2))}["gemini-4-argon"]
     assert later["input"] == 4 and later["next"] is None
-

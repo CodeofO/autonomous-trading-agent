@@ -4,12 +4,13 @@
 - free: LLM_TEST_* (테스트용·무료 엔드포인트, 예: 자체 서버)
 - paid: LLM_*      (실서비스·과금 엔드포인트)
 
-유료는 .env 의 키·주소로 제공사(OpenAI·Google·OpenRouter)를 알아내고, 그 제공사 모델 중 하나를 화면에서 고른다.
-고른 모델은 app_settings 'llm_paid_model' 에 남는다. 제공사가 바뀌어 목록에 없으면 .env 의 LLM_MODEL 로 돌아간다.
+유료는 (제공사, 모델) 하나를 화면에서 고른다 (D-71). 제공사 키는 .env 에 함께 넣어 둔다:
+OPENAI_API_KEY · OPENROUTER_API_KEY, 그리고 기본 연결 LLM_* (그 제공사 자리가 비었으면 LLM_* 키를 쓴다).
+고른 값은 app_settings 'llm_paid_model' {model, provider} 에 남는다. 쓸 수 없게 되면 .env 의 LLM_* 로 돌아간다.
 
-OpenRouter 키면 정적 가격표 대신 OpenRouter 목록 API 로 불러온 모델(도구 호출 지원만, app/agent/openrouter.py)을
-보여 준다. OpenRouter 목록에 OpenAI·Google 모델도 들어 있어, 직접 연결용 가격표 모델은 겹치지 않게 뺀다.
-Anthropic 모델은 쓰지 않기로 해(D-66) OpenRouter 목록에서도 뺀다.
+- OpenAI·Google: 앱 가격표(app/agent/costs.py) 모델
+- OpenRouter: 화면에서 검색해 '등록'한 모델만 ('openrouter_models'). 검색은 OpenRouter 목록 API 캐시(도구 호출 지원만,
+  app/agent/openrouter.py)에서. Anthropic 모델은 쓰지 않기로 해(D-66) 목록에서도 뺀다.
 """
 
 from __future__ import annotations
@@ -38,7 +39,8 @@ def configured(s: Settings, p: str, kv: SettingsStore | None = None) -> bool:
     if p == "free":
         base, model, _, _, _ = _fields(s, p, kv)
         return bool(base and model)  # 키는 선택(키를 받지 않는 자체 서버도 있다)
-    return s.has_llm
+    prov, model = paid_choice(kv, s)
+    return bool(model) and (prov in provider_keys(s) or (prov == provider(s) and s.has_llm))
 
 
 def test_override(kv: SettingsStore | None) -> dict[str, str]:
@@ -81,133 +83,216 @@ def _fields(s: Settings, p: str, kv: SettingsStore | None = None) -> tuple[str, 
 
 
 def provider(s: Settings) -> str | None:
+    """LLM_* (기본 연결)의 제공사."""
     key = s.llm_api_key.get_secret_value() if s.llm_api_key else ""
     return providers.detect(s.llm_base_url, key)
 
 
-def paid_model(kv: SettingsStore | None, s: Settings) -> str:
-    """유료로 쓸 모델: 화면에서 고른 값이 지금 제공사에서 쓸 수 있으면 그것, 아니면 .env 의 LLM_MODEL."""
-    saved = kv.get(MODEL_KEY).get("model") if kv else None
-    if not saved or saved == s.llm_model:
-        return s.llm_model
-    if provider(s) == "openrouter" and not openrouter.CACHE.loaded:
-        # 재시작 직후엔 목록이 비어 있다. 고를 때 목록으로 확인했으니 목록을 불러올 때까지는 그대로 쓴다.
-        # 다만 '회사/모델' 꼴이 아니면 다른 제공사(OpenAI 직접 등)에서 고른 값이라 OpenRouter 에 보낼 수 없다
-        return str(saved) if "/" in str(saved) else s.llm_model
-    return str(saved) if _available(s, saved)[0] else s.llm_model
+def _secret(v: Any) -> str:
+    return v.get_secret_value().strip() if v is not None else ""
 
 
-def _available(s: Settings, model_id: str) -> tuple[bool, str | None]:
-    if model_id == s.llm_model:
+def provider_keys(s: Settings) -> dict[str, str]:
+    """제공사별 쓸 수 있는 키 (D-71): OPENAI_API_KEY·OPENROUTER_API_KEY, 그리고 LLM_* 키(그 제공사 자리가 비었을 때)."""
+    out: dict[str, str] = {}
+    if _secret(s.openai_api_key):
+        out["openai"] = _secret(s.openai_api_key)
+    if _secret(s.openrouter_api_key):
+        out["openrouter"] = _secret(s.openrouter_api_key)
+    prov, key = provider(s), _secret(s.llm_api_key)
+    if prov in providers.SUPPORTED and key and s.llm_model:
+        out.setdefault(prov, key)
+    return out
+
+
+def _base_url(s: Settings, prov: str | None) -> str:
+    """제공사 공식 주소. LLM_* 가 그 제공사면 .env 주소를 그대로 (게이트웨이·지역 주소를 존중)."""
+    if prov is None or prov == provider(s):
+        return s.llm_paid_base_url
+    return providers.BASE_URL[prov]
+
+
+# ---------------------------------------------------------------- OpenRouter 등록 모델 (D-71)
+OR_MODELS_KEY = "openrouter_models"
+OR_MAX = 30
+
+
+def registered(kv: SettingsStore | None, s: Settings) -> list[str]:
+    """화면에서 등록한 OpenRouter 모델 (등록한 순서). LLM_* 가 OpenRouter 면 .env 모델도 늘 들어 있다."""
+    ids = [str(x) for x in (kv.get(OR_MODELS_KEY).get("ids") or [] if kv else []) if x]
+    if provider(s) == "openrouter" and s.llm_model and s.llm_model not in ids:
+        ids.insert(0, s.llm_model)
+    return list(dict.fromkeys(ids))
+
+
+def set_registered(kv: SettingsStore, ids: list[str]) -> None:
+    kv.set(OR_MODELS_KEY, {"ids": list(dict.fromkeys(ids))[:OR_MAX]})
+
+
+# ---------------------------------------------------------------- 유료 모델 = (제공사, 모델)
+def _guess_provider(model: str, s: Settings) -> str | None:
+    """예전 저장값(제공사 없이 모델만)의 제공사."""
+    if model == s.llm_model:
+        return provider(s)
+    if "/" in model:
+        return "openrouter"
+    m = next((m for m in MODELS if m.id == model), None)
+    return m.provider if m else None
+
+
+def _usable(prov: str | None, model: str, s: Settings, kv: SettingsStore | None) -> tuple[bool, str | None]:
+    """(쓸 수 있는지, 못 쓰면 이유)."""
+    if prov == provider(s) and model == s.llm_model and s.has_llm:
         return True, None
-    if provider(s) == "openrouter":
-        if not openrouter.CACHE.loaded:
-            return False, "OpenRouter 모델 목록을 아직 못 불러왔어요. 목록을 새로고침해 주세요"
-        if openrouter.CACHE.has(model_id):
-            return True, None
-        return False, "OpenRouter 목록에 없거나 도구 호출을 지원하지 않는 모델이에요"
-    m = next((m for m in MODELS if m.id == model_id), None)
-    if m is None:
-        return False, "목록에 없는 모델이에요"
-    prov = provider(s)
     if prov is None:
         return False, "LLM_BASE_URL 이 자체 서버·게이트웨이라 .env 의 LLM_MODEL 만 써요"
-    if m.provider != prov:
-        return False, f"{providers.LABEL[m.provider]} 키가 .env 에 없어요"
+    keys = provider_keys(s)
+    if prov not in keys:
+        env = {"openai": "OPENAI_API_KEY", "openrouter": "OPENROUTER_API_KEY"}.get(prov, "LLM_API_KEY")
+        return False, f"{providers.LABEL.get(prov, prov)} 키가 .env 에 없어요 ({env})"
+    if prov == "openrouter":
+        if model not in registered(kv, s):
+            return False, "등록하지 않은 OpenRouter 모델이에요"
+        if openrouter.CACHE.loaded and not openrouter.CACHE.has(model):
+            return False, "OpenRouter 목록에 없거나 도구 호출을 지원하지 않는 모델이에요"
+        return True, None
+    m = next((m for m in MODELS if m.id == model), None)
+    if m is None or m.provider != prov:
+        return False, "목록에 없는 모델이에요"
     return True, None
 
 
-def _openrouter_options(s: Settings, current: str) -> list[dict[str, Any]]:
-    cache = openrouter.CACHE
-    out: list[dict[str, Any]] = []
-    extra = [x for x in dict.fromkeys((s.llm_model, current)) if x and x not in cache.ids]
-    for mid in extra:  # .env 모델(또는 목록을 불러오기 전 저장된 모델)은 목록에 없어도 맨 앞에
-        group = mid.split("/", 1)[0] if "/" in mid else "기타"
-        out.append(
-            {
-                "id": mid,
-                "name": f"{mid} (.env)" if mid == s.llm_model else mid,
-                "provider": "openrouter",
-                "group": group,
-                "group_label": group,
-                "tier": "",
-                "input": None,
-                "output": None,
-                "context_length": None,
-                "note": "",
-                "available": True,
-                "reason": None,
-                "selected": mid == current,
-            }
-        )
-    for m in cache.models:
-        note = "무료" if m.input == 0 and m.output == 0 else ""
-        if m.id == s.llm_model:
-            note = ".env" + (f" · {note}" if note else "")
-        out.append(
-            {
-                "id": m.id,
-                "name": m.name,
-                "provider": "openrouter",
-                "group": m.group,
-                "group_label": m.group_label,
-                "tier": "",
-                "input": m.input,
-                "output": m.output,
-                "context_length": m.context_length,
-                "note": note,
-                "available": True,
-                "reason": None,
-                "selected": m.id == current,
-            }
-        )
-    return out
+def paid_choice(kv: SettingsStore | None, s: Settings) -> tuple[str | None, str]:
+    """유료로 쓸 (제공사, 모델): 화면에서 고른 값이 쓸 수 있으면 그것, 아니면 .env 의 LLM_* (없으면 (None, ""))."""
+    saved = kv.get(MODEL_KEY) if kv else {}
+    model = str(saved.get("model") or "")
+    if model:
+        prov = saved.get("provider") or _guess_provider(model, s)
+        if _usable(prov, model, s, kv)[0]:
+            return prov, model
+    return (provider(s), s.llm_model) if s.has_llm else (None, "")
+
+
+def paid_model(kv: SettingsStore | None, s: Settings) -> str:
+    return paid_choice(kv, s)[1]
+
+
+def check_model(
+    s: Settings, model_id: str, prov: str | None = None, kv: SettingsStore | None = None
+) -> str | None:
+    """고를 수 없으면 이유, 고를 수 있으면 None. prov 를 안 주면 모델 이름으로 짐작한다(예전 화면)."""
+    ok, reason = _usable(prov or _guess_provider(model_id, s), model_id, s, kv)
+    return None if ok else reason
+
+
+def _option(
+    *,
+    id: str,
+    name: str,
+    prov: str,
+    tier: str,
+    input: float | None,
+    output: float | None,
+    note: str,
+    ok: bool,
+    reason: str | None,
+    selected: bool,
+    **extra: Any,
+) -> dict[str, Any]:
+    return {
+        "id": id,
+        "name": name,
+        "provider": prov,
+        "tier": tier,
+        "input": input,
+        "output": output,
+        "note": note,
+        "available": ok,
+        "reason": reason,
+        "selected": selected,
+        **extra,
+    }
 
 
 def model_options(kv: SettingsStore | None, s: Settings, today: date) -> list[dict[str, Any]]:
-    current = paid_model(kv, s)
-    if provider(s) == "openrouter":
-        return _openrouter_options(s, current)
+    """고를 수 있는 유료 모델: OpenAI·Google 가격표 + 등록한 OpenRouter 모델 (+ 가격표에 없는 .env 모델)."""
+    cur = paid_choice(kv, s)
     out: list[dict[str, Any]] = []
-    if s.llm_model and not any(m.id == s.llm_model for m in MODELS):
+    env_prov = provider(s)
+    if s.llm_model and env_prov not in ("openrouter",) and not any(m.id == s.llm_model for m in MODELS):
         out.append(
-            {
-                "id": s.llm_model,
-                "name": f"{s.llm_model} (.env)",
-                "provider": "env",
-                "tier": "",
-                "input": None,
-                "output": None,
-                "note": "",
-                "available": True,
-                "reason": None,
-                "selected": current == s.llm_model,
-            }
+            _option(
+                id=s.llm_model,
+                name=f"{s.llm_model} (.env)",
+                prov="env",
+                tier="",
+                input=None,
+                output=None,
+                note="",
+                ok=s.has_llm,
+                reason=None,
+                selected=cur == (env_prov, s.llm_model),
+            )
         )
     for m in MODELS:
-        ok, reason = _available(s, m.id)
+        ok, reason = _usable(m.provider, m.id, s, kv)
         p = m.at(today)
         out.append(
-            {
-                "id": m.id,
-                "name": m.name,
-                "provider": m.provider,
-                "tier": m.tier,
-                "input": p.input,
-                "output": p.output,
-                "note": m.note,
-                "available": ok,
-                "reason": reason,
-                "selected": m.id == current,
-            }
+            _option(
+                id=m.id,
+                name=m.name,
+                prov=m.provider,
+                tier=m.tier,
+                input=p.input,
+                output=p.output,
+                note=m.note,
+                ok=ok,
+                reason=reason,
+                selected=cur == (m.provider, m.id),
+            )
+        )
+    cache = openrouter.CACHE
+    for mid in registered(kv, s):
+        info_ = cache.get(mid)
+        ok, reason = _usable("openrouter", mid, s, kv)
+        free = info_ is not None and info_.input == 0 and info_.output == 0
+        note = ".env" if mid == s.llm_model and env_prov == "openrouter" else ""
+        if free:
+            note = f"{note} · 무료" if note else "무료"
+        out.append(
+            _option(
+                id=mid,
+                name=info_.name if info_ else mid,
+                prov="openrouter",
+                tier="",
+                input=info_.input if info_ else None,
+                output=info_.output if info_ else None,
+                note=note,
+                ok=ok,
+                reason=reason,
+                selected=cur == ("openrouter", mid),
+                group="openrouter",
+                group_label="OpenRouter",
+                context_length=info_.context_length if info_ else None,
+            )
         )
     return out
 
 
-def check_model(s: Settings, model_id: str) -> str | None:
-    """고를 수 없으면 이유, 고를 수 있으면 None."""
-    ok, reason = _available(s, model_id)
-    return None if ok else reason
+def openrouter_catalog(
+    query: str, kv: SettingsStore | None, s: Settings, limit: int = 40
+) -> list[dict[str, Any]]:
+    """등록할 OpenRouter 모델 찾기 (도구 호출 지원 모델만, Anthropic 제외 — 목록 API 캐시에서)."""
+    q = query.strip().lower()
+    reg = set(registered(kv, s))
+    out = []
+    for m in openrouter.CACHE.models:
+        if q and not any(q in v.lower() for v in (m.id, m.name, m.group, m.group_label)):
+            continue
+        out.append({**m.as_dict(), "registered": m.id in reg})
+        if len(out) >= limit:
+            break
+    return out
 
 
 def build_llm(s: Settings, p: str, kv: SettingsStore | None = None) -> LLMClient | None:
@@ -215,7 +300,11 @@ def build_llm(s: Settings, p: str, kv: SettingsStore | None = None) -> LLMClient
         return None
     base, model, key, api, effort = _fields(s, p, kv)
     if p == "paid":
-        model = paid_model(kv, s)
+        prov, model = paid_choice(kv, s)
+        if prov is not None and prov != provider(s):  # LLM_* 와 다른 제공사: 그 제공사 키·공식 주소
+            base, key, api = _base_url(s, prov), provider_keys(s)[prov], "auto"
+        elif prov is not None:
+            key = provider_keys(s).get(prov, key)
     return LLMClient(
         base,
         model,
@@ -234,7 +323,7 @@ def active_profile(kv: SettingsStore, s: Settings) -> Profile:
     saved = kv.get(KEY).get("active")
     if saved in PROFILES and configured(s, saved, kv):
         return saved
-    if s.has_llm or not configured(s, "free", kv):
+    if configured(s, "paid", kv) or not configured(s, "free", kv):
         return "paid"
     return "free"
 
@@ -248,7 +337,9 @@ def info(
         base, model, _, api, effort = _fields(s, p, kv)
         ok = configured(s, p, kv)
         if p == "paid":
-            model = paid_model(kv, s)
+            prov, model = paid_choice(kv, s)
+            if prov is not None and prov != provider(s):
+                base, api = _base_url(s, prov), "auto"
         out["profiles"][p] = {
             "label": LABEL[p],
             "env": "LLM_TEST_*" if p == "free" else "LLM_*",
@@ -257,21 +348,25 @@ def info(
             "api": resolve_api(api, base) if ok else None,
             "reasoning_effort": effort or None,
         }
-    prov = provider(s)
+    prov = paid_choice(kv, s)[0]
+    keys = provider_keys(s)
     cache = openrouter.CACHE
-    is_or = prov == "openrouter"
+    has_or = "openrouter" in keys
     out["profiles"]["paid"].update(
         provider=prov,
         provider_label=providers.LABEL.get(prov or ""),
         env_model=s.llm_model or None,
-        models=model_options(kv, s, today or date.today()) if configured(s, "paid") else [],
-        # 모델 목록 출처: catalog(앱 가격표) | openrouter(OpenRouter 목록 API, 메모리 6시간)
-        models_source="openrouter" if is_or else "catalog",
-        models_loaded=cache.loaded if is_or else True,
-        models_stale=cache.stale if is_or else False,  # True 면 화면이 새로고침을 불러 주면 좋다
+        # 제공사별 키가 있는지 (D-71) — 화면이 '키 있음/없음' 을 보여 준다. 키 값은 내보내지 않는다
+        providers={k: k in keys for k in ("openai", "google", "openrouter")},
+        models=model_options(kv, s, today or date.today()),
+        openrouter_registered=registered(kv, s),
+        # OpenRouter 목록 API 캐시 (등록 모델 가격·검색용, 메모리 6시간)
+        models_source="openrouter" if has_or else "catalog",
+        models_loaded=cache.loaded if has_or else True,
+        models_stale=cache.stale if has_or else False,
         models_fetched_at=(
-            datetime.fromtimestamp(cache.fetched_at, UTC).isoformat() if is_or and cache.fetched_at else None
+            datetime.fromtimestamp(cache.fetched_at, UTC).isoformat() if has_or and cache.fetched_at else None
         ),
-        models_error=cache.error if is_or else None,
+        models_error=cache.error if has_or else None,
     )
     return out

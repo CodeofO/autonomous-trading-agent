@@ -634,3 +634,12 @@
 - 빌드한 화면(입구가 `/assets/`)에서만 켜집니다. 개발 서버·테스트에서는 꺼져 있습니다. 서비스 워커는 화면 파일을 캐시하지 않아(`public/sw.js`) 새로고침하면 새 조각을 받습니다.
 - 이 기능이 들어가기 전에 열어 둔 화면은 감시 코드가 없으므로 이번 배포 한 번은 직접 새로고침해야 합니다.
 - 코드: `frontend/src/version.ts`(감시), `backend/app/api/routes/auth.py`(`BOOT_ID`).
+
+### D-71 제공사 키를 함께 등록하고 화면에서 제공사·모델 전환, OpenRouter 는 등록한 모델만 (2026-11-06)
+- **키**: `.env` 에 `OPENAI_API_KEY`·`OPENROUTER_API_KEY` 를 함께 넣어 둔다. `LLM_*` 는 기본 연결(처음 쓰는 모델)로 그대로 두고, 제공사 자리가 비었으면 `LLM_*` 키가 그 제공사일 때 그 키를 쓴다. 키 값은 화면·API 로 내보내지 않고 '키 있음/없음'만.
+- **유료 모델 = (제공사, 모델)**: 고른 값은 `llm_paid_model` {model, provider} 에 남는다. 다른 제공사를 고르면 그 제공사 공식 주소·키·호출 방식(OpenAI = Responses, OpenRouter = Chat Completions)으로 LLM 을 새로 만든다. 쓸 수 없게 되면(키를 뺌·등록 해제·목록에서 사라짐) `LLM_*` 로 돌아간다. 예전 저장값(모델만)은 이름으로 제공사를 짐작한다.
+- **OpenRouter 는 등록한 모델만**: 수백 개 전체 목록 대신, 설정 화면에서 검색(목록 API 캐시, 도구 호출 지원·Anthropic 제외)해 '등록'한 모델(최대 30개)만 유료 모델 목록에 나온다(`openrouter_models`). `LLM_*` 가 OpenRouter 면 그 모델은 늘 등록돼 있다. 지금 쓰는 모델·.env 모델은 등록을 뺄 수 없다.
+- **API**: `PUT /api/llm/model` {model, provider}, `GET /api/llm/openrouter/catalog?q=`, `POST /api/llm/openrouter/registered` {id}, `DELETE /api/llm/openrouter/registered?id=`, `POST /api/llm/openrouter/models/refresh`(OpenRouter 키가 있으면).
+- 요금 장부·공식 대조는 그대로 — 제공사는 호출 주소로 정하고, OpenRouter 대조에는 `OPENROUTER_API_KEY` 도 쓴다. 관리용(Management) 키는 쓰지 않는다(호출 불가, 일반 키로 키 사용액 조회).
+- 테스트는 셸 환경의 `OPENAI_API_KEY` 등을 읽지 않도록 막는다(`tests/conftest.py`).
+

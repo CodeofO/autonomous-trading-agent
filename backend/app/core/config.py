@@ -78,6 +78,11 @@ class Settings(BaseSettings):
     llm_test_api: Literal["auto", "chat", "responses"] = "auto"
     llm_test_reasoning_effort: str = ""
 
+    # --- 제공사별 LLM 키 (D-71) — 둘 다 넣어 두고 화면에서 제공사·모델을 바꾼다 ----------------
+    # 비우면 그 제공사는 LLM_* 키가 그 제공사일 때만 쓸 수 있다
+    openai_api_key: SecretStr | None = None
+    openrouter_api_key: SecretStr | None = None
+
     # --- 요금 장부 공식 대조 (D-66) -------------------------------------------
     # OpenAI 조직 Usage·Costs API 는 Admin 키로만 조회된다. 비우면 대조하지 않는다 (LLM 호출에는 쓰지 않는다)
     openai_admin_key: SecretStr | None = None
@@ -245,6 +250,8 @@ class Settings(BaseSettings):
             self.llm_test_api_key,
             self.gemini_api_key,
             self.openai_admin_key,
+            self.openai_api_key,
+            self.openrouter_api_key,
         ):
             if _filled(s):
                 assert s is not None

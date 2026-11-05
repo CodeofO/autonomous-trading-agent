@@ -124,6 +124,28 @@ export interface LlmPaidProfileInfo extends LlmProfileInfo {
   models_fetched_at?: string | null;
   /** 마지막으로 목록을 받다 난 오류 */
   models_error?: string | null;
+  /** 제공사별 키가 .env 에 있는지 (D-71) — 키 값은 오지 않는다 */
+  providers?: Partial<Record<"openai" | "google" | "openrouter", boolean>>;
+  /** 등록한 OpenRouter 모델 id (D-71) */
+  openrouter_registered?: string[];
+}
+
+/** OpenRouter 모델 검색 결과 (GET /api/llm/openrouter/catalog?q=) */
+export interface OpenRouterCatalogItem {
+  id: string;
+  name: string;
+  group: string;
+  group_label: string;
+  input: number | null;
+  output: number | null;
+  context_length: number | null;
+  registered: boolean;
+}
+
+export interface OpenRouterCatalog {
+  items: OpenRouterCatalogItem[];
+  total: number;
+  error: string | null;
 }
 
 export interface LlmProfiles {

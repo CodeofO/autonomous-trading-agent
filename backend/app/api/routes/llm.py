@@ -16,10 +16,12 @@ from app.agent.profiles import (
     API_CHOICES,
     MODEL_KEY,
     TEST_KEY,
+    _guess_provider,
     active_profile,
     build_llm,
     check_model,
-    paid_model,
+    paid_choice,
+    provider_keys,
     test_endpoint,
 )
 from app.agent.profiles import configured as profile_configured
@@ -82,6 +84,8 @@ class LlmProfileBody(BaseModel):
 
 class LlmModelBody(BaseModel):
     model: str = Field(min_length=1, max_length=128)
+    # openai | google | openrouter | env (D-71). 없으면 모델 이름으로 짐작 (예전 화면)
+    provider: str | None = Field(default=None, max_length=16)
 
 
 def _stacks(request: Request) -> list[Container]:
@@ -126,18 +130,21 @@ def llm_profile(c: C, _: U) -> dict[str, Any]:
 
 @router.put("/llm/model")
 def set_llm_model(body: LlmModelBody, c: C, _: U, request: Request) -> dict[str, Any]:
-    """유료 모델 바꾸기 (D-45). .env 키로 알아낸 제공사의 모델만 고를 수 있다."""
+    """유료 모델 바꾸기 (D-45, D-71): 키가 .env 에 있는 제공사의 모델(OpenRouter 는 등록한 모델)만."""
     s = c.settings
-    if not profile_configured(s, "paid"):
-        raise HTTPException(400, ".env 에 LLM_* 를 채우고 다시 시작해야 쓸 수 있어요")
-    prev = paid_model(c.kv, s)
-    if body.model == prev:
+    if not provider_keys(s) and not s.has_llm:
+        raise HTTPException(
+            400, ".env 에 LLM_* 나 OPENAI_API_KEY·OPENROUTER_API_KEY 를 채우고 다시 시작해야 쓸 수 있어요"
+        )
+    prov_in = None if body.provider in (None, "", "env") else body.provider
+    prev_prov, prev = paid_choice(c.kv, s)
+    if body.model == prev and (prov_in is None or prov_in == prev_prov):
         return _profile(c)
-    reason = check_model(s, body.model)
+    reason = check_model(s, body.model, prov_in, c.kv)
     if reason:
         raise HTTPException(400, reason)
     _llm_busy_any(request, c, "paid")
-    c.kv.set(MODEL_KEY, {"model": body.model})
+    c.kv.set(MODEL_KEY, {"model": body.model, "provider": prov_in or _guess_provider(body.model, s)})
     active = active_profile(c.kv, s)
     _rebuild_llms(request, c, "paid")  # 국장·미장 중 유료를 쓰는 스택
     c.hub.audit("CONFIG", f"유료 LLM 모델 변경: {prev} → {body.model}", None, model=body.model, previous=prev)

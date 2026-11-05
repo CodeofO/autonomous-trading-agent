@@ -22,7 +22,6 @@ import { toast } from "../../ui/toast";
 import { fmtDateTime } from "../../utils/format";
 import {
   apiLabel,
-  filterModels,
   groupModels,
   MODEL_GROUPS,
   modelOptionText,
@@ -40,6 +39,7 @@ import {
   US_PROFILE_URL,
   usLlmProfileQuery,
 } from "../settingsQueries";
+import { OpenRouterRegistry } from "./OpenRouterRegistry";
 import { SectionGate } from "./SectionGate";
 
 /**
@@ -588,19 +588,19 @@ function CheckResult({ r }: { r: LlmTestCheck }) {
   );
 }
 
-/** 못 쓰는 모델의 이유를 제공사별로 한 번씩: [["Google", "Google 키가 .env 에 없어요"], …] */
-function unavailableReasons(models: LlmModelOption[]): [string, string][] {
-  const out: [string, string][] = [];
-  for (const g of MODEL_GROUPS) {
-    const reasons = new Set(
-      models.filter((m) => m.provider === g.key && !m.available && m.reason).map((m) => m.reason!),
-    );
-    for (const r of reasons) out.push([g.label, r]);
-  }
-  return out;
-}
+const PROVIDER_ROWS: { key: "openai" | "openrouter" | "google"; label: string; env: string }[] = [
+  { key: "openai", label: "OpenAI", env: "OPENAI_API_KEY" },
+  { key: "openrouter", label: "OpenRouter", env: "OPENROUTER_API_KEY" },
+  { key: "google", label: "Google", env: "LLM_API_KEY (Gemini)" },
+];
 
-/** 유료(LLM_*)에 쓸 모델 고르기. .env 키로 알아낸 제공사의 모델만 고를 수 있고, 바꿀 때 한 번 더 확인 */
+/** 고르기 값: 같은 이름이 제공사마다 있을 수 있어 "제공사|모델" 로 */
+const optionValue = (m: Pick<LlmModelOption, "provider" | "id">) => `${m.provider}|${m.id}`;
+
+/**
+ * 유료 모델 고르기 (D-45, D-71): 키를 넣어 둔 제공사(OpenAI·OpenRouter·Google)의 모델을 한 목록에서 고른다.
+ * OpenRouter 는 아래 '모델 등록'에서 등록한 것만 나온다. 바꿀 때 한 번 더 확인.
+ */
 function PaidModelPicker({
   paid,
   active,
@@ -614,9 +614,9 @@ function PaidModelPicker({
   const qc = useQueryClient();
   const selectId = useId();
   const [pick, setPick] = useState<LlmModelOption | null>(null);
-  const [query, setQuery] = useState("");
   const change = useMutation({
-    mutationFn: (model: string) => put<LlmProfiles>("/api/llm/model", { model }),
+    mutationFn: (m: LlmModelOption) =>
+      put<LlmProfiles>("/api/llm/model", { model: m.id, provider: m.provider === "env" ? null : m.provider }),
     onSuccess: (data) => {
       setPick(null);
       apply(data);
@@ -625,16 +625,14 @@ function PaidModelPicker({
       toast(`유료 모델을 바꿨어요 ✓ (${name}) 다음 판단·답장부터 적용돼요.`);
     },
   });
-  // OpenRouter 목록 받아 오기 — 고른 모델은 그대로라 다른 화면은 다시 받지 않고 LLM 설정 캐시만 바꾼다
+  // OpenRouter 목록(등록 모델 가격)을 받아 오기 — 목록이 없거나 오래됐으면 화면을 열 때 한 번만
   const reload = useMutation({
     mutationFn: (force: boolean) =>
       post<LlmProfiles>(`/api/llm/openrouter/models/refresh?force=${force ? "true" : "false"}`),
     onSuccess: (data) => qc.setQueryData(["llm-profile"], data),
   });
-
-  const isOpenRouter = paid.models_source === "openrouter";
-  const needsLoad = isOpenRouter && paid.configured && (!paid.models_loaded || !!paid.models_stale);
-  // 목록이 없거나 오래됐으면 화면을 열 때 한 번만 받아 온다 (실패해도 다시 조르지 않는다)
+  const hasOpenRouter = !!paid.providers?.openrouter;
+  const needsLoad = hasOpenRouter && (!paid.models_loaded || !!paid.models_stale);
   const autoTried = useRef(false);
   const { mutate: reloadMutate } = reload;
   useEffect(() => {
@@ -644,49 +642,69 @@ function PaidModelPicker({
   }, [needsLoad, reloadMutate]);
 
   const models = paid.models ?? [];
-  if (!paid.configured || (!isOpenRouter && models.length === 0)) return null;
+  if (!paid.configured && models.every((m) => !m.available)) return null;
 
   const current = models.find((m) => m.selected) ?? null;
-  const currentId = current?.id ?? paid.model ?? "";
-  const shown = isOpenRouter ? filterModels(models, query, [pick?.id ?? currentId]) : models;
-  const groups = groupModels(shown);
-  const matches = isOpenRouter && query.trim() ? filterModels(models, query).length : null;
-  const reasons = unavailableReasons(models);
+  const groups = groupModels(models);
+  const keys = paid.providers ?? {};
   const loading = reload.isPending;
-  const providerName = paid.provider
-    ? (paid.provider_label ?? MODEL_GROUPS.find((g) => g.key === paid.provider)?.label ?? paid.provider)
-    : null;
 
-  const onSelect = (id: string) => {
-    const m = models.find((x) => x.id === id);
-    if (!m || !m.available || id === currentId || change.isPending) return;
+  const onSelect = (value: string) => {
+    const m = models.find((x) => optionValue(x) === value);
+    if (!m || !m.available || m.selected || change.isPending) return;
     change.reset();
     setPick(m);
   };
   const cancel = () => !change.isPending && setPick(null);
-
   const pickPrice = pick ? modelPriceText(pick) : null;
+  const providerOf = (m: LlmModelOption | null) =>
+    m ? (MODEL_GROUPS.find((g) => g.key === m.provider)?.label ?? m.provider) : null;
 
   return (
     <div className="llm-model">
-      <p className="llm-model-provider">
-        제공사:{" "}
-        {providerName ? (
-          <>
-            <b>{providerName}</b> <span className="muted">(.env 키로 감지)</span>
-          </>
-        ) : (
-          <b>알 수 없는 엔드포인트</b>
-        )}
-      </p>
-      {isOpenRouter && (
+      <ul className="llm-keys" aria-label="제공사 키">
+        {PROVIDER_ROWS.map((r) => (
+          <li key={r.key} className={keys[r.key] ? "on" : undefined}>
+            <b>{r.label}</b>{" "}
+            <small className="muted">{keys[r.key] ? "키 있음" : `키 없음 · .env ${r.env}`}</small>
+          </li>
+        ))}
+      </ul>
+      <label htmlFor={selectId}>유료 모델</label>
+      {models.length > 0 ? (
+        <select
+          id={selectId}
+          value={pick ? optionValue(pick) : current ? optionValue(current) : ""}
+          disabled={busy || change.isPending}
+          onChange={(e) => onSelect(e.target.value)}
+        >
+          {!current && <option value="">고르세요</option>}
+          {groups.map((g) => (
+            <optgroup key={g.key} label={g.label}>
+              {g.items.map((m) => (
+                <option key={optionValue(m)} value={optionValue(m)} disabled={!m.available}>
+                  {modelOptionText(m)}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      ) : (
+        <small className="muted">고를 수 있는 모델이 아직 없어요.</small>
+      )}
+      <small className="muted">
+        {current ? `지금: ${providerOf(current)} · ${current.name}. ` : ""}요금은 100만 토큰당 달러예요.
+        {paid.env_model ? ` .env 기본값: ${paid.env_model}` : ""}
+        {current?.note ? ` · ${current.note}` : ""}
+      </small>
+      {hasOpenRouter && (
         <div className="llm-model-list">
           <span className="muted">
             {loading
-              ? "목록 불러오는 중…"
+              ? "OpenRouter 목록 불러오는 중…"
               : paid.models_fetched_at
-                ? `목록 갱신: ${fmtDateTime(paid.models_fetched_at)} · ${models.length}개`
-                : "목록을 아직 받지 않았어요"}
+                ? `OpenRouter 목록 갱신: ${fmtDateTime(paid.models_fetched_at)}`
+                : "OpenRouter 목록을 아직 받지 않았어요"}
           </span>
           <button
             type="button"
@@ -701,69 +719,21 @@ function PaidModelPicker({
           </button>
         </div>
       )}
-      {isOpenRouter && !loading && (reload.isError || paid.models_error) && (
+      {hasOpenRouter && !loading && (reload.isError || paid.models_error) && (
         <p className="error llm-model-error">
-          모델 목록을 받지 못했어요: {reload.isError ? errorText(reload.error) : paid.models_error}
+          OpenRouter 목록을 받지 못했어요: {reload.isError ? errorText(reload.error) : paid.models_error}
         </p>
-      )}
-      {isOpenRouter && models.length > 0 && (
-        <input
-          type="search"
-          className="llm-model-search"
-          aria-label="모델 검색"
-          placeholder="모델 검색 (이름·ID·만든 곳)"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-      )}
-      <label htmlFor={selectId}>유료 모델</label>
-      {models.length > 0 ? (
-        <select
-          id={selectId}
-          value={pick?.id ?? currentId}
-          disabled={busy || change.isPending}
-          onChange={(e) => onSelect(e.target.value)}
-        >
-          {groups.map((g) => (
-            <optgroup key={g.key} label={g.label}>
-              {g.items.map((m) => (
-                <option key={m.id} value={m.id} disabled={!m.available}>
-                  {modelOptionText(m)}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
-      ) : (
-        <small className="muted">
-          {loading ? "OpenRouter 모델 목록을 받는 중이에요." : "고를 수 있는 모델이 아직 없어요."}
-          {paid.model ? ` 지금 모델: ${paid.model}` : ""}
-        </small>
-      )}
-      {matches != null && (
-        <small className="muted" aria-live="polite">
-          {matches > 0 ? `검색 결과 ${matches}개` : "검색 결과가 없어요 — 지금 모델만 보여요"}
-        </small>
-      )}
-      <small className="muted">
-        요금은 100만 토큰당 달러예요.
-        {paid.env_model ? ` .env 기본값: ${paid.env_model}` : ""}
-        {current?.note ? ` · ${current.note}` : ""}
-      </small>
-      {reasons.length > 0 && (
-        <ul className="llm-model-reasons">
-          {reasons.map(([label, r]) => (
-            <li key={`${label}:${r}`}>
-              <small className="muted">
-                {label}: {r}
-              </small>
-            </li>
-          ))}
-        </ul>
       )}
       <div className="llm-status" aria-live="polite">
         {change.isError && !pick && <p className="error">{switchErrorText(change.error)}</p>}
       </div>
+      {hasOpenRouter && (
+        <OpenRouterRegistry
+          registered={paid.openrouter_registered ?? []}
+          models={models}
+          envModel={paid.provider === "openrouter" ? (paid.env_model ?? null) : null}
+        />
+      )}
       {pick && (
         <Modal
           title="유료 모델을 바꿀까요?"
@@ -774,11 +744,7 @@ function PaidModelPicker({
               <button className="btn ghost" onClick={cancel} disabled={change.isPending}>
                 취소
               </button>
-              <button
-                className="btn primary"
-                onClick={() => change.mutate(pick.id)}
-                disabled={change.isPending}
-              >
+              <button className="btn primary" onClick={() => change.mutate(pick)} disabled={change.isPending}>
                 {change.isPending ? "바꾸는 중…" : "이 모델로 바꾸기"}
               </button>
             </>
@@ -786,12 +752,14 @@ function PaidModelPicker({
         >
           <p>유료 모델은 호출마다 실제 요금이 나가요. 비싼 모델일수록 판단·답장마다 요금이 커져요.</p>
           <p>
-            <b>{pick.name}</b>
+            <b>
+              {providerOf(pick)} · {pick.name}
+            </b>
             {pick.tier ? ` · ${pick.tier}` : ""}
             <br />
             <span className="muted">
               {pickPrice ? `${pickPrice} (100만 토큰당)` : "요금 정보가 없어요"}
-              {current ? ` — 지금: ${current.name}` : ""}
+              {current ? ` — 지금: ${providerOf(current)} · ${current.name}` : ""}
             </span>
           </p>
           <p>

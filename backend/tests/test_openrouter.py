@@ -14,7 +14,7 @@ import respx
 
 from app.agent import openrouter
 from app.agent.openrouter import MODELS_URL, ModelCache, parse, per_million
-from app.agent.profiles import MODEL_KEY, build_llm, paid_model
+from app.agent.profiles import MODEL_KEY, build_llm, paid_model, set_registered
 from app.core.config import Settings
 from app.core.llm_providers import detect, resolve_base_url
 from tests.test_api import _client
@@ -154,63 +154,92 @@ def _paid(r: dict[str, Any]) -> dict[str, Any]:
 
 
 @respx.mock
-def test_profile_lists_openrouter_models_and_switches(tmp_path: Path) -> None:
+def test_openrouter_models_are_registered_then_picked(tmp_path: Path) -> None:
+    """OpenRouter 는 화면에서 검색해 '등록'한 모델만 고른다 (D-71). 가격표(OpenAI·Google)는 키가 없으면 못 고른다."""
     route = respx.get(MODELS_URL).mock(return_value=httpx.Response(200, json=DATA))
     with _client(tmp_path, auth_enabled=False, **OR) as c:
         app = c.app.state.container  # type: ignore[attr-defined]
         assert app.runner.llm.api == "chat"  # openrouter.ai → Chat Completions
         paid = _paid(c.get("/api/llm/profile").json())
         assert (paid["provider"], paid["provider_label"]) == ("openrouter", "OpenRouter")
-        assert (paid["models_source"], paid["models_loaded"], paid["models_stale"]) == (
-            "openrouter",
-            False,
-            True,
-        )
-        assert paid["models_fetched_at"] is None and paid["models_error"] is None
-        assert [m["id"] for m in paid["models"]] == ["openai/gpt-6.1-sol"]  # 불러오기 전엔 .env 모델만
-        env = paid["models"][0]
-        assert env["provider"] == "openrouter" and env["group"] == "openai" and env["selected"]
-        res = c.put("/api/llm/model", json={"model": "deepseek/deepseek-v9"})
-        assert res.status_code == 400 and "새로고침" in res.json()["detail"]
-
-        r = c.post("/api/llm/openrouter/models/refresh")
-        assert r.status_code == 200 and route.call_count == 1
-        paid = _paid(r.json())
-        assert paid["models_loaded"] is True and paid["models_stale"] is False and paid["models_fetched_at"]
+        assert paid["providers"] == {"openai": False, "google": False, "openrouter": True}
+        assert paid["openrouter_registered"] == ["openai/gpt-6.1-sol"]  # .env 모델은 늘 등록돼 있다
         o = {m["id"]: m for m in paid["models"]}
-        assert set(o) == {
-            "openai/gpt-6.1-sol",
-            "deepseek/deepseek-v9",
-            "qwen/qwen9:free",
-            "openrouter/auto",
-        }
-        assert all(m["provider"] == "openrouter" and m["available"] for m in o.values())
-        sol = o["openai/gpt-6.1-sol"]
-        assert (sol["group"], sol["group_label"], sol["input"], sol["output"]) == (
-            "openai",
-            "OpenAI",
-            2.5,
-            10.0,
-        )
-        assert sol["selected"] and sol["note"] == ".env"
-        assert o["qwen/qwen9:free"]["note"] == "무료"
-        assert not any(m["id"] == "gpt-6.1-terra" for m in paid["models"])  # 직접 연결용 가격표는 뺀다
-        assert "sk-or-v1-test" not in r.text and "sk-or-v1-test" not in c.get("/api/llm/profile").text
+        assert o["openai/gpt-6.1-sol"]["selected"] and o["openai/gpt-6.1-sol"]["provider"] == "openrouter"
+        assert o["gpt-6.1-terra"]["available"] is False and "OPENAI_API_KEY" in o["gpt-6.1-terra"]["reason"]
+        assert "deepseek/deepseek-v9" not in o  # 등록 전
 
-        r = c.put("/api/llm/model", json={"model": "deepseek/deepseek-v9"})
-        assert r.status_code == 200 and _paid(r.json())["model"] == "deepseek/deepseek-v9"
-        assert app.runner.llm.model == "deepseek/deepseek-v9"
-        assert app.kv.get(MODEL_KEY) == {"model": "deepseek/deepseek-v9"}
-        bad_ids = (
-            "meta/tools-only",
-            "mistral/no-tools",
-            "no/such-model",
-            "gpt-6.1-terra",
-            "anthropic/claude-sonnet-x",
+        # 등록 안 한 모델은 못 고른다
+        res = c.put("/api/llm/model", json={"model": "deepseek/deepseek-v9", "provider": "openrouter"})
+        assert res.status_code == 400 and "등록" in res.json()["detail"]
+
+        # 검색 (목록을 처음 한 번 받아 온다)
+        found = c.get("/api/llm/openrouter/catalog?q=deep").json()
+        assert route.call_count == 1 and [m["id"] for m in found["items"]] == ["deepseek/deepseek-v9"]
+        assert found["items"][0]["registered"] is False
+        assert not any(
+            m["id"].startswith("anthropic/") for m in c.get("/api/llm/openrouter/catalog").json()["items"]
         )
-        for bad in bad_ids:
-            assert c.put("/api/llm/model", json={"model": bad}).status_code == 400, bad
-        assert app.runner.llm.model == "deepseek/deepseek-v9"
+
+        # 등록 → 고르기
+        r = c.post("/api/llm/openrouter/registered", json={"id": "deepseek/deepseek-v9"})
+        assert r.status_code == 200
+        assert _paid(r.json())["openrouter_registered"] == ["openai/gpt-6.1-sol", "deepseek/deepseek-v9"]
+        for bad in ("meta/tools-only", "mistral/no-tools", "no/such-model", "anthropic/claude-sonnet-x"):
+            assert c.post("/api/llm/openrouter/registered", json={"id": bad}).status_code == 400, bad
+        r = c.put("/api/llm/model", json={"model": "deepseek/deepseek-v9", "provider": "openrouter"})
+        assert r.status_code == 200 and _paid(r.json())["model"] == "deepseek/deepseek-v9"
+        assert app.runner.llm.model == "deepseek/deepseek-v9" and app.runner.llm.provider == "openrouter"
+        assert app.kv.get(MODEL_KEY) == {"model": "deepseek/deepseek-v9", "provider": "openrouter"}
+        o = {m["id"]: m for m in _paid(r.json())["models"]}
+        assert (o["deepseek/deepseek-v9"]["input"], o["deepseek/deepseek-v9"]["selected"]) == (0.27, True)
+
+        # 지금 쓰는 모델·.env 모델은 등록을 뺄 수 없다
+        assert c.delete("/api/llm/openrouter/registered?id=deepseek/deepseek-v9").status_code == 409
+        assert c.delete("/api/llm/openrouter/registered?id=openai/gpt-6.1-sol").status_code == 400
+        c.put("/api/llm/model", json={"model": "openai/gpt-6.1-sol", "provider": "openrouter"})
+        r = c.delete("/api/llm/openrouter/registered?id=deepseek/deepseek-v9")
+        assert r.status_code == 200 and _paid(r.json())["openrouter_registered"] == ["openai/gpt-6.1-sol"]
+        assert "sk-or-v1-test" not in c.get("/api/llm/profile").text
+
+
+@respx.mock
+def test_both_keys_switch_provider_in_the_app(tmp_path: Path) -> None:
+    """OPENAI(LLM_*) + OPENROUTER_API_KEY 를 함께 두고 화면에서 제공사를 오간다 (D-71)."""
+    respx.get(MODELS_URL).mock(return_value=httpx.Response(200, json=DATA))
+    both = {
+        "llm_base_url": "https://api.openai.com/v1",
+        "llm_model": "gpt-6.1-sol",
+        "llm_api_key": "sk-proj-test-123456",
+        "openrouter_api_key": "sk-or-v1-other-654321",
+    }
+    with _client(tmp_path, auth_enabled=False, **both) as c:
+        app = c.app.state.container  # type: ignore[attr-defined]
+        paid = _paid(c.get("/api/llm/profile").json())
+        assert paid["providers"] == {"openai": True, "google": False, "openrouter": True}
+        assert app.runner.llm.provider == "openai" and app.runner.llm.api == "responses"
+        assert (
+            c.post("/api/llm/openrouter/registered", json={"id": "deepseek/deepseek-v9"}).status_code == 200
+        )
+        c.put("/api/llm/model", json={"model": "deepseek/deepseek-v9", "provider": "openrouter"})
+        llm = app.runner.llm
+        assert (llm.provider, llm.base_url, llm.api, llm.model) == (
+            "openrouter",
+            "https://openrouter.ai/api/v1",
+            "chat",
+            "deepseek/deepseek-v9",
+        )
+        assert llm._api_key == "sk-or-v1-other-654321"  # OpenRouter 키로 (OpenAI 키를 보내지 않는다)
+        # 다시 OpenAI 가격표 모델로
+        c.put("/api/llm/model", json={"model": "gpt-6.1-terra", "provider": "openai"})
+        llm = app.runner.llm
+        assert (llm.provider, llm.api, llm.model, llm._api_key) == (
+            "openai",
+            "responses",
+            "gpt-6.1-terra",
+            "sk-proj-test-123456",
+        )
+        assert "sk-or-v1-other" not in c.get("/api/llm/profile").text
 
 
 def test_refresh_rejected_for_other_providers(tmp_path: Path) -> None:
@@ -230,11 +259,12 @@ def test_refresh_requires_login(tmp_path: Path) -> None:
 def test_saved_model_survives_restart_until_list_loads(tmp_path: Path) -> None:
     with _client(tmp_path, auth_enabled=False, **OR) as c:
         app = c.app.state.container  # type: ignore[attr-defined]
-        app.kv.set(MODEL_KEY, {"model": "deepseek/deepseek-v9"})
-        # 재시작 직후(목록 없음): 고를 때 확인한 저장 모델을 그대로 쓰고 화면에도 보인다
+        set_registered(app.kv, ["deepseek/deepseek-v9"])
+        app.kv.set(MODEL_KEY, {"model": "deepseek/deepseek-v9", "provider": "openrouter"})
+        # 재시작 직후(목록 없음): 등록할 때 확인한 저장 모델을 그대로 쓰고 화면에도 보인다
         assert paid_model(app.kv, app.settings) == "deepseek/deepseek-v9"
-        ids = [(m["id"], m["selected"]) for m in _paid(c.get("/api/llm/profile").json())["models"]]
-        assert ids == [("openai/gpt-6.1-sol", False), ("deepseek/deepseek-v9", True)]
+        o = {m["id"]: m["selected"] for m in _paid(c.get("/api/llm/profile").json())["models"]}
+        assert o["deepseek/deepseek-v9"] is True and o["openai/gpt-6.1-sol"] is False
 
         # 목록을 불러 보니 그 모델이 빠졌으면 .env 모델로 돌아가고, 쓰던 LLM 도 맞춘다
         app.runner.llm = build_llm(app.settings, "paid", app.kv)

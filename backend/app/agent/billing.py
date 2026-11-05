@@ -103,12 +103,15 @@ def _model_key(model: str) -> str:
 def openrouter_keys(settings: Settings, test_base_url: str = "") -> list[tuple[str, str]]:
     """대조할 OpenRouter 키: (이름, 키). 유료 LLM 이 OpenRouter 면 그 키, 테스트용 LLM 이 OpenRouter 면 그 키(다를 때만)."""
     out: list[tuple[str, str]] = []
+    dedicated = settings.openrouter_api_key.get_secret_value().strip() if settings.openrouter_api_key else ""
+    if dedicated:  # OPENROUTER_API_KEY (D-71)
+        out.append(("OpenRouter 키", dedicated))
     paid = settings.llm_api_key.get_secret_value().strip() if settings.llm_api_key else ""
-    if paid and providers.detect(settings.llm_base_url, paid) == "openrouter":
+    if paid and paid != dedicated and providers.detect(settings.llm_base_url, paid) == "openrouter":
         out.append(("유료 LLM 키", paid))
     test = settings.llm_test_api_key.get_secret_value().strip() if settings.llm_test_api_key else ""
     base = test_base_url or settings.llm_test_base_url
-    if test and test != paid and providers.detect(base, test) == "openrouter":
+    if test and test not in (paid, dedicated) and providers.detect(base, test) == "openrouter":
         out.append(("테스트용 LLM 키", test))
     return out
 
