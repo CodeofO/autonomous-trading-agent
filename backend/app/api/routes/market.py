@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC
+from datetime import UTC, timedelta
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
@@ -11,7 +11,9 @@ from sqlalchemy import select
 
 from app.api.routes.common import C, U
 from app.container import Container
+from app.core.clock import KST
 from app.db.models import AgentDecision, Fill
+from app.market import benchmarks as bm
 from app.market import chart as ch
 
 router = APIRouter()
@@ -22,6 +24,16 @@ router = APIRouter()
 async def market_indicators(c: C, _: U) -> dict[str, Any]:
     """대시보드 상단 주요 지표 (1분 캐시, D-40)."""
     return await c.indicators.snapshot()
+
+
+@router.get("/market/benchmarks")
+def market_benchmarks(c: C, _: U, days: int = Query(90, ge=1, le=3660)) -> dict[str, Any]:
+    """주요 지표 하루 종가 기록 (D-72) — 일 단위 분석의 비교 기준. 국장 DB(공용)에 쌓인다."""
+    today = c.clock.now().astimezone(KST).date()
+    return {
+        "since": (today - timedelta(days=days)).isoformat(),
+        "items": bm.history(c.db, today - timedelta(days=days)),
+    }
 
 
 @router.get("/market/indicators/{key}/chart")

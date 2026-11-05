@@ -72,6 +72,7 @@ def _isolate_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "OPENAI_ADMIN_KEY",
     ):
         monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("BENCHMARKS_ENABLED", "false")  # 하루 종가 기록 작업은 test_benchmarks 에서 따로 본다
     from app.core.config import Settings
 
     monkeypatch.setitem(Settings.model_config, "env_file", None)

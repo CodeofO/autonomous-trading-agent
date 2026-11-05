@@ -211,5 +211,6 @@ INDEX_SOURCES: dict[str, dict[str, Any]] = {
     "KR_BOND_10Y": {"kind": "index", "tz": KST, "minutes": False, "currency": None},
     "QQQ": {"kind": "stock", "tz": ZoneInfo("America/New_York"), "minutes": True, "currency": "USD"},
     "SPY": {"kind": "stock", "tz": ZoneInfo("America/New_York"), "minutes": True, "currency": "USD"},
+    "DIA": {"kind": "stock", "tz": ZoneInfo("America/New_York"), "minutes": True, "currency": "USD"},
 }
 NO_CHART = {"USDKRW": "토스증권 Open API 에 환율 차트(봉)가 없어 현재 환율만 보여 줘요."}

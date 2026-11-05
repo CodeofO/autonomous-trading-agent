@@ -12,8 +12,11 @@ def migrate(url: str) -> None:
     from alembic import command
     from alembic.config import Config
 
+    from app.db.unify import ensure_schema
+
     if url.startswith("sqlite:///"):
         Path(url.removeprefix("sqlite:///")).parent.mkdir(parents=True, exist_ok=True)
+    ensure_schema(url)  # Postgres `us` 스키마 (D-72)
     cfg = Config(str(Path(BACKEND_DIR) / "alembic.ini"))
     cfg.set_main_option("script_location", str(Path(BACKEND_DIR) / "app" / "db" / "migrations"))
     cfg.attributes["url"] = url

@@ -27,6 +27,7 @@ INDICATORS: tuple[tuple[str, str, str, str, str | None], ...] = (
     ("KOSDAQ", "코스닥", "index", "pt", None),
     ("QQQ", "나스닥100", "etf", "$", "QQQ ETF"),
     ("SPY", "S&P500", "etf", "$", "SPY ETF"),
+    ("DIA", "다우", "etf", "$", "DIA ETF"),  # 다우존스 지수도 토스에 없어 지수를 따라가는 ETF 로 (D-72)
     ("USDKRW", "원/달러", "fx", "원", None),
     ("KR_BOND_10Y", "국고채 10년", "bond", "%", None),
 )

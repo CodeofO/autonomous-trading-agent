@@ -16,6 +16,7 @@ from app.container import Container, announce_boot, build_container, move_lab_us
 from app.core.config import Settings, get_settings
 from app.core.logging import setup_logging
 from app.db.migrate import migrate
+from app.db.unify import migrate_legacy_us
 from app.engine.events import SYSTEM
 
 log = logging.getLogger(__name__)
@@ -45,6 +46,9 @@ def _build_containers(settings: Settings, overrides: dict[str, Any]) -> dict[str
         us_url = settings.us_db_url()
         if not _in_memory(us_url):
             _migrate(us_url)
+            migrate_legacy_us(
+                settings.data_dir, us_url
+            )  # 예전 SQLite 미장 DB → Postgres `us` 스키마 (D-72, 한 번)
         containers["US"] = build_container(
             settings,
             create_schema=_in_memory(us_url),

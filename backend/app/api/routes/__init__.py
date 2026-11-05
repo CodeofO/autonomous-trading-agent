@@ -61,6 +61,7 @@ GLOBAL_PATHS = (
     "/api/push",
     "/api/llm",
     "/api/market/indicators",
+    "/api/market/benchmarks",
     "/api/markets",
     "/api/overview",
     "/api/news-room",

@@ -12,6 +12,8 @@ import logging
 import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from datetime import time as dtime
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -52,6 +54,7 @@ from app.engine.scenarios import ScenarioLab
 from app.engine.scheduler import DailyJob, Scheduler, SessionScheduler
 from app.engine.settings_store import SettingsStore
 from app.engine.trades import trade_ledger
+from app.market import benchmarks
 from app.market.indicators import MarketIndicators
 from app.market.store import PriceStore
 from app.market.toss import TossClient, TossMarketProvider
@@ -301,6 +304,9 @@ def announce_boot(c: Container, text: str) -> bool:
     return True
 
 
+BENCH_SLOTS = (dtime(7, 10), dtime(16, 10))  # 주요 지표 하루 종가 기록 (D-72, 한국 시각)
+
+
 def build_container(
     settings: Settings,
     *,
@@ -447,6 +453,11 @@ def build_container(
     newsroom = NewsRoom(db, clock, kv, news=news, llm=lambda: runner.llm, audit=hub.audit)
     if newsroom.available:
         scheduler.daily.append(DailyJob("newsroom", NEWS_SLOTS, newsroom.scheduled))
+    # 주요 지표 하루 종가 (D-72): 07:10 미장 마감 뒤 · 16:10 국장 마감 뒤 (환율은 16:10 만)
+    if settings.benchmarks_enabled:
+        scheduler.daily.append(
+            DailyJob("benchmarks", BENCH_SLOTS, partial(benchmarks.record, db, toss_client))
+        )
     c = Container(
         settings,
         db,

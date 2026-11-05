@@ -78,6 +78,9 @@ class Settings(BaseSettings):
     llm_test_api: Literal["auto", "chat", "responses"] = "auto"
     llm_test_reasoning_effort: str = ""
 
+    # --- 주요 지표 하루 종가 기록 (D-72) — 07:10·16:10(한국 시각). 테스트에서는 끈다
+    benchmarks_enabled: bool = True
+
     # --- 제공사별 LLM 키 (D-71) — 둘 다 넣어 두고 화면에서 제공사·모델을 바꾼다 ----------------
     # 비우면 그 제공사는 LLM_* 키가 그 제공사일 때만 쓸 수 있다
     openai_api_key: SecretStr | None = None
@@ -111,7 +114,7 @@ class Settings(BaseSettings):
     us_live_trading_confirm: str = ""  # live 일 때 LIVE_CONFIRM_PHRASE 와 같아야 함
     # 미장 실거래 하루 매수 총액 상한(달러). 리스크 한도와 별개로 코드가 강제한다
     us_live_daily_buy_limit: float = Field(default=3_000, gt=0)
-    # 비우면 sqlite:///{DATA_DIR}/us_market.db (국장 DB 가 메모리면 미장도 메모리)
+    # 비우면 국장이 Postgres 면 같은 DB 의 `us` 스키마(D-72), 아니면 sqlite:///{DATA_DIR}/us_market.db (국장이 메모리면 메모리)
     us_database_url: str = ""
     paper_us_initial_cash: float = Field(default=10_000, gt=0)  # 달러
     paper_us_commission_rate: float = Field(default=0.001, ge=0, lt=0.05)
@@ -185,11 +188,16 @@ class Settings(BaseSettings):
         )
 
     def us_db_url(self) -> str:
-        """미장 DB 주소: US_DATABASE_URL → (국장이 메모리 DB 면 메모리) → data/us_market.db."""
+        """미장 DB 주소: US_DATABASE_URL → (국장이 메모리 DB 면 메모리) → 국장이 Postgres 면 같은 DB 의 `us` 스키마
+        (D-72) → data/us_market.db (로컬 SQLite 개발)."""
+        from app.db.unify import US_SCHEMA, is_postgres, with_schema
+
         if self.us_database_url.strip():
             return self.us_database_url.strip()
         if self.database_url in ("sqlite://", "sqlite:///:memory:"):
             return "sqlite://"
+        if is_postgres(self.database_url):
+            return with_schema(self.database_url, US_SCHEMA)
         return f"sqlite:///{Path(self.data_dir) / 'us_market.db'}"
 
     @property

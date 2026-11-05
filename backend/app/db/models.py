@@ -184,6 +184,22 @@ class PaperAccountState(Base):
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, onupdate=utcnow)
 
 
+class BenchmarkDaily(Base):
+    """주요 지표의 하루 종가 (D-72) — 나중에 '지수가 빠질 때 자산은?' 같은 일 단위 분석의 비교 기준.
+
+    지수·국채·미국 ETF 는 토스 일봉에서(그 시장 날짜), 환율은 봉 API 가 없어 매일 16:10(한국 시각) 현재 환율로 남긴다.
+    """
+
+    __tablename__ = "benchmark_daily"
+    __table_args__ = (UniqueConstraint("key", "day", name="uq_benchmark_daily"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    key: Mapped[str] = mapped_column(String(24))  # KOSPI · KOSDAQ · QQQ · SPY · DIA · USDKRW · KR_BOND_10Y
+    day: Mapped[date] = mapped_column(Date, index=True)  # 그 지표 시장의 날짜
+    close: Mapped[float] = mapped_column(Float)
+    source: Mapped[str] = mapped_column(String(12), default="candle")  # candle | quote
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, onupdate=utcnow)
+
+
 class EquitySnapshot(Base):
     __tablename__ = "equity_snapshots"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

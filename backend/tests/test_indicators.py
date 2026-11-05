@@ -52,13 +52,17 @@ class FakeClient:
 
     async def prices(self, symbols: list[str]) -> dict[str, tuple[float, datetime | None]]:
         self._hit("prices")
-        return {"QQQ": (686.13, NOW), "SPY": (754.96, NOW)}
+        return {"QQQ": (686.13, NOW), "SPY": (754.96, NOW), "DIA": (480.5, NOW)}
 
     async def candles(
         self, symbol: str, interval: str = "1d", count: int = 200
     ) -> tuple[list[dict[str, Any]], None]:
         self._hit(f"candles:{symbol}")
-        return {"QQQ": _candles([681.09, 685.42], 14), "SPY": _candles([750.0, 755.0], 14)}[symbol], None
+        return {
+            "QQQ": _candles([681.09, 685.42], 14),
+            "SPY": _candles([750.0, 755.0], 14),
+            "DIA": _candles([478.0, 480.0], 14),
+        }[symbol], None
 
     async def exchange_rate(self) -> dict[str, Any]:
         self._hit("fx")
@@ -69,7 +73,8 @@ async def test_snapshot_combines_indices_etfs_fx_and_bonds() -> None:
     fake = FakeClient()
     snap = await MarketIndicators(fake, SimulatedClock(NOW)).snapshot()  # type: ignore[arg-type]
     by = {r["key"]: r for r in snap["items"]}
-    assert list(by) == ["KOSPI", "KOSDAQ", "QQQ", "SPY", "USDKRW", "KR_BOND_10Y"]
+    assert list(by) == ["KOSPI", "KOSDAQ", "QQQ", "SPY", "DIA", "USDKRW", "KR_BOND_10Y"]
+    assert (by["DIA"]["name"], by["DIA"]["note"]) == ("다우", "DIA ETF")  # 다우존스도 ETF 로 (D-72)
 
     k = by["KOSPI"]
     assert (k["price"], k["prev_close"], k["change_pct"]) == (5648.79, 5859.08, -3.59)
@@ -118,5 +123,5 @@ def test_indicators_endpoint(tmp_path: Path) -> None:
         r = client.get("/api/market/indicators")
         assert r.status_code == 200
         items = r.json()["items"]
-        assert [i["key"] for i in items][:2] == ["KOSPI", "KOSDAQ"] and len(items) == 6
+        assert [i["key"] for i in items][:2] == ["KOSPI", "KOSDAQ"] and len(items) == 7
         assert items[0]["price"] == 2812.45  # 가짜 토스의 코스피
