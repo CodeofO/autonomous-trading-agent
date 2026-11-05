@@ -113,6 +113,36 @@ const DATA: LlmCosts = {
   profile: "paid",
   strategies: { default: { name: "기본 매니저", emoji: "🦉" }, lynch: { name: "피터 린치", emoji: "🧺" } },
   official_ready: { openai: false },
+  prices: [
+    {
+      id: "gpt-6.1-sol",
+      provider: "openai",
+      name: "GPT-6.1 Sol",
+      tier: "주력",
+      input: 2,
+      cached: 0.1,
+      output: 10,
+      cache_write: 2.5,
+      long_from: null,
+      long: null,
+      next: null,
+      note: "",
+    },
+    {
+      id: "gemini-4-argon",
+      provider: "google",
+      name: "Gemini 4 Argon",
+      tier: "주력",
+      input: 2,
+      cached: 0.1,
+      output: 10,
+      cache_write: null,
+      long_from: null,
+      long: null,
+      next: { since: "2026-12-01", input: 4, cached: 0.2, output: 20 },
+      note: "2026-12-01 부터 2배로 인상 예정",
+    },
+  ],
 };
 
 const OFFICIAL: LlmOfficial = {
@@ -239,6 +269,26 @@ describe("LLM 요금 화면", () => {
     expect(screen.queryByText(/캐시 적용/)).not.toBeInTheDocument();
     expect(screen.queryByText(/예상/)).not.toBeInTheDocument();
     expect(screen.getByText("gpt-6.1-sol", { selector: ".costs-model" })).toBeInTheDocument();
+  });
+
+  it("요금 카드 바로 밑에 주요 모델 단가표: 지금 모델 강조, 캐시 쓰기·예정된 인상, 자체 서버 0", async () => {
+    mockCosts();
+    renderWithProviders(<Costs />);
+    const card = await screen.findByRole("region", { name: "주요 모델 단가" });
+    expect(screen.getByTestId("costs-total").closest("section")!.nextElementSibling).toBe(card);
+    const rows = within(card).getAllByRole("row");
+    const sol = rows.find((r) => r.textContent?.includes("GPT-6.1 Sol"))!;
+    expect(sol).toHaveAttribute("aria-current", "true");
+    expect(sol).toHaveTextContent("지금");
+    expect(sol).toHaveTextContent(fmtKrwFromUsd(2, 1400)); // 입력 100만 토큰당
+    expect(sol).toHaveTextContent(`캐시 쓰기 ${fmtKrwFromUsd(2.5, 1400)}`);
+    const argon = rows.find((r) => r.textContent?.includes("Gemini 4 Argon"))!;
+    expect(argon).not.toHaveAttribute("aria-current");
+    expect(argon).toHaveTextContent(`12월 1일부터 입력 ${fmtKrwFromUsd(4, 1400)}`);
+    expect(card).toHaveTextContent("자체 서버 모델");
+    fireEvent.click(screen.getByRole("button", { name: "$" }));
+    expect(sol).toHaveTextContent("$2");
+    expect(sol).toHaveTextContent("$0.1");
   });
 
   it("통화를 $ 로 바꾸면 달러로", async () => {

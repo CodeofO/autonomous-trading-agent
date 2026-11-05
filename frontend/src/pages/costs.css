@@ -136,3 +136,91 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* 주요 모델 단가 (비교용) */
+/* 표 칸(th)은 table-cell 그대로 두고 안쪽 div 만 세로로 쌓는다 — th 를 flex 로 바꾸면 칸 폭 계산이 깨져
+   설명이 줄바꿈되지 않고 휴대폰에서 가격 칸이 화면 밖으로 밀린다 */
+.costs-price-table {
+  width: 100%;
+}
+.costs-price-table th[scope="row"] {
+  font-weight: 400;
+  text-align: left;
+  vertical-align: top;
+  white-space: normal; /* 표 머리칸 기본 nowrap 을 풀어 설명이 줄바꿈되게 */
+}
+.costs-price-model {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.costs-price-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.costs-price-table .num {
+  text-align: right;
+}
+.costs-price-table td.num {
+  vertical-align: top;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.costs-price-table tr.now {
+  background: var(--accent-soft, rgba(49, 130, 246, 0.08));
+}
+.costs-price-table tr.free td,
+.costs-price-table tr.free b {
+  color: var(--text-dim);
+}
+.costs-price-notes {
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 0;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.costs-price-bar {
+  display: block;
+  width: 64px;
+  max-width: 100%;
+  height: 4px;
+  margin: 4px 0 0 auto;
+  border-radius: 2px;
+  background: var(--border);
+  overflow: hidden;
+}
+.costs-price-bar i {
+  display: block;
+  height: 100%;
+  margin-left: auto;
+  border-radius: 2px;
+  background: var(--accent, #3182f6);
+}
+.costs-price-foot {
+  margin: 8px 0 0;
+  font-size: 12px;
+}
+@media (max-width: 760px) {
+  .costs-price-table {
+    font-size: 13px;
+  }
+  .costs-price-table th[scope="row"] {
+    padding-right: 4px;
+  }
+  .costs-price-table td.num,
+  .costs-price-table th.num {
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+  .costs-price-notes {
+    font-size: 11px;
+  }
+  .costs-price-bar {
+    width: 40px;
+  }
+}

@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from app.agent.billing import official_report
-from app.agent.costs import ledger_view, public_model
+from app.agent.costs import ledger_view, price_list, public_model
 from app.agent.llm_check import check as llm_check
 from app.agent.profiles import (
     API_CHOICES,
@@ -53,6 +53,7 @@ async def llm_costs(
     out["current_provider"] = llm.provider if llm else None
     out["profile"] = active_profile(c.kv, c.settings)
     out["strategies"] = {k: {"name": v.name, "emoji": v.emoji} for k, v in styles.STYLES.items()}
+    out["prices"] = price_list(c.clock.now().astimezone(KST).date())  # 주요 모델 단가표 (비교용)
     out["official_ready"] = {
         "openai": bool(c.settings.openai_admin_key and c.settings.openai_admin_key.get_secret_value().strip())
     }

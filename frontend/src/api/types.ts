@@ -506,6 +506,28 @@ export interface LlmCosts {
   profile: LlmProfileName;
   strategies: Record<string, { name: string; emoji: string }>;
   official_ready?: { openai?: boolean };
+  /** 주요 모델 단가표 (비교용, USD / 100만 토큰) */
+  prices?: LlmPrice[];
+}
+
+export interface LlmPriceSet {
+  input: number;
+  cached: number;
+  output: number;
+}
+
+/** 주요 모델 단가 한 줄 (오늘 적용 단가 · 장문 구간 · 예정된 변경) */
+export interface LlmPrice extends LlmPriceSet {
+  id: string;
+  provider: "openai" | "google";
+  name: string;
+  tier: string;
+  /** OpenAI 30분 캐시 쓰기 단가 (입력의 1.25배). 없으면 null */
+  cache_write: number | null;
+  long_from: number | null;
+  long: LlmPriceSet | null;
+  next: (LlmPriceSet & { since: string }) | null;
+  note: string;
 }
 
 // 공식 기록 대조 (GET /api/llm/costs/official?month=)

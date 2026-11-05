@@ -30,7 +30,8 @@ import {
   type Filters,
   type Totals,
 } from "../utils/costs";
-import { fmtIndicator, fmtKrwFromUsd, fmtNum, fmtTokens, fmtUsd } from "../utils/format";
+import { fmtIndicator, fmtKrwFromUsd, fmtNum, fmtTokens, fmtUsd, fmtUsdPrice } from "../utils/format";
+import { PriceTable } from "./CostsPrices";
 import "./costs.css";
 
 type Currency = "krw" | "usd";
@@ -71,6 +72,8 @@ function CostsView({
   const rate = data.usd_krw != null && data.usd_krw > 0 ? data.usd_krw : null;
   const currency: Currency = rate ? cur : "usd";
   const money = (v: number) => (currency === "krw" && rate ? fmtKrwFromUsd(v, rate) : fmtUsd(v));
+  // 단가(100만 토큰당)는 작은 값도 자릿수를 살려서: $0.075 · 101원
+  const unitPrice = (v: number) => (currency === "krw" && rate ? fmtKrwFromUsd(v, rate) : fmtUsdPrice(v));
 
   const monthGroups = useMemo(() => data.groups.filter((g) => g.month === data.month), [data]);
   const total = sum(monthGroups, filters);
@@ -160,6 +163,8 @@ function CostsView({
           )}
         </div>
       </section>
+
+      <PriceTable prices={data.prices ?? []} current={data.current_model} price={unitPrice} />
 
       {empty ? (
         <section className="card">

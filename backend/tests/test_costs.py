@@ -17,7 +17,7 @@ from pydantic import SecretStr
 from sqlalchemy import create_engine, select, text
 
 from app.agent import billing
-from app.agent.costs import backfill, charge, ledger_view, move_usage, record_call
+from app.agent.costs import backfill, charge, ledger_view, move_usage, price_list, record_call
 from app.agent.llm import ChatResult, LLMClient, parse_chat_usage, parse_responses
 from app.core.clock import KST
 from app.core.config import Settings
@@ -373,6 +373,8 @@ def test_costs_endpoint(tmp_path: Path) -> None:
         body = r.json()
         assert {"groups", "daily", "months", "month", "strategies", "usd_krw", "current_model"} <= set(body)
         assert body["strategies"]["lynch"]["name"] == "피터 린치"
+        # 주요 모델 단가표 (비교용) — OpenAI·Google 만, Anthropic 없음
+        assert {p["provider"] for p in body["prices"]} == {"openai", "google"}
         assert client.get("/api/llm/costs?month=2026-13").status_code == 422
         off = client.get("/api/llm/costs/official").json()
         status = {p["provider"]: p["status"] for p in off["providers"]}
@@ -535,3 +537,18 @@ def test_migration_backfills_old_session_totals(tmp_path: Path) -> None:
             text("SELECT kind, run_id, input_tokens, output_tokens, source, cost_source FROM llm_usage")
         ).all()
     assert [tuple(r) for r in rows] == [("session", 1, 170000, 9000, "backfill", "")]  # 요금은 부팅 때 매긴다
+
+
+def test_price_list_for_comparison() -> None:
+    """화면 '주요 모델 단가' 표: 오늘 단가, OpenAI 캐시 쓰기(입력 1.25배), 장문 구간, 예정된 인상."""
+    rows = {r["id"]: r for r in price_list(date(2026, 11, 6))}
+    sol = rows["gpt-6.1-sol"]
+    assert (sol["input"], sol["cached"], sol["output"], sol["cache_write"]) == (2, 0.10, 10, 2.5)
+    assert rows["gpt-6-astra"]["long_from"] == 272_000 and rows["gpt-6-astra"]["long"]["input"] == 20
+    argon = rows["gemini-4-argon"]
+    assert argon["input"] == 2 and argon["cache_write"] is None  # Google 은 캐시 쓰기 요금 없음
+    assert argon["next"] == {"since": "2026-12-01", "input": 4, "cached": 0.20, "output": 20}
+    # 인상일이 지나면 새 단가가 오늘 단가, 예정 없음
+    later = {r["id"]: r for r in price_list(date(2026, 12, 2))}["gemini-4-argon"]
+    assert later["input"] == 4 and later["next"] is None
+

@@ -266,3 +266,11 @@ async def test_chat_goes_to_openrouter_chat_completions() -> None:
         assert req.headers["Authorization"] == "Bearer sk-or-v1-abc"
         assert b'"model":"openai/gpt-6.1-sol"' in req.content.replace(b" ", b"")
     assert route.call_count == 2
+
+
+def test_model_saved_for_openai_is_not_sent_to_openrouter(tmp_path: Path) -> None:
+    """OpenAI 직접 연결에서 고른 'gpt-6.1-sol' 이 저장된 채 OpenRouter 로 바꿔도, 목록을 받기 전에 그 이름으로 부르지 않는다."""
+    with _client(tmp_path, auth_enabled=False, **OR) as c:
+        app = c.app.state.container  # type: ignore[attr-defined]
+        app.kv.set(MODEL_KEY, {"model": "gpt-6.1-sol"})
+        assert paid_model(app.kv, app.settings) == app.settings.llm_model

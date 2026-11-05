@@ -91,8 +91,9 @@ def paid_model(kv: SettingsStore | None, s: Settings) -> str:
     if not saved or saved == s.llm_model:
         return s.llm_model
     if provider(s) == "openrouter" and not openrouter.CACHE.loaded:
-        # 재시작 직후엔 목록이 비어 있다. 고를 때 목록으로 확인했으니 목록을 불러올 때까지는 그대로 쓴다
-        return str(saved)
+        # 재시작 직후엔 목록이 비어 있다. 고를 때 목록으로 확인했으니 목록을 불러올 때까지는 그대로 쓴다.
+        # 다만 '회사/모델' 꼴이 아니면 다른 제공사(OpenAI 직접 등)에서 고른 값이라 OpenRouter 에 보낼 수 없다
+        return str(saved) if "/" in str(saved) else s.llm_model
     return str(saved) if _available(s, saved)[0] else s.llm_model
 
 

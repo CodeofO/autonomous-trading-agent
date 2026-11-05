@@ -247,6 +247,37 @@ def public_model(model: str) -> str:
     return (model or "").split("@", 1)[0]
 
 
+def _price_dict(p: Price) -> dict[str, float]:
+    return {"input": p.input, "cached": p.cached, "output": p.output}
+
+
+def price_list(today: date) -> list[dict[str, Any]]:
+    """화면의 '주요 모델 단가' 표 (USD / 100만 토큰): 오늘 적용 단가, 장문 구간, 예정된 변경.
+
+    cache_write: OpenAI 30분 캐시 쓰기 단가(입력의 1.25배) — 캐시 쓰기 요금이 없는 제공사는 None.
+    """
+    out = []
+    for m in MODELS:
+        p = m.at(today)
+        nxt = next((x for x in m.prices if x.since is not None and x.since > today), None)
+        x30 = CACHE_WRITE_X.get(m.provider, (None, None))[0]
+        out.append(
+            {
+                "id": m.id,
+                "provider": m.provider,
+                "name": m.name,
+                "tier": m.tier,
+                **_price_dict(p),
+                "cache_write": round(p.input * x30, 6) if x30 else None,
+                "long_from": m.long_from,
+                "long": _price_dict(m.long) if m.long else None,
+                "next": {"since": nxt.since.isoformat(), **_price_dict(nxt)} if nxt and nxt.since else None,
+                "note": m.note,
+            }
+        )
+    return out
+
+
 # ====================================================================== 기록
 def record_call(
     db: Database,
