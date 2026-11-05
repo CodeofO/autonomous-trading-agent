@@ -24,6 +24,7 @@ from app.agent.runner import STRATEGY_KEY
 from app.db.models import AgentRun, EquitySnapshot, Fill, Order
 from app.engine.events import SYSTEM
 from app.engine.maintenance import run_maintenance
+from app.risk.rules import RiskConfig
 from app.strategies import styles
 
 if TYPE_CHECKING:
@@ -32,6 +33,7 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 KEY = "scenarios"
+RISK_KEY = "risk_by_strategy"  # 주 계좌 kv: {전략 id: 그 전략으로 운용할 때의 리스크 설정} (D-64)
 MAX_SCENARIOS = 6  # 한 시장에서 동시에 켤 수 있는 시나리오 수 (판단 한 차례가 너무 길어지지 않게)
 
 Builder = Callable[["Container", str], "Container"]
@@ -41,6 +43,26 @@ def _iso(t: datetime | None) -> str | None:
     if t is None:
         return None
     return (t if t.tzinfo else t.replace(tzinfo=UTC)).isoformat()
+
+
+def risk_text(r: RiskConfig) -> str:
+    """리스크 한도 한 줄: 손절 −20% · 익절 +100% · 최소 보유 30일 · 종목당 15% · 최대 12종목."""
+    hold = f" · 최소 보유 {r.min_hold_days}일" if r.min_hold_days else ""
+    return (
+        f"손절 {r.stop_loss:.0%} · 익절 +{r.take_profit:.0%}{hold} · "
+        f"종목당 {r.max_position_weight:.0%} · 최대 {r.max_positions}종목"
+    )
+
+
+def risk_summary(r: RiskConfig) -> dict[str, Any]:
+    return {
+        "stop_loss": r.stop_loss,
+        "take_profit": r.take_profit,
+        "min_hold_days": r.min_hold_days,
+        "max_position_weight": r.max_position_weight,
+        "max_positions": r.max_positions,
+        "text": risk_text(r),
+    }
 
 
 class LabError(ValueError):
@@ -78,6 +100,17 @@ class ScenarioLab:
         if prev == sid:
             return sid
         self.main.kv.set(STRATEGY_KEY, {"id": sid})
+        # 리스크 한도도 전략마다 (D-64): 지금 한도는 이전 전략 몫으로 기억하고, 새 전략 몫(없으면 기본값)을 꺼낸다
+        engine = self.main.engine
+        saved = dict(self.main.kv.get(RISK_KEY))
+        saved[prev] = engine.risk.config.model_dump()
+        risk = (
+            RiskConfig(**saved[sid])
+            if isinstance(saved.get(sid), dict)
+            else style.risk_config(engine.risk.config)
+        )
+        self.main.kv.set(RISK_KEY, saved)
+        engine.set_risk_config(risk)
         live = bool(self.main.broker.is_live)
         account = "🔴 실거래 계좌" if live else "모의 계좌"
         msg = f"주 계좌 전략 변경: {styles.STYLES[prev].name} → {style.name}"
@@ -86,9 +119,20 @@ class ScenarioLab:
             SYSTEM,
             "text",
             f"{style.emoji} {account}을 이제 '{style.name}' 전략으로 운용해요 — {style.summary}. "
-            "다음 판단부터 적용돼요.",
+            f"리스크 한도도 이 전략 것으로 바꿨어요: {risk_text(risk)}. 다음 판단부터 적용돼요.",
         )
         return sid
+
+    def apply_preset(self) -> RiskConfig:
+        """주 계좌 리스크 한도를 지금 전략의 기본값으로 (1회 주문 금액은 그대로)."""
+        style = styles.STYLES[self.main_id()]
+        engine = self.main.engine
+        risk = style.risk_config(engine.risk.config)
+        engine.set_risk_config(risk)
+        self.main.hub.chat(
+            SYSTEM, "text", f"🛡️ 리스크 한도를 '{style.name}' 전략 기본값으로 바꿨어요: {risk_text(risk)}."
+        )
+        return risk
 
     def set_enabled(self, ids: list[str]) -> list[str]:
         unknown = [i for i in ids if styles.get(i) is None]
@@ -284,6 +328,7 @@ class ScenarioLab:
                 else None
             ),
             "running": bool(st.runner.running),
+            "risk": risk_summary(st.engine.risk.config),
         }
 
     async def view(self) -> dict[str, Any]:

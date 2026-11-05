@@ -651,8 +651,11 @@ def build_scenario(main: Container, sid: str) -> Container:
     else:
         migrate(url)
     kv = SettingsStore(db)
-    if not kv.get("risk"):  # 처음 만들 때 주 계좌 리스크 설정을 그대로 (공정한 비교)
-        kv.set("risk", main.kv.get("risk") or RiskConfig().model_dump())
+    # 리스크 한도는 그 전략의 기본값 (D-64). 1회 주문 금액만 주 계좌 설정을 따른다. 한 번 정한 뒤에는 그대로
+    if kv.get("risk_style").get("id") != sid:
+        base = RiskConfig(**main.kv.get("risk")) if main.kv.get("risk") else None
+        kv.set("risk", style.risk_config(base).model_dump())
+        kv.set("risk_style", {"id": sid})
     kv.set("strategy", {"id": sid})
     kv.set("agent_persona", {"name": style.persona, "emoji": style.emoji})
     research = ResearchService(clock, dart=main.research.dart, news=main.research.news_client, google=None)

@@ -9,23 +9,49 @@ from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import select
 
 from app.api.routes.common import C, U
+from app.container import Container
 from app.db.models import StrategyConfig, WatchlistItem
 from app.risk.rules import RiskConfig
+from app.strategies import styles
 from app.strategies.rules import REGISTRY, build, param_schema
 
 router = APIRouter()
 
 
 # ====================================================================== 리스크/전략/관심종목
+def _risk_view(c: Container) -> dict[str, Any]:
+    """지금 한도 + 따르는 전략과 그 전략 기본값 (D-64: 리스크 한도는 전략마다)."""
+    cfg = c.engine.risk.config
+    sid = c.lab.main_id() if c.lab is not None else styles.DEFAULT_ID
+    style = styles.STYLES[sid]
+    preset = style.risk_config(cfg)
+    return {
+        "config": cfg.model_dump(),
+        "schema": RiskConfig.model_json_schema(),
+        "strategy": {"id": style.id, "name": style.name, "emoji": style.emoji},
+        "preset": preset.model_dump(),
+        "custom": preset.model_dump() != cfg.model_dump(),
+    }
+
+
 @router.get("/risk")
 def get_risk(c: C, _: U) -> dict[str, Any]:
-    return {"config": c.engine.risk.config.model_dump(), "schema": RiskConfig.model_json_schema()}
+    return _risk_view(c)
 
 
 @router.put("/risk")
 def put_risk(body: RiskConfig, c: C, _: U) -> dict[str, Any]:
     c.engine.set_risk_config(body)
-    return {"config": body.model_dump()}
+    return _risk_view(c)
+
+
+@router.post("/risk/preset")
+def apply_risk_preset(c: C, _: U) -> dict[str, Any]:
+    """지금 전략의 리스크 기본값으로 되돌린다 (1회 주문 금액은 그대로)."""
+    if c.lab is None:
+        raise HTTPException(404, "전략 정보가 없어요")
+    c.lab.apply_preset()
+    return _risk_view(c)
 
 
 def _strategy_dict(r: StrategyConfig) -> dict[str, Any]:

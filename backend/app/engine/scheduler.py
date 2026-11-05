@@ -38,6 +38,7 @@ from app.core.market_calendar import CONTINUOUS_CLOSE, EXT_LABEL, REGULAR_OPEN, 
 from app.engine import decision_schedule as dsched
 from app.engine.decision_schedule import ScheduleConfig
 from app.engine.engine import TradingEngine
+from app.engine.events import SYSTEM
 from app.engine.maintenance import run_maintenance
 from app.reports.daily import build_daily_report
 
@@ -58,6 +59,7 @@ REFRESH_AFTER = timedelta(minutes=30)
 EXT_CUTOFF = timedelta(minutes=10)  # 장외 세션 판단은 세션 끝 10분 전까지 (정규장 주문 마감과 같은 역할)
 DEFAULT_EXT_INTERVAL = 60  # 기본 일정이 '하루 2회 모드'(간격 0)일 때 장외 세션 판단 주기
 DECISIONS = ("morning", "hourly")
+RECOVER_WITHIN = timedelta(minutes=30)  # 이 안에 재시작으로 끊긴 판단은 기동 뒤 한 번 다시
 TZ_LABEL = {"KR": "한국 시각", "US": "미국 동부 시각"}
 
 
@@ -379,6 +381,16 @@ class Scheduler:
                 self._tasks.add(t)
                 t.add_done_callback(self._tasks.discard)
         return ran
+
+    def recover(self, interrupted: list[tuple[int, str, datetime]]) -> bool:
+        """기동 때: 최근(RECOVER_WITHIN) 정시·장전 판단이 재시작으로 끊겼으면 한 번 다시 판단한다 (배포가 판단과 겹친 경우).
+        다시 돌리면 True."""
+        now = self.engine.clock.now()
+        if not any(t in DECISIONS and now - at <= RECOVER_WITHIN for _id, t, at in interrupted):
+            return False
+        self.engine.hub.chat(SYSTEM, "text", "🔁 재시작으로 끊긴 판단을 지금 다시 할게요.")
+        self._spawn(self._guarded("hourly", self._job("hourly"))())
+        return True
 
     def _spawn(self, coro: Awaitable[Any]) -> None:
         t: asyncio.Task[Any] = asyncio.ensure_future(coro)

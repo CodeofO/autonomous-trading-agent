@@ -123,12 +123,14 @@ async def _start_kr(c: Container, settings: Settings) -> asyncio.Task[None] | No
     except Exception:
         log.exception("초기 시세 동기화 실패")
     await c.scheduler.maintenance()  # 하루 한 번 정리를 기동 때도 한 번 (실패해도 기동은 계속)
+    interrupted = c.runner.mark_interrupted()  # 재시작으로 끊긴 세션 정리
     _start_lab(c)
     if settings.is_live:
         await _check_live_account(c)
     if not settings.enable_scheduler:
         return None
     c.scheduler.start()
+    c.scheduler.recover(interrupted)  # 배포·재시작이 판단 시각과 겹쳐 끊긴 판단은 한 번 다시
     account = "🔴 토스증권 실계좌(실거래)" if settings.is_live else "모의투자 계좌"
     boot = (
         f"🟢 시스템 기동 — 주문: {account}, 시세: 토스증권 실시간, "
@@ -149,12 +151,14 @@ async def _start_us(u: Container) -> asyncio.Task[None] | None:
     except Exception:
         log.exception("미장 초기 시세 동기화 실패")
     await u.scheduler.maintenance()
+    interrupted = u.runner.mark_interrupted()
     _start_lab(u)
     if s.us_is_live:
         await _check_live_account(u)
     if not s.enable_scheduler:
         return None
     u.scheduler.start()
+    u.scheduler.recover(interrupted)
     model = u.runner.llm.model if u.runner.llm else "미설정(규칙 기반)"
     nxt = u.scheduler.next_runs(1)
     when = f", 다음 일정 {nxt[0]['at'][5:16].replace('T', ' ')} KST" if nxt else ""
@@ -173,6 +177,8 @@ def _start_lab(c: Container) -> None:
         return
     try:
         c.lab.ensure()
+        for st in c.lab.stacks.values():  # 시나리오도 끊긴 세션은 정리만 (다음 차례에 다시 돈다)
+            st.runner.mark_interrupted()
         if c.lab.stacks:
             log.info("전략 시나리오(%s): %s", c.code, ", ".join(c.lab.stacks))
     except Exception:

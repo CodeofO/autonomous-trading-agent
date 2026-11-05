@@ -7,12 +7,18 @@
 
 새 전략은 아래 STYLES 에 한 항목을 더하면 된다 (id 는 영문 소문자, 시나리오 DB 파일 이름에 쓰인다).
 글은 각 투자자가 책·주주서한에서 공개적으로 밝힌 원칙을 요약한 것이며, 숫자 기준은 매니저가 판단할 때 쓰는 목표치다.
+
+전략별 리스크 기본값 (D-64): 장기 투자 전략(린치·버핏·그레이엄)은 손절·익절 폭을 넓히고 최소 보유 기간을 두고,
+모멘텀은 손절을 짧게 잡는다. 금액 한도(1회 주문 금액)는 시장 설정 그대로 두고 비율·개수·기간만 바꾼다.
+이 값은 이 프로젝트가 정한 출발점(투자자 본인이 정한 숫자가 아님)이며 리스크 화면에서 바꿀 수 있다.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
+
+from app.risk.rules import RiskConfig
 
 DEFAULT_ID = "default"
 
@@ -35,6 +41,13 @@ class Style:
     summary: str  # 한 줄 설명
     principles: str  # 판단 원칙 (시장 공통)
     tags: tuple[str, ...] = ()
+    # 리스크 기본값 (RiskConfig 필드 → 값). 비어 있으면 앱 기본값. 금액 한도는 넣지 않는다
+    risk: dict[str, Any] = field(default_factory=dict)
+
+    def risk_config(self, base: RiskConfig | None = None) -> RiskConfig:
+        """이 전략의 리스크 기본값. base(지금 설정)의 1회 주문 금액만 이어받고 나머지는 앱 기본값 + 전략 값."""
+        amount = {"max_order_amount": base.max_order_amount} if base is not None else {}
+        return RiskConfig(**{**RiskConfig().model_dump(), **amount, **self.risk})
 
     def policy(self, us: bool) -> str:
         market = "미국 주식·ETF 모의계좌(달러)" if us else "국내 주식 계좌"
@@ -52,6 +65,7 @@ class Style:
             "summary": self.summary,
             "tags": list(self.tags),
             "policy": None if self.id == DEFAULT_ID else self.policy(us),
+            "risk": {k: v for k, v in self.risk_config().model_dump().items() if k != "max_order_amount"},
         }
 
 
@@ -74,6 +88,16 @@ STYLES: dict[str, Style] = {
             persona="린치",
             summary="이해하기 쉬운 사업 중 이익 성장에 비해 아직 싼 종목(GARP)",
             tags=("성장주", "가치"),
+            risk={
+                "max_position_weight": 0.15,
+                "daily_loss_limit": -0.05,
+                "stop_loss": -0.20,
+                "take_profit": 1.00,
+                "min_order_interval_minutes": 1440,
+                "max_positions": 12,
+                "min_cash_ratio": 0.05,
+                "min_hold_days": 30,
+            },
             principles="""\
 - 종목을 6가지 유형(저성장·대형 우량·고성장·경기순환·회생·자산주)으로 나누고, 유형마다 기대 수익과 매도 기준을 다르게 둔다.
 - 가격 대비 성장: PEG(PER ÷ 연 이익 성장률)가 1 이하인 종목을 선호하고 2 이상은 피한다. 이익이 연 15~25% 꾸준히 크는
@@ -90,6 +114,16 @@ STYLES: dict[str, Style] = {
             persona="버핏",
             summary="경제적 해자가 있는 훌륭한 회사를 적정 가격에 사서 오래 보유",
             tags=("가치주", "장기"),
+            risk={
+                "max_position_weight": 0.30,
+                "daily_loss_limit": -0.05,
+                "stop_loss": -0.30,
+                "take_profit": 3.00,
+                "min_order_interval_minutes": 1440,
+                "max_positions": 8,
+                "min_cash_ratio": 0.10,
+                "min_hold_days": 90,
+            },
             principles="""\
 - 이해할 수 있는 사업만 산다. 오래가는 경쟁 우위(경제적 해자: 브랜드·네트워크·전환 비용·원가 우위)가 있는지 먼저 본다.
 - 수익성과 재무: 자기자본이익률(ROE)이 여러 해 15% 안팎 이상으로 꾸준하고, 이익률이 높고, 부채가 적고,
@@ -106,6 +140,16 @@ STYLES: dict[str, Style] = {
             persona="그레이엄",
             summary="숫자로 확인되는 깊은 저평가 종목을 넓게 분산 (안전마진)",
             tags=("가치주", "분산"),
+            risk={
+                "max_position_weight": 0.08,
+                "daily_loss_limit": -0.05,
+                "stop_loss": -0.25,
+                "take_profit": 0.50,
+                "min_order_interval_minutes": 1440,
+                "max_positions": 20,
+                "min_cash_ratio": 0.05,
+                "min_hold_days": 30,
+            },
             principles="""\
 - 이야기보다 숫자. 방어적 투자자 기준: PER 15 이하, PBR 1.5 이하(또는 PER×PBR 22.5 이하), 여러 해 흑자,
   배당을 꾸준히 준 이력, 유동비율이 높고 부채가 적은 회사.
@@ -121,6 +165,16 @@ STYLES: dict[str, Style] = {
             persona="모멘텀",
             summary="시장이 오를 때 실적이 가속하는 주도주를 사고, 손실은 짧게 자른다",
             tags=("추세", "성장주"),
+            risk={
+                "max_position_weight": 0.15,
+                "daily_loss_limit": -0.03,
+                "stop_loss": -0.08,
+                "take_profit": 0.25,
+                "min_order_interval_minutes": 60,
+                "max_positions": 8,
+                "min_cash_ratio": 0.05,
+                "min_hold_days": 0,
+            },
             principles="""\
 - 시장 방향이 먼저: 지수(국장 코스피·코스닥, 미장 QQQ·SPY)가 상승 추세일 때만 새로 산다. 하락 추세면 현금 비중을 늘린다.
 - 이익·매출 증가가 빨라지는 업종 주도주를 고른다. 52주 신고가 근처에서 거래량이 늘며 오르는 종목을 선호한다.

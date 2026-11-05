@@ -6,6 +6,7 @@ import { SkeletonCards } from "../components/Skeleton";
 import { MARKET_META, useApi, useCurrency, useMarket } from "../market";
 import { toast } from "../ui/toast";
 import { ACTION_KO, fmtDateTime, fmtNum, money, price, STATUS_KO } from "../utils/format";
+import { riskText } from "../utils/risk";
 import "./lab.css";
 
 /** 판단 중이면 자주, 아니면 30초마다 (평가금은 장 밖에서도 움직인다) */
@@ -152,6 +153,7 @@ export function Lab() {
                       {s.id === d.main && <span className="pill">주 계좌</span>}
                     </b>
                     <small className="muted">{s.summary}</small>
+                    {s.risk && <small className="lab-risk">🛡️ {riskText(s.risk)}</small>}
                   </span>
                   <input
                     type="checkbox"
@@ -235,6 +237,7 @@ function RowCard({
               {r.runs ?? 0}회
             </small>
           </div>
+          {r.risk && <small className="lab-risk">🛡️ {r.risk.text}</small>}
           {(r.top_positions?.length ?? 0) > 0 && (
             <ul className="lab-top">
               {r.top_positions?.map((p) => (
@@ -372,6 +375,7 @@ function MainStrategy({ data }: { data: LabView }) {
     onSuccess: (d) => {
       qc.setQueryData(api.key("lab"), d);
       void qc.invalidateQueries({ queryKey: api.key("agent-structure") });
+      void qc.invalidateQueries({ queryKey: api.key("risk") });
       toast(`주 계좌 전략을 ${styleName(d, d.main)}(으)로 바꿨어요 — 다음 판단부터 적용돼요 ✓`);
     },
     onError: (e) => toast.error(`바꾸지 못했어요: ${errorText(e)}`),
@@ -381,7 +385,8 @@ function MainStrategy({ data }: { data: LabView }) {
     <section className="card" aria-labelledby="lab-main">
       <h2 id="lab-main">🎯 주 계좌 전략</h2>
       <p className="muted">
-        주 계좌 매니저가 따를 전략이에요. 시나리오 비교를 보고 가장 마음에 드는 전략을 여기서 고르세요.
+        주 계좌 매니저가 따를 전략이에요. 시나리오 비교를 보고 가장 마음에 드는 전략을 여기서 고르세요. 판단
+        원칙과 함께 리스크 한도(손절·익절·최소 보유 기간 등)도 전략마다 달라요.
       </p>
       <div className="lab-main-pick" role="radiogroup" aria-label="주 계좌 전략">
         {data.styles.map((s) => (
@@ -399,6 +404,16 @@ function MainStrategy({ data }: { data: LabView }) {
           </label>
         ))}
       </div>
+      {dirty && (
+        <p className="muted lab-main-risk">
+          🛡️ 리스크 한도도 이 전략 것으로 바뀌어요
+          {(() => {
+            const r = data.styles.find((x) => x.id === pick)?.risk;
+            return r ? `: ${riskText(r)}` : "";
+          })()}
+          . 전에 이 전략으로 운용하며 고쳐 둔 한도가 있으면 그 값을 써요.
+        </p>
+      )}
       {data.live && dirty && (
         <p className="error">
           🔴 주 계좌가 실거래 계좌예요 — 적용하면 다음 판단부터 이 전략으로 실제 주문이 나가요.

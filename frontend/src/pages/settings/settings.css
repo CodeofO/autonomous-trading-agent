@@ -312,3 +312,19 @@ label.toggle.ext-toggle {
   margin: 8px 0 0;
   font-size: 12.5px;
 }
+
+/* 리스크 한도: 따르는 전략 (D-64) */
+.risk-strategy {
+  margin: 8px 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel-2);
+  font-size: 13px;
+}
+.risk-strategy p {
+  margin: 0;
+}
+.risk-strategy p + p {
+  margin-top: 4px;
+}

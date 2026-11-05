@@ -10,7 +10,22 @@ export const RISK_FIELDS: { key: keyof RiskConfig; label: string; pct?: boolean;
   { key: "min_order_interval_minutes", label: "같은 종목 최소 매수 간격(분, 매도 제외)", hint: "예: 60" },
   { key: "max_positions", label: "최대 보유 종목 수", hint: "예: 10" },
   { key: "min_cash_ratio", label: "최소 현금 비중", pct: true, hint: "예: 5" },
+  { key: "min_hold_days", label: "매수 후 최소 보유 일수 (손절·익절 예외)", hint: "0 = 제한 없음" },
 ];
+
+/** 전략 리스크 기본값 한 줄 (전략 실험실·리스크 화면) */
+export function riskText(r: Partial<RiskConfig> | undefined): string {
+  if (!r) return "";
+  const pct = (v: number | undefined) => (v == null ? "—" : `${Math.round(v * 100)}%`);
+  const parts = [
+    `손절 ${pct(r.stop_loss)}`,
+    `익절 +${pct(r.take_profit)}`,
+    r.min_hold_days ? `최소 보유 ${r.min_hold_days}일` : "보유 기간 제한 없음",
+    `종목당 ${pct(r.max_position_weight)}`,
+    `최대 ${r.max_positions ?? "—"}종목`,
+  ];
+  return parts.join(" · ");
+}
 
 export function validateRisk(v: Record<string, number>): string | null {
   if (!(v.max_position_weight > 0 && v.max_position_weight <= 100))
@@ -23,6 +38,11 @@ export function validateRisk(v: Record<string, number>): string | null {
   if (!(v.max_positions >= 1 && Number.isInteger(v.max_positions)))
     return "최대 보유 종목 수는 1 이상의 정수여야 해요";
   if (!(v.min_cash_ratio >= 0 && v.min_cash_ratio < 100)) return "최소 현금 비중은 0~100% 사이여야 해요";
+  if (
+    v.min_hold_days != null &&
+    !(v.min_hold_days >= 0 && v.min_hold_days <= 730 && Number.isInteger(v.min_hold_days))
+  )
+    return "최소 보유 일수는 0~730 사이의 정수여야 해요";
   return null;
 }
 

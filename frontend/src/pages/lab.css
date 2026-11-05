@@ -206,3 +206,11 @@
   background: rgba(240, 68, 82, 0.12);
   color: var(--up);
 }
+.lab-risk {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.lab-main-risk {
+  margin: 4px 0 8px;
+  font-size: 13px;
+}

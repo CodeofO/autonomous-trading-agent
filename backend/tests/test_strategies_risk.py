@@ -195,3 +195,27 @@ def test_min_cash_ratio() -> None:
     )
     d = rm.check(buy(1000), _ctx(equity=1_000_000))  # 현금 50% 유지 → 500,000/10,500 = 47주
     assert d.quantity == 47
+
+
+def test_min_hold_days_blocks_early_sells_but_not_stop_loss() -> None:
+    """최소 보유 기간 (D-64): 그 전에는 매도 금지, 손절·익절(리스크 엔진 매도)과 매수 날짜를 모르는 종목은 예외."""
+    rm = RiskManager(RiskConfig(min_hold_days=30, stop_loss=-0.2, take_profit=1.0), MarketCalendar())
+    opened = OPEN_T.date() - timedelta(days=10)
+    held = Position("AAA", "AAA", 10, 10_000, 9_000, None, opened)
+    sell = OrderIntent("AAA", "SELL", 10, 9_000)
+    d = rm.check(sell, _ctx(positions=[held]))
+    assert (
+        not d.allowed
+        and d.rule == "min_hold"
+        and "30일 보유 원칙" in d.reasons[0]
+        and "10일째" in d.reasons[0]
+    )
+    assert rm.check(OrderIntent("AAA", "SELL", 10, 9_000, forced=True), _ctx(positions=[held])).allowed
+    late = Position("AAA", "AAA", 10, 10_000, 9_000, None, OPEN_T.date() - timedelta(days=30))
+    assert rm.check(sell, _ctx(positions=[late])).allowed
+    unknown = Position("AAA", "AAA", 10, 10_000, 9_000, None, None)
+    assert rm.check(sell, _ctx(positions=[unknown])).allowed
+    # 손절로 나가는 매도는 forced 로 만들어진다
+    crash = Position("AAA", "AAA", 10, 10_000, 7_900, None, opened)
+    exits = rm.exit_intents([crash])
+    assert exits and exits[0].forced and rm.check(exits[0], _ctx(positions=[crash])).allowed

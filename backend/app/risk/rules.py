@@ -27,6 +27,12 @@ class RiskConfig(BaseModel):
     )
     max_positions: int = Field(10, ge=1, le=100, description="최대 보유 종목 수")
     min_cash_ratio: float = Field(0.05, ge=0, lt=1, description="최소 현금 비중")
+    min_hold_days: int = Field(
+        0,
+        ge=0,
+        le=730,
+        description="매수 후 최소 보유 일수(달력 기준) — 그 전에는 매도 금지, 손절·익절은 예외 (D-64)",
+    )
     allow_new_buys: bool = True
 
 
@@ -37,6 +43,7 @@ class OrderIntent:
     quantity: int
     ref_price: float
     reason: str = ""
+    forced: bool = False  # 손절·익절처럼 리스크 엔진이 낸 매도 — 최소 보유 기간을 따지지 않는다
 
 
 @dataclass
@@ -98,6 +105,13 @@ class RiskManager:
             pos = held.get(it.symbol)
             if pos is None or pos.quantity <= 0:
                 return block("no_position", "보유하지 않은 종목은 매도할 수 없습니다")
+            if c.min_hold_days > 0 and not it.forced and pos.opened_day is not None:
+                held_days = (self.cal.local_date(ctx.now) - pos.opened_day).days
+                if held_days < c.min_hold_days:
+                    return block(
+                        "min_hold",
+                        f"매수 후 {c.min_hold_days}일 보유 원칙 — {held_days}일째라 아직 팔지 않아요 (손절·익절은 예외)",
+                    )
             if qty > pos.quantity:
                 notes.append(f"보유 수량 {pos.quantity}주로 축소")
                 qty = pos.quantity
@@ -153,6 +167,7 @@ class RiskManager:
                         p.quantity,
                         p.last_price,
                         f"손절 {p.pnl_pct:.2%} ≤ {self.config.stop_loss:.0%}",
+                        forced=True,
                     )
                 )
             elif p.pnl_pct >= self.config.take_profit:
@@ -163,6 +178,7 @@ class RiskManager:
                         p.quantity,
                         p.last_price,
                         f"익절 {p.pnl_pct:.2%} ≥ {self.config.take_profit:.0%}",
+                        forced=True,
                     )
                 )
         return out

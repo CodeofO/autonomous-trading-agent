@@ -193,3 +193,51 @@ def test_scenario_db_path_and_file_migration(tmp_path: Path) -> None:
     # 다시 켜도(재시작) 켠 시나리오는 그대로 준비된다
     with TestClient(create_app(s, toss_client=FakeTossClient(clock), clock=clock)) as c:
         assert set(c.app.state.container.lab.stacks) == {"buffett"}  # type: ignore[attr-defined]
+
+
+def test_strategy_has_its_own_risk_limits(tmp_path: Path) -> None:
+    """리스크 한도도 전략마다 (D-64): 바꾸면 그 전략 한도로, 고쳐 둔 한도는 전략별로 기억, 금액 한도는 그대로."""
+    c = make_container(tmp_path, at(D, 10))
+    default = c.engine.risk.config
+    c.lab.set_main("buffett")
+    r = c.engine.risk.config
+    assert (r.stop_loss, r.take_profit, r.min_hold_days, r.max_positions) == (-0.30, 3.0, 90, 8)
+    assert r.max_order_amount == default.max_order_amount
+    assert "최소 보유 90일" in _last_chat(c)
+    c.engine.set_risk_config(r.model_copy(update={"stop_loss": -0.25}))  # 버핏으로 운용하며 고친 값
+    c.lab.set_main("default")
+    assert c.engine.risk.config == default  # 기본 매니저로 돌아오면 원래 한도
+    c.lab.set_main("buffett")
+    assert c.engine.risk.config.stop_loss == -0.25  # 고쳐 둔 버핏 한도를 기억
+    assert c.lab.apply_preset().stop_loss == -0.30  # 전략 기본값으로 되돌리기
+
+
+async def test_scenarios_use_their_strategy_risk_preset(tmp_path: Path) -> None:
+    c = make_container(tmp_path, at(D, 10))
+    c.lab.set_enabled(["lynch", "momentum"])
+    lynch = c.lab.stacks["lynch"].engine.risk.config
+    momentum = c.lab.stacks["momentum"].engine.risk.config
+    assert (lynch.stop_loss, lynch.min_hold_days) == (-0.20, 30)
+    assert (momentum.stop_loss, momentum.min_hold_days) == (-0.08, 0)
+    assert lynch.max_order_amount == c.engine.risk.config.max_order_amount
+    rows = {r["id"]: r for r in (await c.lab.view())["rows"]}
+    assert "최소 보유 30일" in rows["lynch"]["risk"]["text"]
+    assert next(s for s in styles.catalog() if s["id"] == "buffett")["risk"]["min_hold_days"] == 90
+
+
+def test_risk_api_shows_strategy_preset(tmp_path: Path) -> None:
+    with _client(tmp_path, datetime(2026, 11, 4, 12, 0, tzinfo=KST), auth_enabled=False) as c:
+        r = c.get("/api/risk").json()
+        assert r["strategy"]["id"] == "default" and r["custom"] is False
+        c.put("/api/lab/main", json={"id": "lynch"})
+        r = c.get("/api/risk").json()
+        assert (
+            r["strategy"]["name"] == "피터 린치"
+            and r["config"]["min_hold_days"] == 30
+            and r["custom"] is False
+        )
+        changed = {**r["config"], "stop_loss": -0.1}
+        assert c.put("/api/risk", json=changed).json()["custom"] is True
+        back = c.post("/api/risk/preset").json()
+        assert back["config"]["stop_loss"] == -0.2 and back["custom"] is False
+        assert c.get("/api/us/risk").json()["config"]["max_order_amount"] == 1500  # 미장은 따로

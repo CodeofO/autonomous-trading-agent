@@ -295,3 +295,35 @@ def test_us_schedule_independent_from_kr(tmp_path: Path) -> None:
         assert c.get("/api/schedule").json()["custom"] is True  # 국장은 그대로
         assert c.delete("/api/schedule").json()["custom"] is False
         assert c.get("/api/agent/structure").json()["schedule"]["morning"] == "08:35"
+
+
+async def test_runs_cut_by_a_restart_are_closed_and_recent_decision_reruns(tmp_path: Path) -> None:
+    """재시작이 판단 시각과 겹치면 세션이 '진행 중'으로 남는다 → 기동 때 실패로 정리하고, 30분 안이면 한 번 다시 판단."""
+    from datetime import timedelta
+
+    from app.db.models import AgentRun
+    from tests.helpers import make_container
+
+    c = make_container(tmp_path, kst(2026, 11, 5, 11, 1))
+    with c.db.session() as s:
+        s.add(
+            AgentRun(trigger="hourly", mode="llm-tools", status="RUNNING", started_at=kst(2026, 11, 5, 11, 0))
+        )
+        s.add(AgentRun(trigger="manual", mode="llm-tools", status="DONE", started_at=kst(2026, 11, 5, 10, 0)))
+    cut = c.runner.mark_interrupted()
+    assert [(i, t) for i, t, _ in cut] == [(1, "hourly")]
+    with c.db.session() as s:
+        r = s.get(AgentRun, 1)
+        assert r is not None and r.status == "FAILED" and r.error == "서버 재시작으로 중단됨"
+        assert s.get(AgentRun, 2).status == "DONE"  # type: ignore[union-attr]
+    assert c.runner.mark_interrupted() == []  # 두 번 정리하지 않는다
+
+    calls: list[str] = []
+    c.engine.hourly = _stub(calls, "hourly")
+    assert c.scheduler.recover(cut) is True
+    for t in list(c.scheduler._tasks):
+        await t
+    assert calls == ["hourly"]
+    old = [(9, "hourly", kst(2026, 11, 5, 11, 1) - timedelta(hours=2))]
+    assert c.scheduler.recover(old) is False  # 오래전 것은 다시 돌리지 않는다
+    assert c.scheduler.recover([(9, "manual", kst(2026, 11, 5, 11, 0))]) is False  # 수동 실행도

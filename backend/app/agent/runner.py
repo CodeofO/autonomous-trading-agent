@@ -698,6 +698,28 @@ class AgentRunner:
         self.hub.chat(USER, "text", question[:1000])
         await self._drain_replies()
 
+    INTERRUPTED = "서버 재시작으로 중단됨"
+
+    def mark_interrupted(self) -> list[tuple[int, str, datetime]]:
+        """기동 때: 지난 프로세스에서 '진행 중'으로 남은 세션(재시작으로 끊김)을 실패로 정리한다.
+
+        한 프로세스 안에서만 세션이 도므로, 기동 직후 RUNNING 인 세션은 모두 끊긴 것이다. (id, 종류, 시작 시각) 목록.
+        """
+        now = self.clock.now()
+        with self.db.session() as s:
+            rows = list(s.scalars(select(AgentRun).where(AgentRun.status == "RUNNING")))
+            out = []
+            for r in rows:
+                r.status, r.error, r.finished_at = "FAILED", self.INTERRUPTED, now
+                started = r.started_at if r.started_at.tzinfo else r.started_at.replace(tzinfo=UTC)
+                out.append((r.id, r.trigger, started))
+        for run_id, _trigger, _at in out:
+            self.hub.audit("AGENT_RUN", f"세션 #{run_id} FAILED", None, run_id=run_id, mode="interrupted")
+            self.hub.chat(
+                SYSTEM, "text", f"⚠️ 세션 #{run_id}이(가) 서버 재시작으로 중단됐어요.", run_id=run_id
+            )
+        return out
+
     async def resume_pending(self) -> None:
         """재시작으로 답을 못 받은 오늘 질문이 있으면 이어서 답한다 (대화는 하루 단위로 이어진다)."""
         await self._drain_replies()

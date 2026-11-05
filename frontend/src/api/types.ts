@@ -223,7 +223,27 @@ export interface RiskConfig {
   min_order_interval_minutes: number;
   max_positions: number;
   min_cash_ratio: number;
+  /** 매수 후 최소 보유 일수 — 그 전에는 매도 금지 (손절·익절 예외, D-64). 예전 서버에는 없다 */
+  min_hold_days?: number;
   allow_new_buys: boolean;
+}
+
+/** GET /api/risk — 지금 한도와 따르는 전략·그 전략 기본값 (D-64) */
+export interface RiskView {
+  config: RiskConfig;
+  strategy?: { id: string; name: string; emoji: string };
+  preset?: RiskConfig;
+  /** 전략 기본값과 다르게 고쳐 둔 상태 */
+  custom?: boolean;
+}
+
+export interface RiskSummary {
+  stop_loss: number;
+  take_profit: number;
+  min_hold_days: number;
+  max_position_weight: number;
+  max_positions: number;
+  text: string;
 }
 
 export interface AgentRun {
@@ -791,6 +811,8 @@ export interface LabStyle {
   tags: string[];
   /** 매니저 프롬프트에 들어가는 판단 원칙 (기본 매니저는 null — 설정 > 매니저의 투자 정책) */
   policy: string | null;
+  /** 이 전략의 리스크 기본값 (1회 주문 금액 제외, D-64) */
+  risk?: Omit<RiskConfig, "max_order_amount">;
 }
 
 export interface LabRow {
@@ -814,6 +836,8 @@ export interface LabRow {
   since?: string | null;
   last_run?: { id: number; at: string | null; status: string; summary: string } | null;
   running: boolean;
+  /** 이 계좌가 지금 쓰는 리스크 한도 (D-64) */
+  risk?: RiskSummary;
   /** 계좌를 읽지 못했을 때 */
   error?: string;
 }
