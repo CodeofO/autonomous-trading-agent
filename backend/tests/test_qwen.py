@@ -41,6 +41,13 @@ def test_tiered_prices() -> None:
     assert price_tokens(flash, day, input=300_000, cache_read=0, output=0) == pytest.approx(
         300_000 * 0.20 / 1e6
     )
+    # 캐시 적중은 자동 캐시 단가 (모델 페이지 'Input (Implicit Cache)')
+    assert price_tokens(
+        CATALOG["qwen3.8-flash"], day, input=5345, cache_read=3072, output=530
+    ) == pytest.approx(((5345 - 3072) * 0.15 + 3072 * 0.016 + 530 * 0.47) / 1e6)
+    assert price_tokens(flash, day, input=40_000, cache_read=30_000, output=0) == pytest.approx(
+        (10_000 * 0.10 + 30_000 * 0.02) / 1e6
+    )
     row = next(r for r in price_list(day) if r["id"] == "qwen3.7-flash")
     assert [t["from"] for t in row["tiers"]] == [32_000, 256_000] and row["cache_write"] is None
 

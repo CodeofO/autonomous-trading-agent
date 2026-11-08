@@ -123,29 +123,32 @@ MODELS: tuple[ModelPrice, ...] = (
     ModelPrice(
         "gemini-3.5-flash-lite", "google", "Gemini 3.5 Flash-Lite", "경량", (Price(0.30, 0.03, 2.50),)
     ),
-    # Qwen Cloud (D-73): 국제(싱가포르) 정가, 생각 모드 출력도 같은 값. 캐시 적중 단가는 공식 표에 숫자가 없어
-    # 입력 단가로 둔다(실제보다 조금 비싸게 셀 수 있음).
-    # https://docs.qwencloud.com/developer-guides/getting-started/model-prices (2026-11-09 확인)
-    ModelPrice("qwen3.8-max", "qwen", "Qwen3.8 Max", "최상위", (Price(2, 2, 6),)),
-    ModelPrice("qwen3.7-max", "qwen", "Qwen3.7 Max", "최상위", (Price(2.5, 2.5, 7.5),)),
+    # Qwen Cloud (D-73): 국제(싱가포르) 가격, 생각 모드 출력도 같은 값. 캐시 적중은 자동(암묵) 캐시 단가 —
+    # 모델 페이지(https://www.qwencloud.com/models/<id>)의 'Input (Implicit Cache)' 값 (2026-11-09 확인).
+    # 3.8 계열은 입력의 20% 가 아니다(공식 context-cache 문서). 표에 없는 3.7 구간은 문서 규칙(입력의 20%)으로 둔다.
+    # https://docs.qwencloud.com/developer-guides/getting-started/model-prices
+    # https://docs.qwencloud.com/developer-guides/text-generation/context-cache
+    ModelPrice("qwen3.8-max", "qwen", "Qwen3.8 Max", "최상위", (Price(2, 0.25, 6),)),
+    ModelPrice("qwen3.7-max", "qwen", "Qwen3.7 Max", "최상위", (Price(2.5, 0.5, 7.5),)),
     ModelPrice(
         "qwen3.7-plus",
         "qwen",
         "Qwen3.7 Plus",
         "주력",
-        (Price(0.4, 0.4, 1.6),),
+        # 한시 20% 할인가(정가 0.4 / 0.08 / 1.6, 장문 1.2 / 4.8) — 할인이 끝나면 정가로 되돌린다
+        (Price(0.32, 0.064, 1.28),),
         long_from=256_000,
-        long=Price(1.2, 1.2, 4.8),
-        note="입력 25.6만 토큰 초과 호출은 장문 요금",
+        long=Price(0.96, 0.192, 3.84),
+        note="한시 20% 할인가 · 입력 25.6만 토큰 초과 호출은 장문 요금",
     ),
-    ModelPrice("qwen3.8-flash", "qwen", "Qwen3.8 Flash", "경량", (Price(0.15, 0.15, 0.47),)),
+    ModelPrice("qwen3.8-flash", "qwen", "Qwen3.8 Flash", "경량", (Price(0.15, 0.016, 0.47),)),
     ModelPrice(
         "qwen3.7-flash",
         "qwen",
         "Qwen3.7 Flash",
         "경량",
-        (Price(0.03, 0.03, 0.13),),
-        tiers=((32_000, Price(0.10, 0.10, 0.40)), (256_000, Price(0.20, 0.20, 0.80))),
+        (Price(0.03, 0.006, 0.13),),
+        tiers=((32_000, Price(0.10, 0.02, 0.40)), (256_000, Price(0.20, 0.04, 0.80))),
         note="입력 3.2만·25.6만 토큰 초과 호출은 구간 요금",
     ),
 )
