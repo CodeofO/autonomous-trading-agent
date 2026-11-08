@@ -85,6 +85,9 @@ class Settings(BaseSettings):
     # 비우면 그 제공사는 LLM_* 키가 그 제공사일 때만 쓸 수 있다
     openai_api_key: SecretStr | None = None
     openrouter_api_key: SecretStr | None = None
+    # Qwen Cloud (D-73): 키는 지역마다 따로 — 키를 만든 지역을 QWEN_REGION 에 (기본 싱가포르)
+    qwen_api_key: SecretStr | None = None
+    qwen_region: str = "ap-southeast-1"
 
     # --- 요금 장부 공식 대조 (D-66) -------------------------------------------
     # OpenAI 조직 Usage·Costs API 는 Admin 키로만 조회된다. 비우면 대조하지 않는다 (LLM 호출에는 쓰지 않는다)
@@ -260,6 +263,7 @@ class Settings(BaseSettings):
             self.openai_admin_key,
             self.openai_api_key,
             self.openrouter_api_key,
+            self.qwen_api_key,
         ):
             if _filled(s):
                 assert s is not None

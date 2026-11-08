@@ -109,6 +109,9 @@ function PriceNotes({ p, price }: { p: LlmPrice; price: (usd: number) => string 
     notes.push(
       `입력 ${fmtTokens(p.long_from)} 초과 호출은 입력 ${price(p.long.input)} · 출력 ${price(p.long.output)}`,
     );
+  for (const t of p.tiers ?? []) {
+    notes.push(`입력 ${fmtTokens(t.from)} 초과 호출은 입력 ${price(t.input)} · 출력 ${price(t.output)}`);
+  }
   if (p.next) {
     const [, m, d] = p.next.since.split("-").map(Number);
     notes.push(`${m}월 ${d}일부터 입력 ${price(p.next.input)} · 출력 ${price(p.next.output)}`);

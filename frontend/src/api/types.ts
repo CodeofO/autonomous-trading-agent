@@ -125,7 +125,7 @@ export interface LlmPaidProfileInfo extends LlmProfileInfo {
   /** 마지막으로 목록을 받다 난 오류 */
   models_error?: string | null;
   /** 제공사별 키가 .env 에 있는지 (D-71) — 키 값은 오지 않는다 */
-  providers?: Partial<Record<"openai" | "google" | "openrouter", boolean>>;
+  providers?: Partial<Record<"openai" | "google" | "openrouter" | "qwen", boolean>>;
   /** 등록한 OpenRouter 모델 id (D-71) */
   openrouter_registered?: string[];
 }
@@ -465,7 +465,7 @@ export interface MarketIndicators {
 
 // LLM 요금 장부 (GET /api/llm/costs?months=12&month=YYYY-MM, D-66) — 호출마다 모델·토큰·실제 요금
 /** 직접 연결 단가표 제공사 (Anthropic 은 쓰지 않는다) */
-export type LlmProvider = "openai" | "google";
+export type LlmProvider = "openai" | "google" | "qwen";
 /** 요금을 매기는 곳: local 자체 서버(무료) · gateway 알 수 없는 유료 주소 · "" 모름 */
 export type LlmBillingProvider = LlmProvider | "openrouter" | "local" | "gateway" | "";
 /** 요금 출처: 제공사 보고 · 공식 단가 계산 · 무료 · 단가 모름 · 예전 기록 추정 */
@@ -541,13 +541,15 @@ export interface LlmPriceSet {
 /** 주요 모델 단가 한 줄 (오늘 적용 단가 · 장문 구간 · 예정된 변경) */
 export interface LlmPrice extends LlmPriceSet {
   id: string;
-  provider: "openai" | "google";
+  provider: "openai" | "google" | "qwen";
   name: string;
   tier: string;
   /** OpenAI 30분 캐시 쓰기 단가 (입력의 1.25배). 없으면 null */
   cache_write: number | null;
   long_from: number | null;
   long: LlmPriceSet | null;
+  /** 입력 구간이 셋 이상인 모델: 이 입력 토큰 수를 넘으면 이 단가 (오름차순) */
+  tiers?: (LlmPriceSet & { from: number })[];
   next: (LlmPriceSet & { since: string }) | null;
   note: string;
 }

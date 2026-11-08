@@ -651,3 +651,10 @@
 - 다우존스는 토스에 지수가 없어 DIA ETF 를 지표 띠·차트에 더했다(나스닥 = QQQ, S&P = SPY 와 같은 방식).
 - 자산은 국장·미장 각 스키마의 `equity_snapshots`(장중·장외 10분, 마감 때)에 있어, 날짜별 마지막 값을 지수 종가와 맞춰 보면 된다.
 
+### D-73 Qwen Cloud 를 유료 LLM 제공사로 (2026-11-09)
+- **연결**: OpenAI 호환 Chat Completions, 주소는 지역마다 `https://{region}.maas.qwencloudapi.com/compatible-mode/v1` (싱가포르 `ap-southeast-1` 기본, us-east-1·eu-central-1·ap-northeast-1·cn-hongkong·cn-beijing). 키는 지역마다 따로라 `.env` 에 `QWEN_API_KEY` 와 키를 만든 지역 `QWEN_REGION` 을 넣는다. 출처: docs.qwencloud.com getting-started/regions, administration/api-keys.
+- **모델 고르기**: D-71 의 (제공사, 모델) 고르기에 Qwen Cloud 묶음을 더했다. 공식 문서에 모델 목록 API 가 없어 가격표 모델만: qwen3.8-max · qwen3.7-max · qwen3.7-plus · qwen3.8-flash · qwen3.7-flash (일반 텍스트 모델은 모두 도구 호출 지원).
+- **도구 강제**: Qwen 은 생각 모드에서 특정 도구 강제(tool_choice 함수 지정)를 받지 않는다. 판단 마지막의 '결정 제출' 강제 호출에만 `enable_thinking: false` 를 보낸다(그 밖의 호출은 모델 기본값). 출처: text-generation/function-calling, api-reference/chat/openai-chat.
+- **요금**: 국제(싱가포르) 정가를 단가표에 넣었다(USD/100만 토큰, 생각 출력도 같은 값). 입력 구간이 셋인 모델을 위해 단가표에 구간(tiers)을 더했다(qwen3.7-flash: 3.2만·25.6만 초과). 캐시 적중 단가는 공식 표에 숫자가 없어 입력 단가로 센다(실제보다 조금 비쌀 수 있음). 응답 usage 의 `prompt_tokens_details.cached_tokens`, `completion_tokens_details.reasoning_tokens`(출력에 포함)를 장부에 남긴다.
+- **공식 대조**: 키로 조회하는 사용량·요금 API 가 문서에 없어 '공식 조회 없음'(Google 과 같다).
+

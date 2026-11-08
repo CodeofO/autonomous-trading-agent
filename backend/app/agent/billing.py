@@ -45,7 +45,7 @@ ROUTES = [
 TTL_SEC = 600.0  # 공식 기록은 10분 동안 다시 묻지 않는다
 MIN_REFRESH_SEC = 30.0
 MAX_PAGES = 6
-LABEL = {"openai": "OpenAI", "openrouter": "OpenRouter", "google": "Google"}
+LABEL = {"openai": "OpenAI", "openrouter": "OpenRouter", "google": "Google", "qwen": "Qwen Cloud"}
 
 _cache: dict[tuple[str, str], tuple[float, dict[str, Any]]] = {}
 
@@ -269,6 +269,22 @@ def google_report(db: Database, month: str, now: datetime) -> dict[str, Any]:
     }
 
 
+# ====================================================================== Qwen Cloud
+def qwen_report(db: Database, month: str, now: datetime) -> dict[str, Any]:
+    start, end = month_window(month)
+    led = ledger_window(db, "qwen", start, min(end, now.astimezone(UTC) + timedelta(seconds=1)))
+    return {
+        "provider": "qwen",
+        "label": LABEL["qwen"],
+        "status": "unsupported",
+        "note": (
+            "Qwen Cloud 공식 문서에 키로 조회하는 사용량·요금 API 가 없어요(콘솔 화면만). "
+            "장부는 응답의 토큰을 공식 단가(싱가포르 정가)로 계산한 값이에요."
+        ),
+        "ledger": led["total"],
+    }
+
+
 # ====================================================================== 묶어서
 async def official_report(
     db: Database,
@@ -286,7 +302,7 @@ async def official_report(
     client = http or SafeHttpClient(ROUTES, rate_per_sec=2, timeout=20, max_retries=1)
     out: list[dict[str, Any]] = []
     try:
-        for prov in ("openai", "openrouter", "google"):
+        for prov in ("openai", "openrouter", "google", "qwen"):
             ck = (prov, month)
             hit = _cache.get(ck)
             age = time.monotonic() - hit[0] if hit else None
@@ -298,8 +314,10 @@ async def official_report(
                     rep = await openai_report(db, admin, month, now, client)
                 elif prov == "openrouter":
                     rep = await openrouter_report(db, keys, now, client)
-                else:
+                elif prov == "google":
                     rep = google_report(db, month, now)
+                else:
+                    rep = qwen_report(db, month, now)
             except BillingError as e:
                 rep = {"provider": prov, "label": LABEL[prov], "status": "error", "note": str(e)}
             except Exception as e:  # 네트워크 등 — 키나 주소는 남기지 않는다

@@ -61,7 +61,7 @@ def test_lists_models_and_switches_within_provider(tmp_path: Path) -> None:
             "gpt-6.1-sol",
         )
         o = _opts(r)
-        assert len(o) == 8 and o["gpt-6.1-sol"]["selected"] and o["gpt-6.1-sol"]["available"]
+        assert len(o) == 13 and o["gpt-6.1-sol"]["selected"] and o["gpt-6.1-sol"]["available"]
         assert not any(m["provider"] == "anthropic" for m in o.values())
         assert (o["gpt-6.1-terra"]["input"], o["gpt-6.1-terra"]["output"]) == (1, 5)
         assert o["gemini-4-argon"]["available"] is False and "Google 키" in o["gemini-4-argon"]["reason"]

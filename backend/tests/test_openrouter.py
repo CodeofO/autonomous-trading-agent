@@ -162,7 +162,7 @@ def test_openrouter_models_are_registered_then_picked(tmp_path: Path) -> None:
         assert app.runner.llm.api == "chat"  # openrouter.ai → Chat Completions
         paid = _paid(c.get("/api/llm/profile").json())
         assert (paid["provider"], paid["provider_label"]) == ("openrouter", "OpenRouter")
-        assert paid["providers"] == {"openai": False, "google": False, "openrouter": True}
+        assert paid["providers"] == {"openai": False, "google": False, "openrouter": True, "qwen": False}
         assert paid["openrouter_registered"] == ["openai/gpt-6.1-sol"]  # .env 모델은 늘 등록돼 있다
         o = {m["id"]: m for m in paid["models"]}
         assert o["openai/gpt-6.1-sol"]["selected"] and o["openai/gpt-6.1-sol"]["provider"] == "openrouter"
@@ -216,7 +216,7 @@ def test_both_keys_switch_provider_in_the_app(tmp_path: Path) -> None:
     with _client(tmp_path, auth_enabled=False, **both) as c:
         app = c.app.state.container  # type: ignore[attr-defined]
         paid = _paid(c.get("/api/llm/profile").json())
-        assert paid["providers"] == {"openai": True, "google": False, "openrouter": True}
+        assert paid["providers"] == {"openai": True, "google": False, "openrouter": True, "qwen": False}
         assert app.runner.llm.provider == "openai" and app.runner.llm.api == "responses"
         assert (
             c.post("/api/llm/openrouter/registered", json={"id": "deepseek/deepseek-v9"}).status_code == 200

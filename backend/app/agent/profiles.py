@@ -99,6 +99,8 @@ def provider_keys(s: Settings) -> dict[str, str]:
         out["openai"] = _secret(s.openai_api_key)
     if _secret(s.openrouter_api_key):
         out["openrouter"] = _secret(s.openrouter_api_key)
+    if _secret(s.qwen_api_key):
+        out["qwen"] = _secret(s.qwen_api_key)
     prov, key = provider(s), _secret(s.llm_api_key)
     if prov in providers.SUPPORTED and key and s.llm_model:
         out.setdefault(prov, key)
@@ -109,6 +111,8 @@ def _base_url(s: Settings, prov: str | None) -> str:
     """제공사 공식 주소. LLM_* 가 그 제공사면 .env 주소를 그대로 (게이트웨이·지역 주소를 존중)."""
     if prov is None or prov == provider(s):
         return s.llm_paid_base_url
+    if prov == "qwen":
+        return providers.qwen_base_url(s.qwen_region)  # 키를 만든 지역 주소 (D-73)
     return providers.BASE_URL[prov]
 
 
@@ -148,7 +152,9 @@ def _usable(prov: str | None, model: str, s: Settings, kv: SettingsStore | None)
         return False, "LLM_BASE_URL 이 자체 서버·게이트웨이라 .env 의 LLM_MODEL 만 써요"
     keys = provider_keys(s)
     if prov not in keys:
-        env = {"openai": "OPENAI_API_KEY", "openrouter": "OPENROUTER_API_KEY"}.get(prov, "LLM_API_KEY")
+        env = {"openai": "OPENAI_API_KEY", "openrouter": "OPENROUTER_API_KEY", "qwen": "QWEN_API_KEY"}.get(
+            prov, "LLM_API_KEY"
+        )
         return False, f"{providers.LABEL.get(prov, prov)} 키가 .env 에 없어요 ({env})"
     if prov == "openrouter":
         if model not in registered(kv, s):
@@ -357,7 +363,7 @@ def info(
         provider_label=providers.LABEL.get(prov or ""),
         env_model=s.llm_model or None,
         # 제공사별 키가 있는지 (D-71) — 화면이 '키 있음/없음' 을 보여 준다. 키 값은 내보내지 않는다
-        providers={k: k in keys for k in ("openai", "google", "openrouter")},
+        providers={k: k in keys for k in ("openai", "google", "openrouter", "qwen")},
         models=model_options(kv, s, today or date.today()),
         openrouter_registered=registered(kv, s),
         # OpenRouter 목록 API 캐시 (등록 모델 가격·검색용, 메모리 6시간)

@@ -185,6 +185,7 @@ describe("유료 모델 고르기 — OpenAI·OpenRouter 키를 함께 (D-71)", 
     expect(keys).toHaveTextContent("OpenAI 키 있음");
     expect(keys).toHaveTextContent("OpenRouter 키 있음");
     expect(keys).toHaveTextContent("Google 키 없음");
+    expect(keys).toHaveTextContent("Qwen Cloud 키 없음 · .env QWEN_API_KEY"); // D-73
     expect(select).toHaveValue("openai|gpt-6.1-sol");
     const groups = Array.from(select.querySelectorAll("optgroup")).map((g) => g.label);
     expect(groups).toEqual(["OpenAI", "OpenRouter"]);

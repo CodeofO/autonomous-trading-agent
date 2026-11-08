@@ -40,6 +40,7 @@ SOURCES = {
     "openai": "https://developers.openai.com/api/docs/pricing",
     "google": "https://aistudio.google.com/docs/pricing",
     "openrouter": "https://openrouter.ai/docs/cookbook/administration/usage-accounting",
+    "qwen": "https://docs.qwencloud.com/developer-guides/getting-started/model-prices",
 }
 
 
@@ -63,8 +64,13 @@ class ModelPrice:
     long_from: int | None = None  # 호출 1회 입력이 이 토큰 수를 넘으면 long 가격
     long: Price | None = None
     note: str = ""
+    # 입력 구간이 셋 이상인 모델 (Qwen 등): (이 입력 토큰 수를 넘으면, 그 가격) 오름차순 — long 보다 먼저 본다
+    tiers: tuple[tuple[int, Price], ...] = ()
 
     def at(self, day: date, input_tokens: int = 0) -> Price:
+        for from_, p in reversed(self.tiers):
+            if input_tokens > from_:
+                return p
         if self.long and self.long_from and input_tokens > self.long_from:
             return self.long
         cur = self.prices[0]
@@ -116,6 +122,31 @@ MODELS: tuple[ModelPrice, ...] = (
     ),
     ModelPrice(
         "gemini-3.5-flash-lite", "google", "Gemini 3.5 Flash-Lite", "경량", (Price(0.30, 0.03, 2.50),)
+    ),
+    # Qwen Cloud (D-73): 국제(싱가포르) 정가, 생각 모드 출력도 같은 값. 캐시 적중 단가는 공식 표에 숫자가 없어
+    # 입력 단가로 둔다(실제보다 조금 비싸게 셀 수 있음).
+    # https://docs.qwencloud.com/developer-guides/getting-started/model-prices (2026-11-09 확인)
+    ModelPrice("qwen3.8-max", "qwen", "Qwen3.8 Max", "최상위", (Price(2, 2, 6),)),
+    ModelPrice("qwen3.7-max", "qwen", "Qwen3.7 Max", "최상위", (Price(2.5, 2.5, 7.5),)),
+    ModelPrice(
+        "qwen3.7-plus",
+        "qwen",
+        "Qwen3.7 Plus",
+        "주력",
+        (Price(0.4, 0.4, 1.6),),
+        long_from=256_000,
+        long=Price(1.2, 1.2, 4.8),
+        note="입력 25.6만 토큰 초과 호출은 장문 요금",
+    ),
+    ModelPrice("qwen3.8-flash", "qwen", "Qwen3.8 Flash", "경량", (Price(0.15, 0.15, 0.47),)),
+    ModelPrice(
+        "qwen3.7-flash",
+        "qwen",
+        "Qwen3.7 Flash",
+        "경량",
+        (Price(0.03, 0.03, 0.13),),
+        tiers=((32_000, Price(0.10, 0.10, 0.40)), (256_000, Price(0.20, 0.20, 0.80))),
+        note="입력 3.2만·25.6만 토큰 초과 호출은 구간 요금",
     ),
 )
 CATALOG = {m.id: m for m in MODELS}
@@ -271,6 +302,7 @@ def price_list(today: date) -> list[dict[str, Any]]:
                 "cache_write": round(p.input * x30, 6) if x30 else None,
                 "long_from": m.long_from,
                 "long": _price_dict(m.long) if m.long else None,
+                "tiers": [{"from": f, **_price_dict(tp)} for f, tp in m.tiers],
                 "next": {"since": nxt.since.isoformat(), **_price_dict(nxt)} if nxt and nxt.since else None,
                 "note": m.note,
             }

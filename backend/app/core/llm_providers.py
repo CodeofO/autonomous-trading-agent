@@ -17,12 +17,26 @@ from __future__ import annotations
 
 from urllib.parse import urlparse
 
-LABEL = {"openai": "OpenAI", "google": "Google", "openrouter": "OpenRouter"}
+LABEL = {"openai": "OpenAI", "google": "Google", "openrouter": "OpenRouter", "qwen": "Qwen Cloud"}
+# Qwen Cloud (D-73): 지역마다 주소·키가 따로다 — {region}.maas.qwencloudapi.com/compatible-mode/v1
+# (https://docs.qwencloud.com/developer-guides/getting-started/regions). maas.qwencloudapi.com = 싱가포르
+QWEN_REGIONS = ("ap-southeast-1", "us-east-1", "eu-central-1", "ap-northeast-1", "cn-hongkong", "cn-beijing")
+QWEN_HOST_SUFFIX = "maas.qwencloudapi.com"
+
+
+def qwen_base_url(region: str) -> str:
+    r = (region or "ap-southeast-1").strip()
+    if r not in QWEN_REGIONS:
+        raise ValueError(f"Qwen Cloud 지역이 이상해요: {r!r} ({', '.join(QWEN_REGIONS)})")
+    return f"https://{r}.{QWEN_HOST_SUFFIX}/compatible-mode/v1"
+
+
 # 주소를 비워 두면 쓰는 공식 주소 (OpenAI 호환 호출 방식)
 BASE_URL = {
     "openai": "https://api.openai.com/v1",
     "google": "https://generativelanguage.googleapis.com/v1beta/openai",
     "openrouter": "https://openrouter.ai/api/v1",
+    "qwen": "https://ap-southeast-1.maas.qwencloudapi.com/compatible-mode/v1",
 }
 HOSTS = {
     "api.openai.com": "openai",
@@ -35,7 +49,10 @@ SUPPORTED = frozenset(BASE_URL)
 def detect(base_url: str, api_key: str) -> str | None:
     base = (base_url or "").strip()
     if base:
-        return HOSTS.get((urlparse(base).hostname or "").lower())
+        host = (urlparse(base).hostname or "").lower()
+        if host == QWEN_HOST_SUFFIX or host.endswith("." + QWEN_HOST_SUFFIX):
+            return "qwen"
+        return HOSTS.get(host)
     key = (api_key or "").strip()
     if key.startswith("sk-ant-"):  # Anthropic 키 — 쓰지 않는 제공사 (sk- 라고 OpenAI 로 보지 않는다)
         return None

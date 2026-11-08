@@ -374,11 +374,16 @@ def test_costs_endpoint(tmp_path: Path) -> None:
         assert {"groups", "daily", "months", "month", "strategies", "usd_krw", "current_model"} <= set(body)
         assert body["strategies"]["lynch"]["name"] == "피터 린치"
         # 주요 모델 단가표 (비교용) — OpenAI·Google 만, Anthropic 없음
-        assert {p["provider"] for p in body["prices"]} == {"openai", "google"}
+        assert {p["provider"] for p in body["prices"]} == {"openai", "google", "qwen"}
         assert client.get("/api/llm/costs?month=2026-13").status_code == 422
         off = client.get("/api/llm/costs/official").json()
         status = {p["provider"]: p["status"] for p in off["providers"]}
-        assert status == {"openai": "no_key", "openrouter": "no_key", "google": "unsupported"}
+        assert status == {
+            "openai": "no_key",
+            "openrouter": "no_key",
+            "google": "unsupported",
+            "qwen": "unsupported",
+        }
 
 
 @respx.mock

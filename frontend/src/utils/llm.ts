@@ -24,6 +24,7 @@ export function llmChipText(llm: { configured: boolean; model: string | null; pr
 export const MODEL_GROUPS: { key: LlmModelOption["provider"]; label: string }[] = [
   { key: "openai", label: "OpenAI" },
   { key: "google", label: "Google" },
+  { key: "qwen", label: "Qwen Cloud" },
   { key: "openrouter", label: "OpenRouter" },
   { key: "env", label: ".env" },
 ];

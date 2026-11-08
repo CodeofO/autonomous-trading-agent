@@ -299,6 +299,10 @@ class LLMClient:
             if tools:
                 body["tools"] = tools
                 body["tool_choice"] = tool_choice or "auto"
+                # Qwen Cloud: 생각 모드에서는 특정 도구 강제를 받지 않는다 → 강제할 때만 생각을 끈다 (D-73,
+                # https://docs.qwencloud.com/developer-guides/text-generation/function-calling)
+                if self.provider == "qwen" and isinstance(tool_choice, dict):
+                    body["enable_thinking"] = False
             r = await self.http.request(
                 "POST",
                 f"{self.base_url}/chat/completions",

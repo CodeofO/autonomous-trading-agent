@@ -5,12 +5,14 @@ export const PROVIDERS: { id: LlmProvider | "openrouter"; label: string }[] = [
   { id: "openai", label: "OpenAI" },
   { id: "google", label: "Google" },
   { id: "openrouter", label: "OpenRouter" },
+  { id: "qwen", label: "Qwen Cloud" },
 ];
 
 const PROVIDER_KO: Record<string, string> = {
   openai: "OpenAI",
   google: "Google",
   openrouter: "OpenRouter",
+  qwen: "Qwen Cloud",
   local: "자체 서버",
   gateway: "기타 유료 주소",
   "": "모름",

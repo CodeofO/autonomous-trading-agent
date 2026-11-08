@@ -588,9 +588,10 @@ function CheckResult({ r }: { r: LlmTestCheck }) {
   );
 }
 
-const PROVIDER_ROWS: { key: "openai" | "openrouter" | "google"; label: string; env: string }[] = [
+const PROVIDER_ROWS: { key: "openai" | "openrouter" | "google" | "qwen"; label: string; env: string }[] = [
   { key: "openai", label: "OpenAI", env: "OPENAI_API_KEY" },
   { key: "openrouter", label: "OpenRouter", env: "OPENROUTER_API_KEY" },
+  { key: "qwen", label: "Qwen Cloud", env: "QWEN_API_KEY" },
   { key: "google", label: "Google", env: "LLM_API_KEY (Gemini)" },
 ];
 
