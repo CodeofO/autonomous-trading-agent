@@ -22,7 +22,7 @@ import {
   MONEY_FMT,
   signClass,
 } from "../utils/format";
-import { DAY_START, mergeFeed, OVERVIEW_KEY, timelinePos } from "../utils/overview";
+import { DAY_START, mergeFeed, OVERVIEW_KEY, timelinePos, timelineStart } from "../utils/overview";
 import "./overview.css";
 
 const ENGINE_KO: Record<string, string> = { RUNNING: "실행 중", PAUSED: "일시정지", KILLED: "정지(킬)" };
@@ -326,21 +326,31 @@ interface TimelineRow {
 function timelineRows(codes: MarketCode[], markets: MarketInfo[] | undefined, now: number): TimelineRow[] {
   return codes.map((code) => {
     const info = markets?.find((x) => x.code === code);
-    const s = info?.session;
+    // 시간표 칸(06:00 → 다음날 06:00) 시작 전에 끝난 장(한국 아침의 미장 '현지 오늘' = 지난밤 장)은
+    // 칸 밖이라 다음 장을 그린다. 다음 장도 칸 밖(주말·휴장)이면 막대 없이 휴장.
+    const from = timelineStart(now);
+    let s = info?.session ?? null;
+    if ((!s || Date.parse(s.close) <= from) && info?.next_session) s = info.next_session;
     const open = s ? Date.parse(s.open) : NaN;
     const close = s ? Date.parse(s.close) : NaN;
-    const ok = !!s && Number.isFinite(open) && Number.isFinite(close) && close > open;
+    const ok =
+      !!s &&
+      Number.isFinite(open) &&
+      Number.isFinite(close) &&
+      close > open &&
+      close > from &&
+      open < from + 86_400_000;
     const upcoming = ok && now < open;
     const note = !info
       ? ""
       : info.open_now
         ? "장중"
         : upcoming
-          ? `개장 ${untilText(open - now)}`
+          ? `${untilText(open - now)} 개장`
           : ok
             ? "마감"
             : `휴장${info.next_session_open ? ` · ${fmtWhen(info.next_session_open, now)} 개장` : ""}`;
-    if (!ok) return { code, info, bar: null, note };
+    if (!ok || !s) return { code, info, bar: null, note };
     // 미장은 자정을 넘긴다 (예: 23:30–06:00) — 06:00 에서 시작하는 시간표 안에 그대로 들어간다
     const left = timelinePos(open);
     const width = Math.min(((close - open) / 60_000 / 1440) * 100, 100 - left);

@@ -1,12 +1,12 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Route, Routes, useLocation } from "react-router-dom";
-import type { ChatMsg, Overview as OverviewData } from "../api/types";
+import type { ChatMsg, MarketInfo, Overview as OverviewData } from "../api/types";
 import { EventsProvider } from "../events";
 import { useMarket } from "../market";
 import { Overview } from "../pages/Overview";
 import { mergeFeed, timelinePos } from "../utils/overview";
-import { BOTH_MARKETS, mockFetch, renderWithProviders } from "./utils";
+import { BOTH_MARKETS, KR_MARKET, mockFetch, renderWithProviders, US_MARKET } from "./utils";
 
 class FakeWS {
   static OPEN = 1;
@@ -150,7 +150,7 @@ function Here() {
   return <span data-testid="here">{`${pathname} ${chosen} ${view}`}</span>;
 }
 
-function renderOverview(overview: unknown = OVERVIEW) {
+function renderOverview(overview: unknown = OVERVIEW, markets: MarketInfo[] = BOTH_MARKETS) {
   const fetchMock = mockFetch({
     "/api/overview": overview,
     "/api/us/chat": US_CHAT,
@@ -168,7 +168,7 @@ function renderOverview(overview: unknown = OVERVIEW) {
         <Route path="stock/:symbol" element={<Here />} />
       </Routes>
     </EventsProvider>,
-    { markets: BOTH_MARKETS, market: "ALL" },
+    { markets, market: "ALL" },
   );
   return { fetchMock, ...view };
 }
@@ -220,9 +220,53 @@ describe("한눈에 보기 (전체)", () => {
     expect(parseFloat(usBar.style.left)).toBeCloseTo(72.92, 1);
     expect(parseFloat(usBar.style.left) + parseFloat(usBar.style.width)).toBeCloseTo(100, 1);
     expect(usBar).toHaveClass("next"); // 22:21 지금은 개장 전
-    expect(screen.getByText("개장 1시간 9분 후")).toBeInTheDocument();
+    expect(screen.getByText("1시간 9분 후 개장")).toBeInTheDocument();
     expect(timelinePos(Date.parse("2026-11-04T22:21:00+09:00"))).toBeCloseTo(68.13, 1);
     expect(screen.getByTestId("ov-now")).toBeInTheDocument();
+  });
+
+  it("한국 아침: 미장 '현지 오늘'(지난밤 장)은 끝났으니 오늘 밤 장을 개장 전으로 그린다", async () => {
+    vi.setSystemTime(new Date("2026-11-10T08:31:00+09:00"));
+    const sess = (day: string, open: string, close: string) => ({ day, open, close, order_cutoff: close });
+    renderOverview(OVERVIEW, [
+      {
+        ...KR_MARKET,
+        open_now: false,
+        session: sess("2026-11-10", "2026-11-10T09:00:00+09:00", "2026-11-10T15:30:00+09:00"),
+        next_session: sess("2026-11-10", "2026-11-10T09:00:00+09:00", "2026-11-10T15:30:00+09:00"),
+      },
+      {
+        ...US_MARKET,
+        session: sess("2026-11-09", "2026-11-09T23:30:00+09:00", "2026-11-10T06:00:00+09:00"),
+        next_session: sess("2026-11-10", "2026-11-10T23:30:00+09:00", "2026-11-11T06:00:00+09:00"),
+        next_session_open: "2026-11-10T23:30:00+09:00",
+      },
+    ]);
+    const kr = screen.getByTestId("ov-tl-KR");
+    const us = screen.getByTestId("ov-tl-US");
+    expect(screen.getByText("29분 후 개장")).toBeInTheDocument();
+    expect(kr.querySelector(".ov-tl-bar")).toHaveClass("next");
+    const usBar = us.querySelector(".ov-tl-bar") as HTMLElement;
+    expect(usBar).toHaveClass("next");
+    expect(usBar).toHaveTextContent("23:30–06:00");
+    expect(screen.getByText("14시간 59분 후 개장")).toBeInTheDocument();
+    expect(screen.queryByText("마감")).not.toBeInTheDocument();
+  });
+
+  it("주말 아침: 다음 미장이 시간표 밖이면 막대 없이 휴장과 다음 개장", async () => {
+    vi.setSystemTime(new Date("2026-11-14T08:00:00+09:00"));
+    const sess = (day: string, open: string, close: string) => ({ day, open, close, order_cutoff: close });
+    renderOverview(OVERVIEW, [
+      {
+        ...US_MARKET,
+        session: sess("2026-11-13", "2026-11-13T23:30:00+09:00", "2026-11-14T06:00:00+09:00"),
+        next_session: sess("2026-11-16", "2026-11-16T23:30:00+09:00", "2026-11-17T06:00:00+09:00"),
+        next_session_open: "2026-11-16T23:30:00+09:00",
+      },
+    ]);
+    const us = screen.getByTestId("ov-tl-US");
+    expect(us.querySelector(".ov-tl-bar")).toBeNull();
+    expect(screen.getByText(/^휴장 · .*23:30 개장$/)).toBeInTheDocument();
   });
 
   it("두 시장 소식: 결정(유지 제외)·체결·세션 정리를 최신 순으로, 누르면 그 시장 트레이딩 룸", async () => {

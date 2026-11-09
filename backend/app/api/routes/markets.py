@@ -41,8 +41,21 @@ async def _usdkrw(c: Container) -> dict[str, Any]:
     return {"usdkrw": rate, "at": at}
 
 
+def _session_dict(s: Any) -> dict[str, str]:
+    return {
+        "day": s.day.isoformat(),
+        "open": s.open.astimezone(KST).isoformat(),
+        "close": s.close.astimezone(KST).isoformat(),
+        "order_cutoff": s.order_cutoff.astimezone(KST).isoformat(),
+    }
+
+
 def _session_info(c: Container) -> dict[str, Any]:
-    """오늘(현지 거래일) 정규장과 다음 정규장 시작 — 모두 한국 시각 ISO."""
+    """오늘(현지 거래일) 정규장과 다음 정규장 — 모두 한국 시각 ISO.
+
+    next_session: 지금 장중이면 다음 거래일 장, 아니면 아직 열리지 않은 가장 가까운 장. 미장은 한국 아침에
+    '현지 오늘'이 이미 끝난 전날 장이라, 화면 시간표(06:00→다음날 06:00)는 이 값으로 오늘 밤 장을 그린다.
+    """
     now = c.clock.now()
     s = c.cal.session(c.cal.local_date(now))
     nxt = c.cal.next_session(now)
@@ -50,14 +63,8 @@ def _session_info(c: Container) -> dict[str, Any]:
         nxt = c.cal.next_session(nxt.close + timedelta(minutes=1))
     return {
         "open_now": c.cal.is_market_open(now),
-        "session": {
-            "day": s.day.isoformat(),
-            "open": s.open.astimezone(KST).isoformat(),
-            "close": s.close.astimezone(KST).isoformat(),
-            "order_cutoff": s.order_cutoff.astimezone(KST).isoformat(),
-        }
-        if s is not None
-        else None,
+        "session": _session_dict(s) if s is not None else None,
+        "next_session": _session_dict(nxt),
         "next_session_open": nxt.open.astimezone(KST).isoformat(),
     }
 
@@ -88,7 +95,7 @@ def markets(request: Request, c: C, _: U) -> list[dict[str, Any]]:
         if st is not None:
             row.update(_session_info(st))
         else:
-            row.update(open_now=False, session=None, next_session_open=None)
+            row.update(open_now=False, session=None, next_session=None, next_session_open=None)
         out.append(row)
     return out
 

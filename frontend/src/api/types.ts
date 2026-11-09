@@ -709,6 +709,8 @@ export interface MarketInfo {
   engine_status: EngineStatus;
   open_now: boolean;
   session: MarketSession | null;
+  /** 아직 열리지 않은 가장 가까운 정규장 (장중이면 다음 거래일 장) */
+  next_session?: MarketSession | null;
   next_session_open: string | null;
 }
 

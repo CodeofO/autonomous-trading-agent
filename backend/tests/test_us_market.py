@@ -308,6 +308,14 @@ def test_markets_and_overview(tmp_path: Path) -> None:
             "order_cutoff": "2026-11-05T05:50:00+09:00",
         }
         assert us["next_session_open"] == "2026-11-05T23:30:00+09:00"
+        # 장중이면 다음 거래일 장 — 화면 시간표는 한국 아침에 끝난 장 대신 이것을 그린다
+        assert us["next_session"] == {
+            "day": "2026-11-05",
+            "open": "2026-11-05T23:30:00+09:00",
+            "close": "2026-11-06T06:00:00+09:00",
+            "order_cutoff": "2026-11-06T05:50:00+09:00",
+        }
+        assert ms["KR"]["next_session"]["open"] == "2026-11-05T09:00:00+09:00"
         assert ms["KR"]["open_now"] is False and ms["KR"]["next_session_open"] == "2026-11-05T09:00:00+09:00"
 
         c.post("/api/us/agent/run")

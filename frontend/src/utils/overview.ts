@@ -33,6 +33,12 @@ export const kstMinutes = (ms: number) => (((Math.floor(ms / 60_000) + KST_OFFSE
 /** 시간표 위 위치(%): 06:00 = 0 · 다음날 06:00 = 100 */
 export const timelinePos = (ms: number) => (((kstMinutes(ms) - DAY_START + 1440) % 1440) / 1440) * 100;
 
+/** 지금이 들어 있는 시간표 칸의 시작(한국 시각 06:00) 시각 ms — 끝은 +24시간 */
+export const timelineStart = (ms: number) => {
+  const minute = Math.floor(ms / 60_000) * 60_000;
+  return minute - ((kstMinutes(ms) - DAY_START + 1440) % 1440) * 60_000;
+};
+
 export const FEED_LIMIT = 15;
 
 /** 소식에 올릴 메시지: 매수·매도 결정, 체결, 세션 정리·마감 리포트 (유지 결정은 세션 정리에 담겨 있어 뺀다) */
