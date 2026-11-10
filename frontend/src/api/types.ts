@@ -1035,3 +1035,11 @@ export interface ChartData {
   markers: Marker[];
   name?: string;
 }
+
+/** GET /api/performance — 일 단위 누적 수익률(%): 이 계좌 vs 지수 (첫날 = 0) */
+export interface Performance {
+  days: string[];
+  account: number[];
+  account_pct: number[];
+  benchmarks: { key: string; name: string; pct: number[] }[];
+}

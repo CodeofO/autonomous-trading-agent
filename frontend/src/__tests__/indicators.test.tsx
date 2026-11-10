@@ -196,7 +196,7 @@ describe("주요 지표 줄", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("대시보드 맨 위(핵심 숫자 카드 위)에 나온다", async () => {
+  it("대시보드에서 계좌 요약 아래·차트와 표 위에 나온다", async () => {
     // 실시간 이벤트 웹소켓은 열지 않는다 (네트워크 없음)
     vi.stubGlobal(
       "WebSocket",
@@ -223,8 +223,8 @@ describe("주요 지표 줄", () => {
     );
     await screen.findByText("5,648.79");
     const strip = screen.getByRole("region", { name: "주요 지표" });
-    const kpis = screen.getByText("총자산").closest(".kpis")!;
-    expect(strip.compareDocumentPosition(kpis) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const grid = document.querySelector(".dash-grid")!;
+    expect(strip.compareDocumentPosition(grid) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
 

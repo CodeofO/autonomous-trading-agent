@@ -10,6 +10,7 @@ from sqlalchemy import select
 from app.api.routes.common import C, U, _is_live, _is_us, _iso, _since
 from app.container import Container, market_profile
 from app.db.models import EquitySnapshot
+from app.engine.performance import performance as daily_performance
 
 router = APIRouter()
 
@@ -82,3 +83,10 @@ def equity(c: C, _: U, limit: int = Query(500, ge=1, le=5000)) -> list[dict[str,
     with c.db.session() as s:
         rows = list(s.scalars(q))
     return [{"ts": _iso(r.ts), "equity": r.equity, "cash": r.cash} for r in reversed(rows)]
+
+
+@router.get("/performance")
+def performance(c: C, _: U, days: int = Query(90, ge=2, le=3660)) -> dict[str, Any]:
+    """일 단위 누적 수익률: 이 계좌 vs 주요 지수 (국장 코스피·코스닥, 미장 S&P500·나스닥100·다우 ETF)."""
+    bench_db = c.runner.usage_db or c.db  # 지수 종가는 국장 DB(공용)에 쌓인다 (D-72)
+    return daily_performance(c.db, bench_db, c.code, c.clock.now(), c.cal.local_date, days)

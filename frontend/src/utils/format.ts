@@ -189,9 +189,9 @@ export const ACTION_KO: Record<string, string> = { BUY: "매수", SELL: "매도"
 
 /** 예약된 판단 일정 이름 (대시보드·한눈에 보기) */
 export const JOB_KO: Record<string, string> = {
-  morning: "☀️ 장전 판단",
-  hourly: "⏰ 정시 판단",
-  report: "📊 마감 리포트",
+  morning: "장전 판단",
+  hourly: "정시 판단",
+  report: "마감 리포트",
 };
 export const BASIS_KO: Record<string, string> = { OPEN: "시가", CLOSE: "종가", NOW: "현재가" };
 
