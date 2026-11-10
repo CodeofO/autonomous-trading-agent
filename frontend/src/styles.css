@@ -4539,19 +4539,22 @@ button.ind-card:focus-visible {
 }
 .hero-stat dt {
   color: var(--text-dim);
-  font-size: var(--fs-sm);
+  font-size: var(--fs-base);
 }
 .hero-stat dd {
-  margin: 2px 0 0;
+  margin: 4px 0 0;
   display: flex;
   flex-direction: column;
+  gap: 2px;
 }
 .hero-stat dd b {
-  font-size: var(--fs-lg);
+  font-size: var(--fs-2xl);
+  line-height: 1.25;
+  letter-spacing: -0.01em;
 }
 .hero-stat dd small {
   color: var(--text-dim);
-  font-size: var(--fs-xs);
+  font-size: var(--fs-sm);
 }
 .hero-agent {
   border-left: 1px solid var(--border);
@@ -4652,6 +4655,9 @@ button.ind-card:focus-visible {
   }
   .hero-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .hero-stat dd b {
+    font-size: var(--fs-xl);
   }
 }
 

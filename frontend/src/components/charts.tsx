@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef } from "react";
+import { memo, useEffect, useRef, type RefObject } from "react";
 import {
   AreaSeries,
   CandlestickSeries,
@@ -66,6 +66,43 @@ function baseOptions(currency: Currency = "KRW", period: ChartPeriod = "day") {
   };
 }
 
+/**
+ * 차트 상자의 너비가 바뀌면(시트가 열리는 중, 창 크기 변경) 봉을 다시 너비에 맞춘다.
+ * 라이브러리는 너비가 늘어도 봉 간격을 그대로 두어 왼쪽이 비기 때문. 사용자가 직접 확대·이동한 뒤에는 건드리지 않는다.
+ * 돌려주는 값은 '사용자가 만졌는지' — 데이터를 새로 맞출 때 false 로 되돌린다.
+ */
+function useRefitOnResize(el: RefObject<HTMLDivElement | null>, chart: () => IChartApi | undefined) {
+  const touched = useRef(false);
+  const get = useRef(chart);
+  get.current = chart;
+  useEffect(() => {
+    const node = el.current;
+    if (!node || typeof ResizeObserver === "undefined") return;
+    const touch = () => {
+      touched.current = true;
+    };
+    node.addEventListener("pointerdown", touch);
+    node.addEventListener("wheel", touch, { passive: true });
+    let width = node.clientWidth;
+    let frame = 0;
+    const ro = new ResizeObserver(() => {
+      if (node.clientWidth === width) return;
+      width = node.clientWidth;
+      if (touched.current) return;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => get.current()?.timeScale().fitContent());
+    });
+    ro.observe(node);
+    return () => {
+      cancelAnimationFrame(frame);
+      ro.disconnect();
+      node.removeEventListener("pointerdown", touch);
+      node.removeEventListener("wheel", touch);
+    };
+  }, [el]);
+  return touched;
+}
+
 // ---------- 같은 데이터인지 (새 배열이어도 내용이 같으면 차트에 다시 넣지 않는다) ----------
 export interface EquityPoint {
   t: string;
@@ -125,6 +162,7 @@ export const CandleChart = memo(function CandleChart({
     bars: Bar[] | null;
     marks: Marker[] | null;
   } | null>(null);
+  const touched = useRefitOnResize(ref, () => api.current?.chart);
 
   useEffect(() => {
     if (!ref.current) return;
@@ -201,7 +239,10 @@ export const CandleChart = memo(function CandleChart({
       else a.markers = createSeriesMarkers(a.candles, ms);
       a.marks = markers;
     }
-    if (barsChanged) a.chart.timeScale().fitContent();
+    if (barsChanged) {
+      a.chart.timeScale().fitContent();
+      touched.current = false;
+    }
   }, [bars, markers, currency, digits]);
 
   return <div className="chart" ref={ref} data-testid="candle-chart" />;
@@ -237,6 +278,7 @@ export const EquityChart = memo(function EquityChart({
     null,
   );
   const hasData = points.length > 0;
+  const touched = useRefitOnResize(ref, () => api.current?.chart);
 
   useEffect(() => {
     if (!ref.current || !hasData) return;
@@ -264,7 +306,10 @@ export const EquityChart = memo(function EquityChart({
     const keep = a.shown !== null && a.shown.length === points.length ? ts.getVisibleLogicalRange() : null;
     a.series.setData(equityData(points));
     if (keep) ts.setVisibleLogicalRange(keep);
-    else ts.fitContent();
+    else {
+      ts.fitContent();
+      touched.current = false;
+    }
     a.shown = points;
   }, [points, currency, hasData]);
 
