@@ -486,6 +486,7 @@ class AgentRunner:
             )
             if res.finish_reason == "length":
                 log.warning("LLM 응답이 길이 한도로 잘렸습니다 (LLM_MAX_TOKENS 상향 권장)")
+            pending = []  # 제출이 아닌 도구 호출 — 한 묶음은 동시에 실행한다 (토스 호출은 토큰 버킷이 속도를 지킨다)
             for call in res.tool_calls:
                 if call.name == TERMINAL_TOOL:
                     if "decisions" in call.arguments or resubmitted:
@@ -513,7 +514,11 @@ class AgentRunner:
                     )
                     force_submit = True
                     continue  # 같은 묶음의 다른 도구 호출에도 응답해야 하므로 계속 진행
-                result = await self._tool(run_id, call.name, call.arguments, step=step + 1)
+                pending.append(call)
+            results = await asyncio.gather(
+                *(self._tool(run_id, c.name, c.arguments, step=step + 1) for c in pending)
+            )
+            for call, result in zip(pending, results, strict=True):
                 messages.append({"role": "tool", "tool_call_id": call.id, "content": self.tb.dumps(result)})
             if step == self.max_steps - 2:
                 messages.append(

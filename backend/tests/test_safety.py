@@ -96,3 +96,12 @@ async def test_broadcast_from_worker_thread_goes_through_loop(tmp_path: Path) ->
     assert msg == {"type": "x", "n": 1}
     c.hub.broadcast({"type": "y"})
     assert q.get_nowait() == {"type": "y"}
+
+
+def test_tool_results_are_compact_json() -> None:
+    from app.agent.tools import MAX_RESULT_CHARS, ToolBox
+
+    s = ToolBox.dumps({"a": 1, "items": [{"k": "값"}, {"k": "v"}]})
+    assert s == '{"a":1,"items":[{"k":"값"},{"k":"v"}]}'  # 공백 없는 구분자 — 같은 내용, 더 적은 토큰
+    long = ToolBox.dumps({"x": "가" * (MAX_RESULT_CHARS + 50)})
+    assert long.endswith("…(생략)") and len(long) == MAX_RESULT_CHARS + len("…(생략)")

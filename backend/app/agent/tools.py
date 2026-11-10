@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import math
@@ -461,7 +462,8 @@ class ToolBox:
 
     @staticmethod
     def dumps(result: dict[str, Any]) -> str:
-        s = json.dumps(result, ensure_ascii=False, default=str)
+        # 공백 없는 구분자: 같은 내용을 더 적은 토큰으로 (결과는 판단 끝까지 매 단계 다시 전송된다)
+        s = json.dumps(result, ensure_ascii=False, default=str, separators=(",", ":"))
         return s if len(s) <= MAX_RESULT_CHARS else s[:MAX_RESULT_CHARS] + "…(생략)"
 
     # ------------------------------------------------------------------ 도구 구현
@@ -690,10 +692,17 @@ class ToolBox:
         tc = self._need_toss().client
         out: dict[str, Any] = {"as_of": self.clock.now().isoformat()}
         idx = {}
-        for it in await tc.index_prices():
+        prices = await tc.index_prices()
+        # 지수별 일봉·투자자 매매를 한꺼번에 (지수 2개 × 2 호출)
+        fetched = await asyncio.gather(
+            *(
+                asyncio.gather(tc.index_candles(it["symbol"], 61), tc.index_investor_trading(it["symbol"], 3))
+                for it in prices
+            )
+        )
+        for it, (candles, inv) in zip(prices, fetched, strict=True):
             sym = it["symbol"]
-            closes = [_f(c.get("closePrice")) for c in reversed(await tc.index_candles(sym, 61))]
-            inv = await tc.index_investor_trading(sym, 3)
+            closes = [_f(c.get("closePrice")) for c in reversed(candles)]
             idx[sym] = {
                 "last": _f(it.get("lastPrice")),
                 "returns_pct": {f"{n}d": _pct(pct_change(closes, n)) for n in (1, 5, 20, 60)},
@@ -712,17 +721,19 @@ class ToolBox:
                 ],
             }
         out["indices"] = idx
+        sec_1d, sec_1w, fx, inv_rank = await asyncio.gather(
+            tc.sector_rankings("TOP_GAINERS", "1d"),
+            tc.sector_rankings("TOP_GAINERS", "1w"),
+            tc.exchange_rate(),
+            tc.investor_rankings(10),
+        )
         out["top_sectors_1d"] = [
-            {"name": r["name"], "change_pct": _pct(_f(r.get("changeRate")))}
-            for r in (await tc.sector_rankings("TOP_GAINERS", "1d"))[:8]
+            {"name": r["name"], "change_pct": _pct(_f(r.get("changeRate")))} for r in sec_1d[:8]
         ]
         out["top_sectors_1w"] = [
-            {"name": r["name"], "change_pct": _pct(_f(r.get("changeRate")))}
-            for r in (await tc.sector_rankings("TOP_GAINERS", "1w"))[:5]
+            {"name": r["name"], "change_pct": _pct(_f(r.get("changeRate")))} for r in sec_1w[:5]
         ]
-        fx = await tc.exchange_rate()
         out["usd_krw"] = {"rate": _f(fx.get("rate")), "direction": fx.get("rateChangeType")}
-        inv_rank = await tc.investor_rankings(10)
         syms = sorted(
             {
                 str(x["symbol"])
