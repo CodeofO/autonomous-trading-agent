@@ -105,12 +105,12 @@ export function NewsRoomPage() {
         </dl>
         {room.reason && (
           <p className="news-alert warn" role="alert" data-testid="news-reason">
-            ⚠️ {room.reason}
+            {room.reason}
           </p>
         )}
         {failed && (
           <p className="news-alert warn" role="alert" data-testid="news-failed">
-            ⚠️ 마지막 갱신에 실패해 이전 판을 보여 줘요: {failed}
+            마지막 갱신에 실패해 이전 판을 보여 줘요: {failed}
           </p>
         )}
         {ed?.headline && (
@@ -174,7 +174,7 @@ function useRefresh(room: NewsRoom | undefined) {
     if (!waiting.current || refreshing) return;
     waiting.current = false;
     if (failed) toast.error(`뉴스를 모으지 못했어요: ${failed}`);
-    else toast(`뉴스 룸을 새로 고쳤어요 ✓${articles != null ? ` (기사 ${articles}건)` : ""}`);
+    else toast(`뉴스 룸을 새로 고쳤어요${articles != null ? ` (기사 ${articles}건)` : ""}`);
   }, [refreshing, failed, articles]);
   return m;
 }

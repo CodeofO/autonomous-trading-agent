@@ -219,7 +219,7 @@ export function Layout() {
         </header>
         {top && !top.toss_ok && (
           <div className="banner warn" role="alert">
-            ⚠️ {top.toss_issue ?? "토스증권 시세를 받을 수 없어요."} — 연결될 때까지 매니저는 판단을 쉬어요.
+            {top.toss_issue ?? "토스증권 시세를 받을 수 없어요."} — 연결될 때까지 매니저는 판단을 쉬어요.
           </div>
         )}
         {/* 넓은 화면에서는 .page-scroll·.page 가 상자 없이(display: contents) 지나가고 .content 가 스크롤한다.

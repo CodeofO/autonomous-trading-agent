@@ -236,3 +236,7 @@ export function fmtAgo(iso: string, now: number = Date.now()): string {
   if (days < 7) return `${days}일 전`;
   return fmtDateTime(iso);
 }
+
+/** 결정 결과 문구의 주문 상태 코드를 한글로 ("주문 FILLED (5주)" → "주문 체결 (5주)") */
+export const outcomeText = (o: string) =>
+  o.replace(/주문 ([A-Z_]+)/, (_m, st: string) => `주문 ${STATUS_KO[st] ?? st}`);

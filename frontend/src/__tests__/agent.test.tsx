@@ -61,7 +61,7 @@ describe("에이전트 구조", () => {
     expect(screen.getAllByRole("listitem", { hidden: false }).length).toBeGreaterThan(7);
     expect(screen.getByText(/15분마다 \(09:15~15:15, 3회\)/)).toBeInTheDocument();
     expect(screen.getByText("2,000,000원")).toBeInTheDocument();
-    expect(screen.getByText("get_supply_demand")).toBeInTheDocument();
+    expect(screen.getByText("수급", { selector: "b" })).toBeInTheDocument();
     expect(screen.getByText("NAVER · 연결 안 됨")).toBeInTheDocument();
     expect(screen.getByText(/○ NAVER · 키 인증 실패/)).toBeInTheDocument(); // 키가 틀리면 이유까지
     expect(screen.getByText("진행 중")).toBeInTheDocument(); // 판단 중이면 리서치 단계 강조

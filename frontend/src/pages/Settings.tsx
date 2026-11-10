@@ -1,3 +1,4 @@
+import { Icon } from "../components/Icon";
 import { Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Link, Navigate, useLocation, useMatch, useNavigate } from "react-router-dom";
 import { SkeletonCards } from "../components/Skeleton";
@@ -78,9 +79,7 @@ function SettingsNav({ current, pop }: { current: SettingsSection | null; pop: b
         ))}
         {/* LLM 요금은 설정에 속한 화면 (사이드바에서 뺐다) */}
         <Link to="/costs" className="settings-item press">
-          <span className="settings-icon" aria-hidden>
-            💸
-          </span>
+          <span className="settings-icon" aria-hidden></span>
           <span className="settings-text">
             <b>LLM 요금</b>
             <small className="muted">모델·토큰별 실제 요금 · 무료/유료·계좌별로 나눠 보기</small>
@@ -128,7 +127,7 @@ function NavItem({ m, active, sub }: { m: SectionMeta; active: boolean; sub?: st
       data-section={m.key}
     >
       <span className="settings-icon" aria-hidden>
-        {m.icon}
+        <Icon name={m.icon} size={20} />
       </span>
       <span className="settings-text">
         <b>{m.title}</b>
@@ -153,7 +152,7 @@ function useSummaries(): Partial<Record<SettingsSection, string>> {
     if (sys.agent_interval_minutes > 0)
       out.schedule = `${meta.flag} 장중 ${intervalLabel(sys.agent_interval_minutes)}마다 판단 · 시간대`;
     out.manager = `${sys.persona.emoji} ${sys.persona.name} · 운용 방침 · 메모 카드 · 규칙 전략`;
-    out.account = `${sys.toss_ok ? "토스 실시세 연결됨" : "⚠️ 시세 연결 안 됨"} · 모의계좌 · 관심 종목`;
+    out.account = `${sys.toss_ok ? "토스 실시세 연결됨" : "시세 연결 안 됨"} · 모의계좌 · 관심 종목`;
   }
   return out;
 }
@@ -208,9 +207,7 @@ function SettingsPane({ section, mobile }: { section: SettingsSection; mobile: b
             <span aria-hidden>‹</span> 설정
           </button>
         )}
-        <h2 className="settings-title">
-          <span aria-hidden>{m.icon}</span> {m.title}
-        </h2>
+        <h2 className="settings-title">{m.title}</h2>
       </header>
       <ScopeChip m={m} />
       <Suspense fallback={<SkeletonCards heights={[360, 200]} label={`${m.title} 불러오는 중`} />}>

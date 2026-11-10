@@ -231,7 +231,7 @@ describe("뉴스 룸 화면", () => {
     expect(post[1]?.method).toBe("POST");
     // 모으는 동안 1.5초마다 확인 → 끝나면 새 판
     expect(
-      await screen.findByText("뉴스 룸을 새로 고쳤어요 ✓ (기사 3건)", {}, { timeout: 4000 }),
+      await screen.findByText("뉴스 룸을 새로 고쳤어요 (기사 3건)", {}, { timeout: 4000 }),
     ).toBeInTheDocument();
     expect(screen.getByTestId("news-updated")).toHaveTextContent("수동 갱신");
     expect(screen.queryByTestId("news-refreshing")).not.toBeInTheDocument();

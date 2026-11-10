@@ -116,7 +116,7 @@ describe("휴대폰 넘기기로 탭 이동", () => {
 describe("토스트 밀어서 닫기", () => {
   it("옆으로 충분히 밀면 닫히고, 조금 밀면 제자리로", async () => {
     renderWithProviders(<div />); // 앱처럼 토스트 자리(<Toaster />)를 함께 그린다
-    act(() => toast("저장했어요 ✓"));
+    act(() => toast("저장했어요"));
     const t = await screen.findByTestId("toast");
     fireEvent.touchStart(t, { touches: [{ clientX: 100, clientY: 0 }] });
     fireEvent.touchMove(t, { touches: [{ clientX: 120, clientY: 0 }] });

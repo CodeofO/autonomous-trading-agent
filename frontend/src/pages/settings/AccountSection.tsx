@@ -41,7 +41,7 @@ export function AccountSection() {
         <DataStatus />
         <Watchlist />
         <Link to="/costs" className="card link-card settings-link-card">
-          <b>💸 LLM 요금 화면 →</b>
+          <b>LLM 요금 화면 →</b>
           <small className="muted">호출마다 어느 모델이 토큰을 얼마나 썼고 실제 요금이 얼마인지</small>
         </Link>
       </div>
@@ -58,7 +58,7 @@ function PaperAccount() {
   return (
     <section className="card">
       <div className="card-head">
-        <h2>{live ? "💳 실거래 계좌" : "🧾 모의계좌"}</h2>
+        <h2>{live ? "실거래 계좌" : "모의계좌"}</h2>
         <span className={`pill ${live ? "sell" : ""}`}>{live ? "실거래 LIVE" : "모의투자 PAPER"}</span>
       </div>
       {isPending ? (
@@ -156,7 +156,7 @@ function Watchlist() {
     onSuccess: (_d, symbol) => {
       setSym("");
       void refresh();
-      toast(`⭐ ${symbol} 을(를) 관심 종목에 넣었어요`);
+      toast(`${symbol} 을(를) 관심 종목에 넣었어요`);
     },
   });
   const remove = useMutation({
@@ -204,7 +204,7 @@ function Watchlist() {
         <div className="empty-action">
           <p className="muted">아직 관심 종목이 없어요.</p>
           <button type="button" className="btn tiny ghost" onClick={openPalette}>
-            🔍 종목 찾기
+            종목 찾기
           </button>
         </div>
       ) : (

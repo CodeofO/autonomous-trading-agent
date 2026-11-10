@@ -17,7 +17,17 @@ import {
   useMarket,
 } from "../market";
 import { toast } from "../ui/toast";
-import { ACTION_KO, BASIS_KO, fmtDateTime, fmtNum, fmtWon, money, price, STATUS_KO } from "../utils/format";
+import {
+  ACTION_KO,
+  BASIS_KO,
+  fmtDateTime,
+  fmtNum,
+  fmtWon,
+  money,
+  outcomeText,
+  price,
+  STATUS_KO,
+} from "../utils/format";
 import type { AllocSource } from "../utils/allocation";
 import { OVERVIEW_KEY } from "../utils/overview";
 
@@ -170,7 +180,7 @@ const DecisionTr = memo(function DecisionTr({ d, market }: { d: Decision; market
       </td>
       <td>{Math.round(d.confidence * 100)}%</td>
       <td className="wrap">{d.rationale}</td>
-      <td className="wrap muted">{d.outcome}</td>
+      <td className="wrap muted">{outcomeText(d.outcome)}</td>
     </tr>
   );
 });

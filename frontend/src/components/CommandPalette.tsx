@@ -31,30 +31,35 @@ interface Item {
 const PAGES: { to: string; icon: string; label: string; keywords: string }[] = [
   {
     to: "/",
-    icon: "🏠",
+    icon: "home",
     label: "홈 (대시보드 · 한눈에 보기)",
     keywords: "home dashboard 대시보드 홈 한눈에 overview",
   },
-  { to: "/room", icon: "💬", label: "트레이딩 룸", keywords: "room chat 채팅 대화 세션" },
+  { to: "/room", icon: "chat", label: "트레이딩 룸", keywords: "room chat 채팅 대화 세션" },
   {
     to: "/news",
-    icon: "📰",
+    icon: "news",
     label: "뉴스 룸",
     keywords: "news 뉴스 세계 국제 경제 증시 이슈 헤드라인 속보",
   },
-  { to: "/agent", icon: "🦉", label: "매니저 › 구조·기억", keywords: "agent 매니저 에이전트 구조 기억 도구" },
-  { to: "/memo", icon: "📌", label: "매니저 › 메모 카드", keywords: "memo 매니저 메모 카드 기억" },
-  { to: "/portfolio", icon: "📒", label: "포트폴리오·주문", keywords: "portfolio 자산 주문 체결 결정" },
-  { to: "/backtest", icon: "🧪", label: "백테스트", keywords: "backtest 백테스트 전략" },
+  {
+    to: "/agent",
+    icon: "bot",
+    label: "매니저 › 구조·기억",
+    keywords: "agent 매니저 에이전트 구조 기억 도구",
+  },
+  { to: "/memo", icon: "pin", label: "매니저 › 메모 카드", keywords: "memo 매니저 메모 카드 기억" },
+  { to: "/portfolio", icon: "wallet", label: "포트폴리오·주문", keywords: "portfolio 자산 주문 체결 결정" },
+  { to: "/backtest", icon: "history", label: "백테스트", keywords: "backtest 백테스트 전략" },
   {
     to: "/lab",
-    icon: "⚗️",
+    icon: "flask",
     label: "전략 실험실",
     keywords: "lab 전략 시나리오 비교 피터린치 워런버핏 그레이엄 모멘텀 가치주",
   },
-  { to: "/settings", icon: "⚙️", label: "설정", keywords: "settings 설정" },
-  { to: "/logs", icon: "📜", label: "이벤트 로그", keywords: "logs 로그 감사 기록" },
-  { to: "/costs", icon: "💸", label: "설정 › LLM 요금", keywords: "costs 비용 요금 토큰 llm 사용량" },
+  { to: "/settings", icon: "settings", label: "설정", keywords: "settings 설정" },
+  { to: "/logs", icon: "list", label: "활동 기록", keywords: "logs 로그 감사 기록 이벤트 활동" },
+  { to: "/costs", icon: "coins", label: "설정 › LLM 요금", keywords: "costs 비용 요금 토큰 llm 사용량" },
 ];
 
 const norm = (s: string) => s.toLowerCase().replace(/\s+/g, "");
@@ -135,7 +140,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
         out.push({
           id: `market:${v}`,
           group: "시장",
-          icon: v === "ALL" ? "🧭" : MARKET_META[v].flag,
+          icon: v === "ALL" ? "home" : MARKET_META[v].flag,
           label: v === "ALL" ? "전체 보기 (두 시장 한눈에)" : `${MARKET_META[v].name}으로 보기`,
           hint: view === v ? "지금 보는 중" : undefined,
           keywords: `시장 market 전환 ${v === "ALL" ? "전체 all" : v === "KR" ? "국장 한국 kr" : "미장 미국 us"}`,
@@ -149,7 +154,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
       out.push({
         id: `held:${p.symbol}`,
         group: "보유 종목",
-        icon: "📈",
+        icon: "chart",
         label: p.name || p.symbol,
         hint: p.symbol,
         keywords: `${p.symbol} 보유`,
@@ -171,7 +176,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
       .map((s) => ({
         id: `stock:${s.symbol}`,
         group: "종목 검색",
-        icon: "🔎",
+        icon: "search",
         label: s.name,
         hint: [s.symbol, s.market].filter(Boolean).join(" · "),
         run: () => {
@@ -232,7 +237,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="palette-input">
-          <span aria-hidden>🔍</span>
+          <Icon name="search" size={16} />
           <input
             ref={input}
             type="search"

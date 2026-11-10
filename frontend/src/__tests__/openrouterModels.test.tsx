@@ -229,7 +229,7 @@ describe("유료 모델 고르기 — OpenAI·OpenRouter 키를 함께 (D-71)", 
         body: { id: "qwen/qwen-next" },
       }),
     );
-    expect(await screen.findByText(/OpenRouter 모델을 등록했어요 ✓ \(qwen\/qwen-next\)/)).toBeInTheDocument();
+    expect(await screen.findByText(/OpenRouter 모델을 등록했어요 \(qwen\/qwen-next\)/)).toBeInTheDocument();
     await waitFor(() =>
       expect(
         within(screen.getByRole("combobox", { name: "유료 모델" })).getByRole("option", {

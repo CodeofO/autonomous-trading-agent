@@ -10,10 +10,27 @@ import { isPreOpen } from "../utils/schedule";
 import { profileModel } from "../utils/llm";
 import { memoKind } from "../utils/memo";
 
-const GROUPS: { key: ToolGroup; label: string; icon: string }[] = [
-  { key: "portfolio", label: "내 계좌", icon: "📒" },
-  { key: "market", label: "시장·종목", icon: "📈" },
-  { key: "research", label: "재무·공시·뉴스", icon: "📰" },
+/** 도구 이름 → 화면에 보이는 이름 (함수 이름은 내지 않는다) */
+const TOOL_KO: Record<string, string> = {
+  get_portfolio: "계좌 현황",
+  get_trade_history: "매매 내역",
+  screen_stocks: "종목 찾기",
+  get_price_history: "시세·기술 지표",
+  get_market_overview: "시장 전체 흐름",
+  explore_sector: "섹터 탐색",
+  get_stock_status: "종목 상태 점검",
+  get_supply_demand: "수급",
+  get_financials: "재무제표",
+  get_disclosures: "공시",
+  search_news: "뉴스 검색",
+  search_web: "웹 검색",
+  rule_score: "규칙 점수",
+};
+
+const GROUPS: { key: ToolGroup; label: string }[] = [
+  { key: "portfolio", label: "내 계좌" },
+  { key: "market", label: "시장·종목" },
+  { key: "research", label: "재무·공시·뉴스" },
 ];
 
 const MODE_KO: Record<string, string> = {
@@ -88,7 +105,7 @@ export function AgentPage() {
             <span className="muted">세션 한 번이 흘러가는 순서</span>
           </div>
           <ol className="wf" aria-label="판단 워크플로">
-            <Step n={1} icon="⏰" title="세션 시작">
+            <Step n={1} title="세션 시작">
               <p>
                 {pre.length > 0 && `장전 ${pre.join(", ")} · `}
                 {sessions.length > 0 &&
@@ -103,7 +120,7 @@ export function AgentPage() {
               <p className="muted">거래일에만, 한 번에 하나만 실행해요. 토스 시세가 끊기면 쉬어요.</p>
             </Step>
 
-            <Step n={2} icon="🧠" title="상황 파악">
+            <Step n={2} title="상황 파악">
               <ul className="wf-list">
                 <li>운용 정책·페르소나 (설정에서 수정)</li>
                 <li>
@@ -117,7 +134,6 @@ export function AgentPage() {
 
             <Step
               n={3}
-              icon="🔁"
               title={llmMode ? "규칙 전략 계산" : "리서치 루프"}
               badge={llmMode ? undefined : `최대 ${llm.max_steps}단계`}
               active={st.agent_running}
@@ -133,9 +149,7 @@ export function AgentPage() {
                   <div className="tool-groups">
                     {GROUPS.map((g) => (
                       <div key={g.key} className="tool-group">
-                        <h3>
-                          {g.icon} {g.label}
-                        </h3>
+                        <h3>{g.label}</h3>
                         {st.tools
                           .filter((t) => t.group === g.key)
                           .map((t) => (
@@ -144,7 +158,7 @@ export function AgentPage() {
                               className={`tool ${t.ready ? "" : "off"}`}
                               title={t.description}
                             >
-                              <code>{t.name}</code>
+                              <b>{TOOL_KO[t.name] ?? t.name}</b>
                               <small>
                                 {t.source}
                                 {t.ready ? "" : " · 연결 안 됨"}
@@ -158,14 +172,14 @@ export function AgentPage() {
               )}
             </Step>
 
-            <Step n={4} icon="📝" title="결정 제출" badge={terminal ? terminal.name : undefined}>
+            <Step n={4} title="결정 제출" badge={terminal ? terminal.name : undefined}>
               <p>시장 관점 · 요약 · 종목별 매수/매도/유지 (수량 또는 목표 비중, 확신도, 근거)</p>
               <p className="muted">
                 종목명은 코드로 바꾸고, 언급하지 않은 보유 종목은 유지로 채워요. 매도부터 실행해요.
               </p>
             </Step>
 
-            <Step n={5} icon="🛡️" title="리스크 검사">
+            <Step n={5} title="리스크 검사">
               <div className="rule-grid">
                 <Rule label="1회 주문 한도" value={money(risk.max_order_amount, cur)} />
                 <Rule label="종목당 최대 비중" value={pct(risk.max_position_weight)} />
@@ -180,7 +194,7 @@ export function AgentPage() {
             </Step>
 
             {live ? (
-              <Step n={6} icon="🔴" title="토스증권 실주문">
+              <Step n={6} title="토스증권 실주문">
                 <ul className="wf-list">
                   <li>
                     토스증권 실계좌로 실제 주문 (시장가 ·{" "}
@@ -202,7 +216,7 @@ export function AgentPage() {
                 <p className="muted">킬 스위치를 누르면 토스에 남은 미체결 주문까지 취소해요.</p>
               </Step>
             ) : (
-              <Step n={6} icon="🏦" title="모의 체결">
+              <Step n={6} title="모의 체결">
                 <ul className="wf-list">
                   <li>시장가: 토스 현재가 ± 슬리피지 {paper.slippage_bps}bp</li>
                   <li>지정가: 가격에 닿으면 체결 · 장전 주문은 09:00 이후</li>
@@ -215,7 +229,7 @@ export function AgentPage() {
               </Step>
             )}
 
-            <Step n={7} icon="💬" title="기록과 공유" last>
+            <Step n={7} title="기록과 공유" last>
               <p>트레이딩 룸 채팅 · 결정/주문/체결 기록 · 이벤트 로그</p>
               <p className="muted">이번 요약이 다음 세션의 기억이 돼요.</p>
             </Step>
@@ -429,7 +443,6 @@ function MemoryCard({ memory }: { memory: AgentMemory }) {
 
 function Step({
   n,
-  icon,
   title,
   badge,
   active,
@@ -437,7 +450,6 @@ function Step({
   children,
 }: {
   n: number;
-  icon: string;
   title: string;
   badge?: string;
   active?: boolean;
@@ -447,11 +459,11 @@ function Step({
   return (
     <li className={`wf-step ${active ? "active" : ""} ${last ? "last" : ""}`}>
       <div className="wf-dot" aria-hidden>
-        {icon}
+        {n}
       </div>
       <div className="wf-body">
         <h3>
-          <span className="wf-n">{n}</span> {title}
+          {title}
           {badge && <span className="pill">{badge}</span>}
           {active && <span className="pill live">진행 중</span>}
         </h3>

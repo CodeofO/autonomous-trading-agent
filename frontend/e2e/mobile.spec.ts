@@ -36,7 +36,7 @@ test("모바일: 하단 탭바(4칸 + 더보기)와 오른쪽 위 설정으로 �
     [/^매니저/, "/agent"],
     [/^백테스트/, "/backtest"],
     [/^판단 일정/, "/settings/schedule"],
-    [/^이벤트 로그/, "/logs"],
+    [/^활동 기록/, "/logs"],
     [/^LLM 요금/, "/costs"],
   ] as const) {
     await tabbar.getByRole("button", { name: "더보기" }).click();

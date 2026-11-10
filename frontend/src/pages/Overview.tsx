@@ -232,7 +232,7 @@ function MarketCard({
           </div>
 
           {m.top_positions.length === 0 ? (
-            <p className="muted ov-empty">보유 종목이 없어요. 매니저가 기회를 찾는 중이에요 👀</p>
+            <p className="muted ov-empty">보유 종목이 없어요. 매니저가 기회를 찾는 중이에요</p>
           ) : (
             <ul className="ov-pos" aria-label={`${meta.name} 보유 상위`}>
               {m.top_positions.slice(0, 5).map((p) => (
@@ -284,10 +284,10 @@ function MarketCard({
 
           <div className="btn-row ov-actions">
             <Link to="/room" onClick={go} className="btn tiny">
-              💬 {meta.name} 트레이딩 룸
+              {meta.name} 트레이딩 룸
             </Link>
             <Link to="/portfolio" onClick={go} className="btn tiny ghost">
-              📒 자산
+              자산
             </Link>
           </div>
         </>

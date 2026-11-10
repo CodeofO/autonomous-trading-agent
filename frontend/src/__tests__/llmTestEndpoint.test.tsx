@@ -157,7 +157,7 @@ describe("테스트용(무료) LLM 지정 (설정)", () => {
         },
       ]),
     );
-    expect(await screen.findByText(/저장했어요 ✓/)).toHaveClass("ok");
+    expect(await screen.findByText(/저장했어요/)).toHaveClass("ok");
     const badges = Array.from(section().querySelectorAll(".llm-src")).map((b) => b.textContent);
     expect(badges).toEqual(["화면에서 지정", "화면에서 지정", "화면에서 지정", "화면에서 지정"]);
     expect(screen.getByRole("button", { name: "저장" })).toBeDisabled();
@@ -185,7 +185,7 @@ describe("테스트용(무료) LLM 지정 (설정)", () => {
       expect(writes()).toEqual([{ url: "/api/llm/test-endpoint", method: "DELETE", body: null }]),
     );
     await waitFor(() => expect(screen.getByLabelText("모델")).toHaveValue("env-model"));
-    expect(screen.getByText(".env 값으로 되돌렸어요 ✓")).toBeInTheDocument();
+    expect(screen.getByText(".env 값으로 되돌렸어요")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: ".env 값으로 되돌리기" })).not.toBeInTheDocument();
   });
 
@@ -219,7 +219,7 @@ describe("테스트용(무료) LLM 지정 (설정)", () => {
     expect(await screen.findByText("모델 목록을 못 받았어요 (HTTP 404)")).toHaveClass("error");
   });
 
-  it("연결 확인은 진행 표시 뒤 4단계 결과를 ✅/❌ 와 함께 보여 준다", async () => {
+  it("연결 확인은 진행 표시 뒤 4단계 결과를 통과·실패와 함께 보여 준다", async () => {
     let finish: (r: LlmTestCheck) => void = () => {};
     const pending = new Promise<LlmTestCheck>((r) => (finish = r));
     const { fetchMock } = mockTestApi(endpoint());
@@ -254,8 +254,8 @@ describe("테스트용(무료) LLM 지정 (설정)", () => {
     expect(result).toHaveTextContent("env-model · Chat Completions");
     const items = within(result).getAllByRole("listitem");
     expect(items).toHaveLength(4);
-    expect(items[0]).toHaveTextContent("✅ 1. 기본 응답");
-    expect(items[3]).toHaveTextContent("❌ 4. 긴 입력");
+    expect(items[0]).toHaveTextContent("1. 기본 응답 — 통과");
+    expect(items[3]).toHaveTextContent("4. 긴 입력 — 실패");
     expect(within(items[3]).getByText("HTTP 500").tagName).toBe("CODE");
   });
 

@@ -113,7 +113,7 @@ describe("LLM 모델 카드 (설정)", () => {
     const put = fetchMock.mock.calls.find(([, init]) => (init as RequestInit | undefined)?.method === "PUT")!;
     expect(put[0]).toBe("/api/llm/profile");
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(await screen.findByText(/유료 모델\(paid-model-mini\)로 바꿨어요 ✓/)).toBeInTheDocument();
+    expect(await screen.findByText(/유료 모델\(paid-model-mini\)로 바꿨어요/)).toBeInTheDocument();
     expect(seg(/유료/)).toHaveAttribute("aria-pressed", "true");
   });
 
@@ -134,7 +134,7 @@ describe("LLM 모델 카드 (설정)", () => {
     fireEvent.click(seg(/무료/));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     await waitFor(() => expect(puts).toEqual([{ active: "free" }]));
-    expect(await screen.findByText(/무료 모델\(free-model-7b\)로 바꿨어요 ✓/)).toBeInTheDocument();
+    expect(await screen.findByText(/무료 모델\(free-model-7b\)로 바꿨어요/)).toBeInTheDocument();
   });
 
   it("지금 쓰는 쪽을 다시 누르면 아무것도 보내지 않는다", async () => {
@@ -285,7 +285,7 @@ describe("유료 모델 고르기 (설정)", () => {
     );
     expect(fetchMock.mock.calls.some(([url]) => url === "/api/llm/model")).toBe(true);
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(await screen.findByText(/유료 모델을 바꿨어요 ✓ \(GPT Mini\)/)).toBeInTheDocument();
+    expect(await screen.findByText(/유료 모델을 바꿨어요 \(GPT Mini\)/)).toBeInTheDocument();
     expect(await modelSelect()).toHaveValue("openai|gpt-mini");
   });
 

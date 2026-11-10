@@ -191,7 +191,7 @@ describe("휴대폰 알림 카드 — 켜기·끄기", () => {
     const on = await screen.findByRole("button", { name: "알림 켜기" });
     fireEvent.click(on);
     expect(b.notification.requestPermission).toHaveBeenCalledTimes(1); // 클릭 처리 안에서 바로
-    expect(await screen.findByText("이 기기에서 알림을 받고 있어요 ✓")).toBeInTheDocument();
+    expect(await screen.findByText("이 기기에서 알림을 받고 있어요")).toBeInTheDocument();
 
     const [opts] = b.pushManager.subscribe.mock.calls[0];
     expect(opts.userVisibleOnly).toBe(true);
@@ -223,7 +223,7 @@ describe("휴대폰 알림 카드 — 켜기·끄기", () => {
     const { calls } = mockPushApi(status({ devices: [DEVICE, OTHER] }));
     renderWithProviders(<PushSettings />);
     fireEvent.click(await screen.findByRole("button", { name: "테스트 알림 보내기" }));
-    expect(await screen.findByText(/보냈어요 ✓ \(1대\)/)).toBeInTheDocument();
+    expect(await screen.findByText(/보냈어요 \(1대\)/)).toBeInTheDocument();
     expect(calls.find((c) => c.url === "/api/push/test")?.body).toEqual({ endpoint: ENDPOINT });
 
     const sub = b.sub()!;

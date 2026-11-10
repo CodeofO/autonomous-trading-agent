@@ -1392,7 +1392,9 @@ label.toggle input {
   border-radius: 50%;
   display: grid;
   place-items: center;
-  font-size: var(--fs-xl);
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--text-dim);
   background: var(--panel-2);
   border: 1px solid var(--border);
   position: relative;

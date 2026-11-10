@@ -17,7 +17,7 @@ export interface SectionMeta {
 export const SECTION_META: readonly SectionMeta[] = [
   {
     key: "llm",
-    icon: "🤖",
+    icon: "cpu",
     title: "LLM 모델",
     desc: "무료/유료 · 유료 모델 · OpenRouter · 테스트용 LLM · 미장 매니저 LLM",
     scope: "common",
@@ -25,7 +25,7 @@ export const SECTION_META: readonly SectionMeta[] = [
   },
   {
     key: "alerts",
-    icon: "🔔",
+    icon: "bell",
     title: "알림",
     desc: "휴대폰 알림 · 받을 알림 · 알림 받는 기기",
     scope: "common",
@@ -33,7 +33,7 @@ export const SECTION_META: readonly SectionMeta[] = [
   },
   {
     key: "schedule",
-    icon: "⏰",
+    icon: "clock",
     title: "판단 일정·장외 거래",
     desc: "판단 세션 시간대 · 주기 · 데이·프리·애프터마켓에서도 판단·주문",
     scope: "both",
@@ -41,7 +41,7 @@ export const SECTION_META: readonly SectionMeta[] = [
   },
   {
     key: "risk",
-    icon: "🛡️",
+    icon: "shield",
     title: "리스크·주문",
     desc: "종목당 비중 · 주문 한도 · 손절·익절 · 신규 매수",
     scope: "market",
@@ -49,7 +49,7 @@ export const SECTION_META: readonly SectionMeta[] = [
   },
   {
     key: "manager",
-    icon: "🦉",
+    icon: "bot",
     title: "매니저",
     desc: "이름 · 운용 방침 · 메모 카드 · 규칙 전략",
     scope: "market",
@@ -57,7 +57,7 @@ export const SECTION_META: readonly SectionMeta[] = [
   },
   {
     key: "account",
-    icon: "🏦",
+    icon: "bank",
     title: "계좌·데이터",
     desc: "모의계좌 · 데이터 연결 상태 · 관심 종목 · LLM 요금",
     scope: "market",

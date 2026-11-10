@@ -1,8 +1,8 @@
 import { Link, useLocation } from "react-router-dom";
 
 const TABS = [
-  { to: "/agent", label: "🗺️ 구조·기억" },
-  { to: "/memo", label: "📌 메모 카드" },
+  { to: "/agent", label: "구조·기억" },
+  { to: "/memo", label: "메모 카드" },
 ];
 
 /** '매니저' 메뉴 안의 두 화면(에이전트 구조 · 메모 카드)을 오가는 탭 — 메뉴에는 '매니저' 하나만 둔다 */

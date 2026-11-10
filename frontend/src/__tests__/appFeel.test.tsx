@@ -121,8 +121,8 @@ describe("자리 표시 — 받는 동안 '없어요'를 보여 주지 않는다
     expect(screen.queryByText("아직 기록이 없어요.")).not.toBeInTheDocument();
     await act(async () => release([]));
     expect(await screen.findByText("아직 기록이 없어요.")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("이벤트 유형"), { target: { value: "FILL" } });
-    expect(screen.getByText("FILL 기록이 아직 없어요.")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("이벤트 유형"), { target: { value: "TRADE" } });
+    expect(screen.getByText("주문·체결 기록이 아직 없어요.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "모든 유형 보기" }));
     expect(screen.getByLabelText("이벤트 유형")).toHaveValue("ALL");
   });

@@ -23,10 +23,10 @@ import {
   JOB_KO,
   money,
   MONEY_FMT,
+  outcomeText,
   pctFmt,
   price,
   signClass,
-  STATUS_KO,
 } from "../utils/format";
 
 /**
@@ -385,10 +385,6 @@ function DashboardChat() {
     </section>
   );
 }
-
-/** 결정 결과 문구의 주문 상태 코드를 한글로 ("주문 FILLED (5주)" → "주문 체결 (5주)") */
-export const outcomeText = (o: string) =>
-  o.replace(/주문 ([A-Z_]+)/, (_m, st: string) => `주문 ${STATUS_KO[st] ?? st}`);
 
 const sameDay = (iso: string, now: number) => new Date(iso).toDateString() === new Date(now).toDateString();
 

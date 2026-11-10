@@ -101,9 +101,7 @@ export function LlmProfileSettings() {
       setConfirm(false);
       apply(data);
       const now = data.profiles[data.active];
-      toast(
-        `${PROFILE_KO[data.active]} 모델(${now?.model ?? "-"})로 바꿨어요 ✓ 다음 판단·답장부터 적용돼요.`,
-      );
+      toast(`${PROFILE_KO[data.active]} 모델(${now?.model ?? "-"})로 바꿨어요 다음 판단·답장부터 적용돼요.`);
     },
   });
 
@@ -218,7 +216,7 @@ export function UsLlmProfileToggle() {
       setConfirm(false);
       qc.setQueryData(US_PROFILE_KEY, data);
       refresh();
-      toast(`미장 매니저를 ${PROFILE_KO[data.active]} 모델로 바꿨어요 ✓ 다음 판단·답장부터 적용돼요.`);
+      toast(`미장 매니저를 ${PROFILE_KO[data.active]} 모델로 바꿨어요 다음 판단·답장부터 적용돼요.`);
     },
   });
 
@@ -362,7 +360,7 @@ export function TestEndpointSettings() {
     onSuccess: (data) => {
       reset.reset();
       applied(data);
-      toast("저장했어요 ✓ 무료 모델을 쓸 때 다음 판단·답장부터 적용돼요.");
+      toast("저장했어요 무료 모델을 쓸 때 다음 판단·답장부터 적용돼요.");
     },
   });
   const reset = useMutation({
@@ -370,7 +368,7 @@ export function TestEndpointSettings() {
     onSuccess: (data) => {
       save.reset();
       applied(data);
-      toast(".env 값으로 되돌렸어요 ✓");
+      toast(".env 값으로 되돌렸어요");
     },
   });
 
@@ -569,7 +567,7 @@ function CheckResult({ r }: { r: LlmTestCheck }) {
   return (
     <div className="llm-check" aria-label="연결 확인 결과">
       <p className={r.ok ? "ok" : "error"}>
-        {r.ok ? "연결 확인 완료 ✓" : "일부 확인에 실패했어요"}{" "}
+        {r.ok ? "연결 확인 완료" : "일부 확인에 실패했어요"}{" "}
         <small className="muted">
           ({r.model} · {apiLabel(r.api as LlmProfileInfo["api"]) ?? r.api})
         </small>
@@ -578,7 +576,7 @@ function CheckResult({ r }: { r: LlmTestCheck }) {
         {r.steps.map((s, i) => (
           <li key={`${i}:${s.label}`} className={s.ok ? "ok" : "fail"}>
             <span>
-              {s.ok ? "✅" : "❌"} {s.label}
+              {s.label} — {s.ok ? "통과" : "실패"}
             </span>
             {s.detail && <code>{s.detail}</code>}
           </li>
@@ -623,7 +621,7 @@ function PaidModelPicker({
       apply(data);
       const p = data.profiles.paid;
       const name = p.models?.find((m) => m.selected)?.name ?? p.model ?? "-";
-      toast(`유료 모델을 바꿨어요 ✓ (${name}) 다음 판단·답장부터 적용돼요.`);
+      toast(`유료 모델을 바꿨어요 (${name}) 다음 판단·답장부터 적용돼요.`);
     },
   });
   // OpenRouter 목록(등록 모델 가격)을 받아 오기 — 목록이 없거나 오래됐으면 화면을 열 때 한 번만

@@ -63,7 +63,7 @@ function ExtendedEditor({ market, data }: { market: MarketCode; data: ExtendedHo
       const [key, on] = Object.entries(body)[0] ?? [];
       const label = d.sessions.find((s) => s.key === key)?.label ?? "장외";
       const m = MARKET_META[market];
-      toast(`${m.flag} ${m.name} ${label} 거래를 ${on ? "켰어요 — 그 시간에도 판단해요" : "껐어요"} ✓`);
+      toast(`${m.flag} ${m.name} ${label} 거래를 ${on ? "켰어요 — 그 시간에도 판단해요" : "껐어요"}`);
     },
   });
   const anyOn = data.sessions.some((s) => s.enabled);
@@ -95,7 +95,7 @@ function ExtendedEditor({ market, data }: { market: MarketCode; data: ExtendedHo
       </ul>
       {!data.calendar_known && (
         <p className="muted ext-note">
-          ⚠️ 아직 토스 장 운영 정보를 받지 못했어요. 받기 전에는 켜 두어도 장외 판단·주문을 하지 않아요.
+          아직 토스 장 운영 정보를 받지 못했어요. 받기 전에는 켜 두어도 장외 판단·주문을 하지 않아요.
         </p>
       )}
       {anyOn && data.live && (

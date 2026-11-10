@@ -62,7 +62,7 @@ export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
         icon: "history",
         hint: "규칙 전략을 과거 시세로 시험",
       },
-      { to: "/logs", label: "이벤트 로그", short: "로그", icon: "list", hint: "주문·리스크·설정 변경 기록" },
+      { to: "/logs", label: "활동 기록", short: "기록", icon: "list", hint: "주문·리스크·설정 변경 기록" },
     ],
   },
 ];

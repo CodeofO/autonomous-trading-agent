@@ -131,13 +131,13 @@ function SupplyPanel({ r, currency }: { r: Research; currency: Currency }) {
       {st?.price_limits && (
         <p className="muted">
           상한가 {price(st.price_limits.upper, currency)} · 하한가 {price(st.price_limits.lower, currency)}
-          {st.trading_suspended ? " · ⛔ 거래정지" : ""}
+          {st.trading_suspended ? " · 거래정지" : ""}
         </p>
       )}
       <div>
         {(st?.warnings ?? []).map((w, i) => (
           <span key={i} className="warn-badge" title={`${w.startDate} ~ ${w.endDate ?? ""}`}>
-            ⚠️ {WARN_KO[w.warningType] ?? w.warningType}
+            {WARN_KO[w.warningType] ?? w.warningType}
           </span>
         ))}
         {st && (st.warnings ?? []).length === 0 && <span className="muted">매수 유의사항 없음</span>}
@@ -193,7 +193,7 @@ export function Stock() {
     mutationFn: () => api.post("/api/watchlist", { symbol }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: api.key("watchlist") });
-      toast(`⭐ ${candles.data?.name || symbol} 을(를) 관심 종목에 넣었어요`);
+      toast(`${candles.data?.name || symbol} 을(를) 관심 종목에 넣었어요`);
     },
     onError: (e) => toast.error(`관심 종목에 넣지 못했어요: ${errorText(e)}`),
   });
@@ -224,7 +224,7 @@ export function Stock() {
               </span>
             )}
             <button className="btn ghost" onClick={() => watch.mutate()} disabled={watch.isPending}>
-              ⭐ 관심종목 추가
+              관심종목 추가
             </button>
           </div>
         </div>

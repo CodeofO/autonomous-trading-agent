@@ -92,9 +92,7 @@ export function Lab() {
         </p>
         <p className="lab-status">
           {d.round_running || d.running ? (
-            <span className="pill lab-busy">
-              🔄 판단 중{d.running ? ` — ${styleName(d, d.running)}` : ""}
-            </span>
+            <span className="pill lab-busy">판단 중{d.running ? ` — ${styleName(d, d.running)}` : ""}</span>
           ) : (
             <span className="muted">
               다음 판단 {d.next_run ? fmtDateTime(d.next_run.at) : "—"} (주 계좌 다음 차례에 시나리오도
@@ -153,7 +151,7 @@ export function Lab() {
                       {s.id === d.main && <span className="pill">주 계좌</span>}
                     </b>
                     <small className="muted">{s.summary}</small>
-                    {s.risk && <small className="lab-risk">🛡️ {riskText(s.risk)}</small>}
+                    {s.risk && <small className="lab-risk">{riskText(s.risk)}</small>}
                   </span>
                   <input
                     type="checkbox"
@@ -237,7 +235,7 @@ function RowCard({
               {r.runs ?? 0}회
             </small>
           </div>
-          {r.risk && <small className="lab-risk">🛡️ {r.risk.text}</small>}
+          {r.risk && <small className="lab-risk">{r.risk.text}</small>}
           {(r.top_positions?.length ?? 0) > 0 && (
             <ul className="lab-top">
               {r.top_positions?.map((p) => (
@@ -376,7 +374,7 @@ function MainStrategy({ data }: { data: LabView }) {
       qc.setQueryData(api.key("lab"), d);
       void qc.invalidateQueries({ queryKey: api.key("agent-structure") });
       void qc.invalidateQueries({ queryKey: api.key("risk") });
-      toast(`주 계좌 전략을 ${styleName(d, d.main)}(으)로 바꿨어요 — 다음 판단부터 적용돼요 ✓`);
+      toast(`주 계좌 전략을 ${styleName(d, d.main)}(으)로 바꿨어요 — 다음 판단부터 적용돼요`);
     },
     onError: (e) => toast.error(`바꾸지 못했어요: ${errorText(e)}`),
   });
@@ -406,7 +404,7 @@ function MainStrategy({ data }: { data: LabView }) {
       </div>
       {dirty && (
         <p className="muted lab-main-risk">
-          🛡️ 리스크 한도도 이 전략 것으로 바뀌어요
+          리스크 한도도 이 전략 것으로 바뀌어요
           {(() => {
             const r = data.styles.find((x) => x.id === pick)?.risk;
             return r ? `: ${riskText(r)}` : "";

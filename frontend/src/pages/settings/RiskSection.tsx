@@ -47,7 +47,7 @@ export function RiskSettings() {
     onSuccess: () => {
       void invalidateNames(qc, ["risk", "agent-structure", "lab"], api.market);
       const m = MARKET_META[api.market];
-      toast(`${m.flag} ${m.name} 리스크 한도를 저장했어요 ✓`);
+      toast(`${m.flag} ${m.name} 리스크 한도를 저장했어요`);
     },
   });
   const preset = useMutation({
@@ -55,7 +55,7 @@ export function RiskSettings() {
     onSuccess: (d) => {
       qc.setQueryData(api.key("risk"), d);
       void invalidateNames(qc, ["agent-structure", "lab"], api.market);
-      toast(`${d.strategy?.emoji ?? ""} ${d.strategy?.name ?? "전략"} 기본 한도로 되돌렸어요 ✓`);
+      toast(`${d.strategy?.emoji ?? ""} ${d.strategy?.name ?? "전략"} 기본 한도로 되돌렸어요`);
     },
     onError: (e) => toast.error(`되돌리지 못했어요: ${errorText(e)}`),
   });

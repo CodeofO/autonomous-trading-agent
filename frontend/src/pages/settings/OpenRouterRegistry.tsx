@@ -44,7 +44,7 @@ export function OpenRouterRegistry({
     mutationFn: (id: string) => post<LlmProfiles>("/api/llm/openrouter/registered", { id }),
     onSuccess: (data, id) => {
       applied(data);
-      toast(`OpenRouter 모델을 등록했어요 ✓ (${id}) 위 '유료 모델'에서 고를 수 있어요.`);
+      toast(`OpenRouter 모델을 등록했어요 (${id}) 위 '유료 모델'에서 고를 수 있어요.`);
     },
   });
   const remove = useMutation({

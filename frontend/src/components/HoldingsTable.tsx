@@ -32,9 +32,9 @@ export const HoldingsTable = memo(function HoldingsTable({
   if (positions.length === 0)
     return (
       <div className="empty-action">
-        <p className="muted empty">보유 종목이 없어요. 매니저가 기회를 찾는 중이에요 👀</p>
+        <p className="muted empty">보유 종목이 없어요. 매니저가 기회를 찾는 중이에요</p>
         <Link to="/room" className="btn tiny ghost">
-          💬 트레이딩 룸에서 매니저 보기
+          트레이딩 룸에서 매니저 보기
         </Link>
       </div>
     );

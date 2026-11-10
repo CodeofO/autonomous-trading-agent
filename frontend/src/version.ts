@@ -121,7 +121,7 @@ export function startVersionWatch(): () => void {
       return;
     }
     if (!mayReload(session())) return;
-    toast.info("🔄 새 버전이 배포돼 화면을 새로고침해요", NOTICE_MS);
+    toast.info("새 버전이 배포돼 화면을 새로고침해요", NOTICE_MS);
     window.setTimeout(() => window.location.reload(), NOTICE_MS);
   };
 

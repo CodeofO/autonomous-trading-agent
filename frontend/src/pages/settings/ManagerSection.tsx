@@ -29,7 +29,7 @@ export function ManagerSection() {
       <div className="stack">
         <AgentSettings />
         <Link to="/memo" className="card link-card settings-link-card">
-          <b>📌 메모 카드 →</b>
+          <b>메모 카드 →</b>
           <small className="muted">매니저가 기억할 관심·주목·피할 종목과 운용 지시를 카드로 관리해요</small>
         </Link>
         <StrategySettings />
@@ -52,7 +52,7 @@ function AgentSettings() {
     onSuccess: () => {
       void invalidateNames(qc, ["agent-settings", "system", "agent-structure"], api.market);
       const m = MARKET_META[api.market];
-      toast(`${m.flag} ${m.name} 매니저 설정을 저장했어요 ✓ 다음 판단부터 적용돼요.`);
+      toast(`${m.flag} ${m.name} 매니저 설정을 저장했어요 다음 판단부터 적용돼요.`);
     },
   });
   return (
@@ -147,7 +147,7 @@ function StrategyRow({ s, onSaved }: { s: Strategy; onSaved: () => void }) {
       onSaved();
       toast(
         body.enabled === undefined
-          ? `${s.name} 값을 적용했어요 ✓`
+          ? `${s.name} 값을 적용했어요`
           : `${s.name} 전략을 ${body.enabled ? "켰어요" : "껐어요"}`,
       );
     },

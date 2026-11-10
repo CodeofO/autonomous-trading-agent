@@ -27,7 +27,7 @@ export function TradingRoom() {
     // 세션 시작: 매니저 상태·세션 목록·시장 목록 (나머지는 세션 이벤트가 알려 준다)
     onSuccess: () => {
       void invalidateNames(qc, ["system", "runs", "overview", "markets"], api.market);
-      toast.info(`🧠 ${MARKET_META[api.market].name} 판단 세션을 시작했어요`);
+      toast.info(`${MARKET_META[api.market].name} 판단 세션을 시작했어요`);
     },
   });
   const persona = usePersona(sys);
@@ -37,7 +37,7 @@ export function TradingRoom() {
       <section className="card room-main">
         <div className="card-head">
           <h2>
-            트레이딩 룸 <small className="muted">— {persona.emoji} 매니저 · 🛡️ 리스크봇 · 💸 체결봇</small>
+            트레이딩 룸 <small className="muted">— {persona.emoji} 매니저 · 리스크봇 · 체결봇</small>
           </h2>
           <div className="btn-row">
             <label className="toggle">
@@ -49,7 +49,7 @@ export function TradingRoom() {
               onClick={() => run.mutate()}
               disabled={run.isPending || sys?.agent_running || sys?.engine_status !== "RUNNING"}
             >
-              🧠 지금 판단 실행
+              지금 판단 실행
             </button>
           </div>
         </div>
@@ -165,7 +165,7 @@ const RunItem = memo(function RunItem({
       {r.summary && <p className="run-summary">{r.summary}</p>}
       {r.error && (
         <p className="error run-error" title={r.error}>
-          ⚠️ {r.error}
+          {r.error}
         </p>
       )}
     </button>

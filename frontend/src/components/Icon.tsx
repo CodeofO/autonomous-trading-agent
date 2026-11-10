@@ -22,6 +22,11 @@ const PATHS = {
   play: "M7 4l13 8-13 8z",
   chart: "M4 20V4M4 20h16M8 16l4-5 3 3 5-7",
   alert: "M12 4l9 16H3zM12 10v4M12 17h.01",
+  bell: "M6 16v-5a6 6 0 0 1 12 0v5l2 2H4zM10 20a2 2 0 0 0 4 0",
+  shield: "M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z",
+  pin: "M12 21s7-6.2 7-11a7 7 0 0 0-14 0c0 4.8 7 11 7 11zM12 8a2 2 0 1 0 0 4a2 2 0 0 0 0-4z",
+  bank: "M3 10l9-6 9 6M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18",
+  cpu: "M7 7h10v10H7zM10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4",
 } as const;
 
 export type IconName = keyof typeof PATHS;

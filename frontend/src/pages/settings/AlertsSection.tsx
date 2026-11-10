@@ -42,7 +42,7 @@ function testResultText(r: PushTestResult): string {
   const extra = [r.failed ? `실패 ${r.failed}` : "", r.removed ? `만료된 기기 ${r.removed}개 정리` : ""]
     .filter(Boolean)
     .join(" · ");
-  const head = r.sent > 0 ? `보냈어요 ✓ (${r.sent}대)` : "보내지 못했어요";
+  const head = r.sent > 0 ? `보냈어요 (${r.sent}대)` : "보내지 못했어요";
   return extra ? `${head} · ${extra}` : head;
 }
 
@@ -87,7 +87,7 @@ export function PushSettings() {
     onSuccess: (id) => {
       if (id) remember(id);
       refresh();
-      if (id) toast("이 기기에서 알림을 켰어요 🔔");
+      if (id) toast("이 기기에서 알림을 켰어요");
     },
   });
   const disable = useMutation({
@@ -113,7 +113,7 @@ export function PushSettings() {
     mutationFn: (prefs: PushPrefs) => put<PushPrefs>("/api/push/prefs", prefs),
     onSuccess: (prefs) => {
       qc.setQueryData<PushStatus>(["push"], (old) => old && { ...old, prefs });
-      toast("받을 알림을 저장했어요 ✓");
+      toast("받을 알림을 저장했어요");
     },
   });
   const remove = useMutation({
@@ -167,7 +167,7 @@ export function PushSettings() {
   } else if (isOn) {
     state = (
       <>
-        <p className="ok">이 기기에서 알림을 받고 있어요 ✓</p>
+        <p className="ok">이 기기에서 알림을 받고 있어요</p>
         <div className="btn-row push-actions">
           <button
             className="btn primary"

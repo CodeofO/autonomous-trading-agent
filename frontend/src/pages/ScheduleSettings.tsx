@@ -6,7 +6,7 @@ import type { MarketCode, ScheduleInfo, ScheduleUpdate } from "../api/types";
 import { invalidateNames, MARKET_META, useMarket } from "../market";
 import { toast } from "../ui/toast";
 import { scheduleKey, scheduleQuery } from "./settingsQueries";
-import { fmtDateTime } from "../utils/format";
+import { fmtDateTime, JOB_KO } from "../utils/format";
 import {
   EXT_CUTOFF_MINUTES,
   extSessionTimes,
@@ -94,7 +94,7 @@ function ScheduleEditor({ market, data }: { market: MarketCode; data: ScheduleIn
       reset.reset();
       applied(d);
       const m = MARKET_META[market];
-      toast(`${m.flag} ${m.name} 판단 일정을 저장했어요 ✓ 다음 슬롯부터 적용돼요.`);
+      toast(`${m.flag} ${m.name} 판단 일정을 저장했어요 다음 슬롯부터 적용돼요.`);
     },
   });
   const reset = useMutation({
@@ -102,7 +102,7 @@ function ScheduleEditor({ market, data }: { market: MarketCode; data: ScheduleIn
     onSuccess: (d) => {
       save.reset();
       applied(d);
-      toast("기본값으로 되돌렸어요 ✓");
+      toast("기본값으로 되돌렸어요");
     },
   });
 
@@ -274,7 +274,7 @@ function ScheduleEditor({ market, data }: { market: MarketCode; data: ScheduleIn
             {extRows.map((x) => (
               <div key={x.key} className="sched-ext-row">
                 <div className="sched-ext-head">
-                  <b>🌙 {x.label}</b>
+                  <b>{x.label}</b>
                   <small className="muted num">
                     {x.start}~{x.end}
                     {kst ? "" : ` · 한국 ${x.start_kst}~${x.end_kst}`}
@@ -299,7 +299,7 @@ function ScheduleEditor({ market, data }: { market: MarketCode; data: ScheduleIn
         )}
         {extRows.length === 0 && (
           <p className="muted sched-cost">
-            아래 🌙 장외 거래를 켜면 그 세션에서도 같은 주기로 판단하고 주문해요.
+            아래 장외 거래를 켜면 그 세션에서도 같은 주기로 판단하고 주문해요.
           </p>
         )}
         {outside.size > 0 && (
@@ -355,7 +355,7 @@ function ScheduleEditor({ market, data }: { market: MarketCode; data: ScheduleIn
           <ul aria-label="다음 실행">
             {data.next_runs.slice(0, 6).map((r) => (
               <li key={`${r.name}:${r.at}`}>
-                <span>{r.name}</span>
+                <span>{JOB_KO[r.name] ?? r.name}</span>
                 <b>{fmtDateTime(r.at)}</b>
               </li>
             ))}

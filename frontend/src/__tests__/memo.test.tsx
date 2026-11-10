@@ -376,7 +376,7 @@ describe("메모 카드 추가", () => {
         },
       },
     ]);
-    expect(screen.getByText(/추가했어요 ✓/)).toBeInTheDocument();
+    expect(screen.getByText(/추가했어요/)).toBeInTheDocument();
     expect(screen.getByTestId("memo-live-count")).toHaveTextContent("켜진 카드 4개");
     // 추가한 뒤에는 칸을 비운다
     expect(screen.getByRole("combobox", { name: "종목" })).toHaveValue("");

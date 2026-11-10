@@ -209,7 +209,7 @@ describe("⏰ 판단 주기 카드", () => {
     ).toEqual(["08:15"]);
 
     fireEvent.click(screen.getByRole("button", { name: "저장" }));
-    expect(await screen.findByText(/저장했어요 ✓ 다음 슬롯부터 적용돼요/)).toBeInTheDocument();
+    expect(await screen.findByText(/저장했어요 다음 슬롯부터 적용돼요/)).toBeInTheDocument();
     expect(sent(fetchMock, "PUT")).toEqual([
       { url: "/api/schedule", body: { start: "08:10", end: "09:00", interval_minutes: 15 } },
     ]);
@@ -245,7 +245,7 @@ describe("⏰ 판단 주기 카드", () => {
     renderWithProviders(<ScheduleSettings />);
     await screen.findByRole("list", { name: "판단 시각" });
     fireEvent.click(screen.getByRole("button", { name: "기본값으로" }));
-    expect(await screen.findByText("기본값으로 되돌렸어요 ✓")).toBeInTheDocument();
+    expect(await screen.findByText("기본값으로 되돌렸어요")).toBeInTheDocument();
     expect(sent(fetchMock, "DELETE")).toEqual([{ url: "/api/schedule", body: undefined }]);
     expect(screen.getByText("기본값 (.env)")).toBeInTheDocument();
     expect(chipTexts()).toEqual(KR_DEFAULT.times);

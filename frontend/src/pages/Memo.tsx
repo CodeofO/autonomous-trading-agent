@@ -225,7 +225,7 @@ function AddCard({ today }: { today: string }) {
         (old) => old && { ...old, cards: [card, ...old.cards.filter((c) => c.id !== card.id)] },
       );
       invalidateNames(qc, RELATED_KEYS, m.market);
-      toast("📌 추가했어요 ✓ 다음 판단·답장부터 기억에 들어가요.");
+      toast("추가했어요 다음 판단·답장부터 기억에 들어가요.");
       setStock(null);
       setQuery("");
       setText("");
@@ -768,9 +768,7 @@ function TopicMemoryCard({ settings }: { settings: MemoSettings }) {
         (old) => old && { ...old, settings: { ...old.settings, ...st } },
       );
       qc.setQueryData<MemoryTopics>(topicsKey, (old) => old && { ...old, settings: st });
-      toast(
-        st.topics ? "대화에서 되풀이한 주제를 기억해요 ✓" : "대화 기억을 껐어요 — 메모 카드만 기억해요 ✓",
-      );
+      toast(st.topics ? "대화에서 되풀이한 주제를 기억해요" : "대화 기억을 껐어요 — 메모 카드만 기억해요");
     },
     onSettled: related,
   });
@@ -789,7 +787,7 @@ function TopicMemoryCard({ settings }: { settings: MemoSettings }) {
     onSuccess: (d) => {
       qc.setQueryData<MemoryTopics>(topicsKey, d);
       const r = d.result;
-      toast(r?.skipped ? r.skipped : `메시지 ${r?.messages ?? 0}개를 정리했어요 ✓`);
+      toast(r?.skipped ? r.skipped : `메시지 ${r?.messages ?? 0}개를 정리했어요`);
     },
     onSettled: related,
   });
