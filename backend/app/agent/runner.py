@@ -877,6 +877,7 @@ class AgentRunner:
                 ANALYST, "text", text or "음… 잘 모르겠어요 🤔", reply_to="user", question_id=question_id
             )
         except Exception as e:
+            log.exception("답장 실패")
             self.hub.chat(SYSTEM, "text", f"⚠️ 답장 중 오류: {type(e).__name__}")
         finally:
             self._typing("reply", None)

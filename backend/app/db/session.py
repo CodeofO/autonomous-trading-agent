@@ -20,6 +20,8 @@ class Database:
                 kwargs["poolclass"] = StaticPool
             else:
                 Path(url.replace("sqlite:///", "")).parent.mkdir(parents=True, exist_ok=True)
+        else:  # Postgres: 끊긴 연결(DB 재시작·유휴 시간 초과)을 쓰기 전에 확인하고 주기적으로 새로 맺는다
+            kwargs.update(pool_pre_ping=True, pool_recycle=1800)
         self.url = url
         self.engine: Engine = create_engine(url, future=True, **kwargs)
         if url.startswith("sqlite"):

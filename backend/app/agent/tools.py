@@ -456,6 +456,7 @@ class ToolBox:
         except TypeError as e:
             return {"error": f"인자 오류: {e}"}
         except Exception as e:  # 도구 실패는 에이전트에게 알리고 계속 진행
+            log.warning("도구 %s 실패: %s", name, type(e).__name__, exc_info=True)
             return {"error": f"{type(e).__name__}: {str(e)[:200]}"}
 
     @staticmethod

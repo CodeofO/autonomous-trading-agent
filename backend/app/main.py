@@ -128,6 +128,7 @@ async def _start_kr(c: Container, settings: Settings) -> asyncio.Task[None] | No
         log.exception("초기 시세 동기화 실패")
     await c.scheduler.maintenance()  # 하루 한 번 정리를 기동 때도 한 번 (실패해도 기동은 계속)
     interrupted = c.runner.mark_interrupted()  # 재시작으로 끊긴 세션 정리
+    c.engine.orders.close_stale_pending()  # 전송 중에 끊겨 PENDING 에 멈춘 주문
     _start_lab(c)
     if settings.is_live:
         await _check_live_account(c)
@@ -156,6 +157,7 @@ async def _start_us(u: Container) -> asyncio.Task[None] | None:
         log.exception("미장 초기 시세 동기화 실패")
     await u.scheduler.maintenance()
     interrupted = u.runner.mark_interrupted()
+    u.engine.orders.close_stale_pending()
     _start_lab(u)
     if s.us_is_live:
         await _check_live_account(u)
@@ -183,6 +185,7 @@ def _start_lab(c: Container) -> None:
         c.lab.ensure()
         for st in c.lab.stacks.values():  # 시나리오도 끊긴 세션은 정리만 (다음 차례에 다시 돈다)
             st.runner.mark_interrupted()
+            st.engine.orders.close_stale_pending()
         if c.lab.stacks:
             log.info("전략 시나리오(%s): %s", c.code, ", ".join(c.lab.stacks))
     except Exception:

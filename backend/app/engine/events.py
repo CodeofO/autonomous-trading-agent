@@ -33,12 +33,14 @@ class EventHub:
         self.db = db
         self.clock = clock
         self._subs: set[asyncio.Queue[dict[str, Any]]] = set()
+        self._loop: asyncio.AbstractEventLoop | None = None  # 구독자 큐가 사는 이벤트 루프
         # 감사 로그가 남을 때마다 호출 (휴대폰 알림 등). 실패해도 기록·방송은 그대로 진행
         self.listeners: list[Callable[[dict[str, Any]], None]] = []
 
     # ------------------------------------------------------------ 구독
     def subscribe(self) -> asyncio.Queue[dict[str, Any]]:
         q: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=1000)
+        self._loop = asyncio.get_running_loop()
         self._subs.add(q)
         return q
 
@@ -46,6 +48,19 @@ class EventHub:
         self._subs.discard(q)
 
     def broadcast(self, msg: dict[str, Any]) -> None:
+        """구독자에게 전달. 동기 라우트(스레드풀)에서 불려도 큐는 이벤트 루프에서만 만진다 (asyncio.Queue 는 스레드 안전하지 않다)."""
+        if not self._subs:
+            return
+        try:
+            here: asyncio.AbstractEventLoop | None = asyncio.get_running_loop()
+        except RuntimeError:
+            here = None
+        if self._loop is not None and here is not self._loop and not self._loop.is_closed():
+            self._loop.call_soon_threadsafe(self._deliver, msg)
+        else:
+            self._deliver(msg)
+
+    def _deliver(self, msg: dict[str, Any]) -> None:
         for q in list(self._subs):
             try:
                 q.put_nowait(msg)

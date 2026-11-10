@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.brokers.base import (
     TERMINAL,
@@ -85,6 +86,9 @@ def order_dict(o: Order) -> dict[str, Any]:
     }
 
 
+log = logging.getLogger(__name__)
+
+
 class OrderManager:
     def __init__(
         self,
@@ -117,15 +121,13 @@ class OrderManager:
             return set(rows)
 
     def last_order_times(self) -> dict[str, datetime]:
-        out: dict[str, datetime] = {}
         with self.db.session() as s:
-            for sym, ts in s.execute(
-                select(Order.symbol, Order.created_at).where(Order.status != "REJECTED")
-            ):
-                ts = _aware(ts)
-                if sym not in out or ts > out[sym]:
-                    out[sym] = ts
-        return out
+            rows = s.execute(
+                select(Order.symbol, func.max(Order.created_at))
+                .where(Order.status != "REJECTED")
+                .group_by(Order.symbol)
+            )
+            return {sym: _aware(ts) for sym, ts in rows}
 
     # ------------------------------------------------------------ 제출
     async def submit(
@@ -205,9 +207,40 @@ class OrderManager:
             reason=intent.reason,
             source=source,
         )
-        result = await self.broker.place_order(req)
+        try:
+            result = await self.broker.place_order(req)
+        except Exception as e:
+            # 전송 중 오류: PENDING 으로 두면 같은 종목이 '중복 주문'으로 계속 막힌다(손절 매도 포함) → 거부로 닫는다
+            log.exception("주문 전송 실패: %s %s", req.symbol, req.side.value)
+            result = OrderResult(
+                broker_order_id="",
+                client_order_id=req.client_order_id,
+                status=OrderStatus.REJECTED,
+                reject_reason=f"주문 전송 실패({type(e).__name__}) — 증권사에 접수됐는지 확인이 필요해요",
+            )
         order = self.apply(oid, result)
         return order, decision
+
+    def close_stale_pending(self) -> int:
+        """기동 때: 전송 결과를 받지 못하고 PENDING 에 멈춘 주문(재시작이 전송과 겹침)을 거부로 닫는다. 닫은 수."""
+        with self.db.session() as s:
+            ids = list(s.scalars(select(Order.id).where(Order.status == OrderStatus.PENDING.value)))
+        for oid in ids:
+            with self.db.session() as s:
+                o = s.get(Order, oid)
+                assert o is not None
+                coid, sym, side, qty = o.client_order_id, o.symbol, o.side, o.quantity
+            self.apply(
+                oid,
+                OrderResult(
+                    broker_order_id="",
+                    client_order_id=coid,
+                    status=OrderStatus.REJECTED,
+                    reject_reason="서버 재시작으로 전송 결과를 받지 못했어요 — 증권사 주문 내역을 확인해 주세요",
+                ),
+            )
+            log.warning("멈춘 주문 정리: #%s %s %s %s주", oid, sym, side, qty)
+        return len(ids)
 
     # ------------------------------------------------------------ 상태 반영
     def apply(self, order_id: int, result: OrderResult) -> Order:

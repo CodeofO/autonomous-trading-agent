@@ -59,6 +59,7 @@ REFRESH_AFTER = timedelta(minutes=30)
 EXT_CUTOFF = timedelta(minutes=10)  # 장외 세션 판단은 세션 끝 10분 전까지 (정규장 주문 마감과 같은 역할)
 DEFAULT_EXT_INTERVAL = 60  # 기본 일정이 '하루 2회 모드'(간격 0)일 때 장외 세션 판단 주기
 DECISIONS = ("morning", "hourly")
+BUSY_GRACE = timedelta(minutes=5)  # 판단이 다른 작업(시세 갱신 등)을 기다려 주는 한도
 RECOVER_WITHIN = timedelta(minutes=30)  # 이 안에 재시작으로 끊긴 판단은 기동 뒤 한 번 다시
 TZ_LABEL = {"KR": "한국 시각", "US": "미국 동부 시각"}
 
@@ -366,7 +367,16 @@ class Scheduler:
         for key, name in self.due(now):
             self._mark(key)  # 먼저 기록: 실패해도 같은 작업을 1분마다 다시 하지 않는다
             ran.append(key)
-            runs.append(self._guarded(name, self._job(name), busy_wait=name == "report")())
+            # 판단은 짧은 작업(시세 갱신 등)과 겹치면 건너뛰지 않고 BUSY_GRACE 까지 기다린다 — 이미 fired 로 남겨서
+            # 건너뛰면 그 회차가 영영 빠진다
+            runs.append(
+                self._guarded(
+                    name,
+                    self._job(name),
+                    busy_wait=name == "report",
+                    grace=BUSY_GRACE if name in DECISIONS else None,
+                )()
+            )
         for key, job, at in self.daily_due(now):
             self._mark(key)
             ran.append(key)
@@ -429,16 +439,37 @@ class Scheduler:
         return False
 
     def _guarded(
-        self, name: str, job: Job, *, busy_skip: bool = True, busy_wait: bool = False
+        self,
+        name: str,
+        job: Job,
+        *,
+        busy_skip: bool = True,
+        busy_wait: bool = False,
+        grace: timedelta | None = None,
     ) -> Callable[[], Awaitable[None]]:
-        """busy_skip: 다른 작업 중이면 건너뜀 / busy_wait: 끝나기를 기다렸다가 실행 / 둘 다 아니면 잠금 없이."""
+        """busy_skip: 다른 작업 중이면 건너뜀 / busy_wait: 끝나기를 기다렸다가 실행 / 둘 다 아니면 잠금 없이.
+        grace: 건너뛰기 전에 이만큼은 잠금을 기다린다."""
 
         async def run() -> None:
+            waited = False
             if busy_skip and not busy_wait and self._busy.locked():
-                log.info("작업 %s 건너뜀(다른 작업 실행 중)", name)
-                return
+                if grace is None:
+                    log.info("작업 %s 건너뜀(다른 작업 실행 중)", name)
+                    return
+                try:
+                    await asyncio.wait_for(self._busy.acquire(), grace.total_seconds())
+                except TimeoutError:
+                    log.warning("작업 %s 건너뜀(%s 넘게 다른 작업 실행 중)", name, grace)
+                    self.engine.hub.audit("ERROR", f"다른 작업이 길어져 판단을 건너뛰었어요: {name}", None)
+                    return
+                waited = True
             try:
-                if busy_skip or busy_wait:
+                if waited:
+                    try:
+                        await job()
+                    finally:
+                        self._busy.release()
+                elif busy_skip or busy_wait:
                     async with self._busy:
                         await job()
                 else:
