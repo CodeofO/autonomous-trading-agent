@@ -79,7 +79,9 @@ function SettingsNav({ current, pop }: { current: SettingsSection | null; pop: b
         ))}
         {/* LLM 요금은 설정에 속한 화면 (사이드바에서 뺐다) */}
         <Link to="/costs" className="settings-item press">
-          <span className="settings-icon" aria-hidden></span>
+          <span className="settings-icon" aria-hidden>
+            <Icon name="coins" size={20} />
+          </span>
           <span className="settings-text">
             <b>LLM 요금</b>
             <small className="muted">모델·토큰별 실제 요금 · 무료/유료·계좌별로 나눠 보기</small>

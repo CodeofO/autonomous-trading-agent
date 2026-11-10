@@ -9,10 +9,13 @@ const API_KO: Record<NonNullable<LlmProfileInfo["api"]>, string> = {
 
 export const apiLabel = (api: LlmProfileInfo["api"]): string | null => (api ? API_KO[api] : null);
 
+/** 화면에 보이는 모델 이름: 자체 서버 주소('…@호스트:포트')는 떼어 낸다 (내부 주소를 화면·캡처에 남기지 않는다) */
+export const modelName = (model: string | null | undefined): string => (model ? model.split("@", 1)[0] : "-");
+
 /** "유료 · 모델이름" — 예전 서버처럼 profile 이 없으면 모델 이름만 */
 export function profileModel(profile: LlmProfileName | undefined, model: string | null): string {
   const name = profile ? PROFILE_KO[profile] : null;
-  return name ? `${name} · ${model ?? "-"}` : (model ?? "-");
+  return name ? `${name} · ${modelName(model)}` : modelName(model);
 }
 
 /** 상단 바 칩 글자 */

@@ -30,6 +30,7 @@ import {
   REASONING_EFFORTS,
   TEST_API_OPTIONS,
   testSourceText,
+  modelName,
 } from "../../utils/llm";
 import {
   llmProfileQuery,
@@ -101,7 +102,9 @@ export function LlmProfileSettings() {
       setConfirm(false);
       apply(data);
       const now = data.profiles[data.active];
-      toast(`${PROFILE_KO[data.active]} 모델(${now?.model ?? "-"})로 바꿨어요 다음 판단·답장부터 적용돼요.`);
+      toast(
+        `${PROFILE_KO[data.active]} 모델(${modelName(now?.model)})로 바꿨어요 다음 판단·답장부터 적용돼요.`,
+      );
     },
   });
 
@@ -142,7 +145,7 @@ export function LlmProfileSettings() {
                 <b>{p.label || PROFILE_KO[key]}</b>
                 {p.configured ? (
                   <>
-                    <span className="llm-seg-model">{p.model ?? "-"}</span>
+                    <span className="llm-seg-model">{modelName(p.model)}</span>
                     {api && <small className="muted">{api}</small>}
                   </>
                 ) : (
@@ -247,7 +250,7 @@ export function UsLlmProfileToggle() {
                   className={on ? `active ${key}` : key}
                   aria-pressed={on}
                   disabled={!p.configured || change.isPending}
-                  title={p.configured ? (p.model ?? "") : `미설정 — .env 의 ${p.env} 를 채우세요`}
+                  title={p.configured ? modelName(p.model) : `미설정 — .env 의 ${p.env} 를 채우세요`}
                   onClick={() => pick(key)}
                 >
                   {p.label || PROFILE_KO[key]}
@@ -261,7 +264,7 @@ export function UsLlmProfileToggle() {
       {q.isError && <p className="error">{errorText(q.error)}</p>}
       {now && (
         <small className="muted">
-          {now.model ?? "-"}
+          {modelName(now.model)}
           {apiLabel(now.api) ? ` · ${apiLabel(now.api)}` : ""} — 미장 판단·답장에만 쓰여요
         </small>
       )}
@@ -569,7 +572,7 @@ function CheckResult({ r }: { r: LlmTestCheck }) {
       <p className={r.ok ? "ok" : "error"}>
         {r.ok ? "연결 확인 완료" : "일부 확인에 실패했어요"}{" "}
         <small className="muted">
-          ({r.model} · {apiLabel(r.api as LlmProfileInfo["api"]) ?? r.api})
+          ({modelName(r.model)} · {apiLabel(r.api as LlmProfileInfo["api"]) ?? r.api})
         </small>
       </p>
       <ul className="llm-check-steps">
