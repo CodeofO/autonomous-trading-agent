@@ -419,3 +419,44 @@ async def test_submission_without_decisions_is_bounced_once(tmp_path: Path) -> N
         d = s.scalar(select(AgentDecision).where(AgentDecision.run_id == run_id))
     assert d is not None and d.symbol == "005930" and d.action == "BUY" and d.order_id is not None
     assert any("다시 요청" in m.content for m in _chat(c))
+
+
+@respx.mock
+async def test_submission_missing_a_holding_is_bounced_once(tmp_path: Path) -> None:
+    """보유 종목이 결정 목록에서 빠지면 한 번 돌려보내 그 종목의 판단을 받는다."""
+    c = make(tmp_path, **LLM)
+    c.broker.state["positions"]["005380"] = {"qty": 3, "avg_price": 230_000.0, "opened_day": "2026-10-01"}
+    hold = {"symbol": "005380", "action": "HOLD", "confidence": 0.7, "rationale": "추세 유지"}
+    route = respx.post(LLM_URL).mock(
+        side_effect=[
+            _resp(None, [_tc("submit_decisions", {"summary": "관망", "decisions": []}, 1)]),
+            _resp(None, [_tc("submit_decisions", {"summary": "관망", "decisions": [hold]}, 2)]),
+        ]
+    )
+    run_id = await c.runner.run("manual")
+    assert route.call_count == 2
+    second = json.loads(route.calls[1].request.content)
+    assert any(m["role"] == "tool" and "005380" in m["content"] for m in second["messages"])
+    with c.db.session() as s:
+        d = s.scalar(
+            select(AgentDecision).where(AgentDecision.run_id == run_id, AgentDecision.symbol == "005380")
+        )
+    assert d is not None and d.rationale == "추세 유지" and d.confidence == 0.7
+    assert any("판단이 빠져" in m.content for m in _chat(c))
+
+
+@respx.mock
+async def test_holding_still_missing_after_bounce_falls_back_to_hold(tmp_path: Path) -> None:
+    """다시 받아도 빠져 있으면 더 묻지 않고 시스템이 '유지'로 채운다."""
+    c = make(tmp_path, **LLM)
+    c.broker.state["positions"]["005380"] = {"qty": 3, "avg_price": 230_000.0, "opened_day": "2026-10-01"}
+    route = respx.post(LLM_URL).mock(
+        return_value=_resp(None, [_tc("submit_decisions", {"summary": "관망", "decisions": []}, 1)])
+    )
+    run_id = await c.runner.run("manual")
+    assert route.call_count == 2
+    with c.db.session() as s:
+        d = s.scalar(
+            select(AgentDecision).where(AgentDecision.run_id == run_id, AgentDecision.symbol == "005380")
+        )
+    assert d is not None and d.action == "HOLD" and "언급하지 않아" in d.rationale

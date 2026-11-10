@@ -489,27 +489,32 @@ class AgentRunner:
             pending = []  # 제출이 아닌 도구 호출 — 한 묶음은 동시에 실행한다 (토스 호출은 토큰 버킷이 속도를 지킨다)
             for call in res.tool_calls:
                 if call.name == TERMINAL_TOOL:
-                    if "decisions" in call.arguments or resubmitted:
+                    if resubmitted:
                         return call.arguments
-                    # 결정 목록이 빠진 제출(잘림·누락) → 한 번 돌려보내 다시 받는다
+                    # 결정 목록이 없거나(잘림·누락) 보유 종목이 빠진 제출 → 한 번 돌려보내 다시 받는다
+                    if "decisions" in call.arguments:
+                        missing = await self._missing_held(call.arguments)
+                        if not missing:
+                            return call.arguments
+                        notice = f"보유 종목 {len(missing)}개의 판단이 빠져 매니저에게 다시 요청했어요."
+                        error = (
+                            f"보유 종목 {', '.join(missing)} 의 결정이 decisions 배열에 없습니다. 이 종목들도 "
+                            "action·confidence·rationale 을 채워, 앞서 낸 결정과 함께 전체 decisions 배열로 "
+                            "submit_decisions 를 다시 호출하세요. 요약은 짧게."
+                        )
+                    else:
+                        notice = "결정 목록이 빠진 제출이라 매니저에게 다시 요청했어요."
+                        error = (
+                            "decisions 배열이 비어 있습니다. 요약에 적은 매수·매도와 보유 종목 전부를 decisions "
+                            "배열에 넣어 submit_decisions 를 다시 호출하세요. 요약은 짧게."
+                        )
                     resubmitted = True
-                    self.hub.chat(
-                        SYSTEM,
-                        "text",
-                        "📝 결정 목록이 빠진 제출이라 매니저에게 다시 요청했어요.",
-                        run_id=run_id,
-                    )
+                    self.hub.chat(SYSTEM, "text", notice, run_id=run_id)
                     messages.append(
                         {
                             "role": "tool",
                             "tool_call_id": call.id,
-                            "content": json.dumps(
-                                {
-                                    "error": "decisions 배열이 비어 있습니다. 요약에 적은 매수·매도와 보유 종목 전부를 decisions "
-                                    "배열에 넣어 submit_decisions 를 다시 호출하세요. 요약은 짧게."
-                                },
-                                ensure_ascii=False,
-                            ),
+                            "content": json.dumps({"error": error}, ensure_ascii=False),
                         }
                     )
                     force_submit = True
@@ -633,6 +638,22 @@ class AgentRunner:
             run_id=run_id,
             counts={a: sum(x["action"] == a for x in decisions) for a in ("BUY", "SELL", "HOLD")},
         )
+
+    async def _missing_held(self, payload: dict[str, Any]) -> list[str]:
+        """제출된 결정 목록에 없는 보유 종목 (없으면 빈 목록). 확인에 실패하면 그대로 통과시킨다."""
+        try:
+            pf = await self.tb.call("get_portfolio", {})
+            held = {p["symbol"]: p for p in pf.get("positions", [])}
+            if not held:
+                return []
+            given = {
+                d["symbol"]
+                for d in normalize_decisions(payload.get("decisions"), await self._symbol_lookup(held))
+            }
+        except Exception as e:
+            log.warning("보유 종목 누락 확인 실패: %s", e)
+            return []
+        return [sym for sym in held if sym not in given]
 
     async def _symbol_lookup(self, held: dict[str, Any]) -> dict[str, str]:
         """종목명/코드 → 종목코드 (LLM 이 이름으로 답하는 경우 대비). 토스 전체 종목 목록 우선."""
