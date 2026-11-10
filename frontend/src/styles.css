@@ -4736,3 +4736,38 @@ button.ind-card:focus-visible {
     font-size: var(--fs-xs);
   }
 }
+
+/* 활동 기록 — 휴대폰: 줄마다 시각·유형·종목을 한 줄에, 내용은 그 아래 전체 너비로 (가로로 잘리지 않게) */
+@media (max-width: 760px) {
+  .logs-table thead {
+    display: none;
+  }
+  .logs-table,
+  .logs-table tbody {
+    display: block;
+  }
+  .logs-table tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-1) var(--sp-2);
+    padding: var(--sp-2) 0;
+    border-top: 1px solid var(--border);
+  }
+  .logs-table td {
+    padding: 0;
+    border: 0;
+    white-space: normal;
+  }
+  .logs-table td:first-child {
+    color: var(--text-dim);
+    font-size: var(--fs-sm);
+  }
+  .logs-table td:empty {
+    display: none;
+  }
+  .logs-table td.wrap {
+    flex: 1 0 100%;
+    overflow-wrap: anywhere;
+  }
+}
