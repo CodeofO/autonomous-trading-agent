@@ -155,7 +155,7 @@ describe("뉴스 룸 화면", () => {
     mockFetch({ "/api/news-room": room() });
     renderWithProviders(<NewsRoomPage />, { route: "/news" });
     expect(screen.getByRole("status", { name: "뉴스 룸을 불러오는 중" })).toBeInTheDocument();
-    expect(await screen.findByRole("heading", { name: "📰 뉴스 룸" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "뉴스 룸" })).toBeInTheDocument();
     expect(screen.getByTestId("news-updated")).toHaveTextContent("오늘 07:00");
     expect(screen.getByTestId("news-updated")).toHaveTextContent("30분 전");
     expect(screen.getByTestId("news-updated")).toHaveTextContent("07:00 판");
@@ -283,7 +283,7 @@ describe("증시 영향 3줄 (맨 위 섹션별 카드)", () => {
     mockFetch({ "/api/news-room": room() });
     renderWithProviders(<NewsRoomPage />, { route: "/news" });
     const strip = await screen.findByTestId("news-impact");
-    expect(within(strip).getByRole("heading", { name: "📊 증시 영향 큰 뉴스" })).toBeInTheDocument();
+    expect(within(strip).getByRole("heading", { name: "증시 영향 큰 뉴스" })).toBeInTheDocument();
     // 맨 위: 섹션별 뉴스 카드들보다 앞
     const firstSection = screen.getByRole("region", { name: "세계·국제" });
     expect(strip.compareDocumentPosition(firstSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

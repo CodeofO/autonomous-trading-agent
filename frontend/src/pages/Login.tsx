@@ -40,7 +40,7 @@ export function Login() {
     <div className="login-wrap">
       <form className="login card" onSubmit={submit}>
         <PaperBadge />
-        <h1>🦉 AI 펀드매니저</h1>
+        <h1>AI 펀드매니저</h1>
         <p className="muted">
           {setup
             ? "처음 오셨네요! 이 컴퓨터에서만 쓰는 로컬 계정을 만들어 주세요. 비밀번호는 해시로만 저장돼요."

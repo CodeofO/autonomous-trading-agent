@@ -71,7 +71,7 @@ export function RiskSettings() {
   };
   return (
     <section className="card">
-      <h2>🛡️ 리스크 한도</h2>
+      <h2>리스크 한도</h2>
       <p className="muted">
         모든 주문은 브로커로 가기 전에 이 규칙을 통과해야 해요. 장 운영시간 외 주문과 중복 주문은 항상 막아요.
       </p>

@@ -16,7 +16,7 @@
   min-width: 0;
 }
 .costs-mid {
-  font-size: 22px;
+  font-size: var(--fs-2xl);
   line-height: 1.25;
   font-variant-numeric: tabular-nums;
 }
@@ -26,10 +26,10 @@
   align-items: center;
   gap: 6px;
   margin: 4px 0 10px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 .costs-sources .chip {
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 .chip.src-reported {
   background: rgba(49, 130, 246, 0.12);
@@ -54,17 +54,17 @@
   flex-direction: column;
   gap: 4px;
   min-width: 0;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 .costs-filter select {
   width: 100%;
   min-height: 38px;
-  font-size: 14px;
+  font-size: var(--fs-md);
 }
 
 /* 날짜 막대: 칸이 많아 이름을 작게 — 모든 날짜를 적는다 */
 .mbars.dense .mbars-labels button {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   padding-left: 0;
   padding-right: 0;
   min-width: 0;
@@ -72,7 +72,7 @@
 }
 @media (max-width: 760px) {
   .mbars.dense .mbars-labels button {
-    font-size: 8.5px;
+    font-size: var(--fs-xs);
   }
 }
 
@@ -84,7 +84,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 4px 14px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-dim);
 }
 .costs-model-legend li {
@@ -131,7 +131,7 @@
 .costs-official-list > li {
   padding: 10px 12px;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--r-lg);
   min-width: 0;
   overflow-x: auto;
 }
@@ -205,7 +205,7 @@
   list-style: none;
   margin: 2px 0 0;
   padding: 0;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-dim);
 }
 .costs-price-bar {
@@ -227,11 +227,11 @@
 }
 .costs-price-foot {
   margin: 8px 0 0;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 @media (max-width: 760px) {
   .costs-price-table {
-    font-size: 13px;
+    font-size: var(--fs-base);
   }
   .costs-price-table th[scope="row"] {
     padding-right: 4px;
@@ -242,7 +242,7 @@
     padding-right: 4px;
   }
   .costs-price-notes {
-    font-size: 11px;
+    font-size: var(--fs-xs);
   }
   .costs-price-bar {
     width: 40px;

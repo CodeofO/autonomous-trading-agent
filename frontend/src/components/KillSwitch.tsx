@@ -1,3 +1,4 @@
+import { Icon } from "./Icon";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { errorText, marketApi } from "../api/client";
@@ -38,7 +39,7 @@ export function KillSwitch({ status, targets }: { status: string; targets?: Mark
       refresh();
       const canceled = res.reduce((n, r) => n + (r?.canceled ?? 0), 0);
       toast(
-        `⏻ ${many ? `${names} ` : ""}자동매매를 멈췄어요${canceled ? ` · 미체결 주문 ${canceled}건 취소` : ""}`,
+        `${many ? `${names} ` : ""}자동매매를 멈췄어요${canceled ? ` · 미체결 주문 ${canceled}건 취소` : ""}`,
         5000,
       );
     },
@@ -47,7 +48,7 @@ export function KillSwitch({ status, targets }: { status: string; targets?: Mark
     mutationFn: () => Promise.all(list.map((m) => marketApi(m).post("/api/engine/resume"))),
     onSuccess: () => {
       refresh();
-      toast(`▶ ${many ? `${names} ` : ""}자동매매를 다시 켰어요`);
+      toast(`${many ? `${names} ` : ""}자동매매를 다시 켰어요`);
     },
     // 버튼 하나뿐이라 실패 이유를 보여 줄 자리가 없다 — 토스트로
     onError: (e) => toast.error(`재개하지 못했어요: ${errorText(e)}`),
@@ -56,7 +57,7 @@ export function KillSwitch({ status, targets }: { status: string; targets?: Mark
   if (status === "KILLED") {
     return (
       <button className="btn resume" onClick={() => resume.mutate()} disabled={resume.isPending}>
-        ▶ {many ? `${names} 자동매매 재개` : "자동매매 재개"}
+        <Icon name="play" size={14} /> {many ? `${names} 자동매매 재개` : "자동매매 재개"}
       </button>
     );
   }
@@ -68,7 +69,7 @@ export function KillSwitch({ status, targets }: { status: string; targets?: Mark
         onTouchStart={preloadSheet}
         aria-label="킬 스위치"
       >
-        ⏻ 킬 스위치
+        <Icon name="power" size={14} /> 킬 스위치
       </button>
       {open && (
         <Modal

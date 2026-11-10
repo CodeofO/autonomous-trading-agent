@@ -36,7 +36,7 @@
   content: "→ ";
 }
 .tool-row .tool-chip .tool-ms {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;
   opacity: 0.75;
 }
@@ -51,9 +51,9 @@
   --c: var(--text-dim);
   color: var(--c);
   background: color-mix(in srgb, var(--c) 14%, transparent);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   padding: 0 6px;
-  font-size: 10.5px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   line-height: 17px;
 }
@@ -87,14 +87,14 @@
   max-width: 560px;
   background: var(--panel-2);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   padding: 10px 12px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   display: grid;
   gap: 10px;
 }
 .tool-row .tool-sec-title {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   color: var(--text-dim);
   margin-bottom: 4px;
@@ -125,7 +125,7 @@
   margin-top: 2px;
 }
 .tool-row .tool-tech {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-dim);
 }
 .tool-row .tool-tech code {
@@ -137,7 +137,7 @@
   .tool-row .tool-chip {
     flex-wrap: wrap;
     row-gap: 2px;
-    border-radius: 12px;
+    border-radius: var(--r-lg);
   }
   .tool-row .tool-chip .tool-line {
     white-space: normal;

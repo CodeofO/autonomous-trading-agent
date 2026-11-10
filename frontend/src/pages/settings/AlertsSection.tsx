@@ -201,7 +201,7 @@ export function PushSettings() {
 
   return (
     <section className="card push-card">
-      <h2>🔔 휴대폰 알림</h2>
+      <h2>휴대폰 알림</h2>
       <p className="muted">체결·리스크 차단·킬 스위치 같은 중요한 일을 휴대폰 알림으로 바로 알려 드려요.</p>
       {q.isLoading && <p className="muted">불러오는 중…</p>}
       {q.isError && <p className="error">{errorText(q.error)}</p>}

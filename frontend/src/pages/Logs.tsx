@@ -26,7 +26,7 @@ export function Logs() {
   return (
     <section className="card">
       <div className="card-head">
-        <h2>📜 이벤트 로그 (감사 기록)</h2>
+        <h2>이벤트 로그 (감사 기록)</h2>
         <select value={type} onChange={(e) => setType(e.target.value)} aria-label="이벤트 유형">
           {TYPES.map((t) => (
             <option key={t}>{t}</option>

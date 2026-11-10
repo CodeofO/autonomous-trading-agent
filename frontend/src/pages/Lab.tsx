@@ -63,7 +63,7 @@ export function Lab() {
   if (q.isError || !q.data)
     return (
       <section className="card">
-        <h2>⚗️ 전략 실험실</h2>
+        <h2>전략 실험실</h2>
         <p className="error">불러오지 못했어요: {errorText(q.error)}</p>
       </section>
     );
@@ -80,7 +80,7 @@ export function Lab() {
     <div className="stack lab-page" data-testid="lab">
       <section className="card lab-intro">
         <h2>
-          ⚗️ 전략 실험실{" "}
+          전략 실험실{" "}
           <small className="muted">
             {meta.flag} {meta.name}
           </small>
@@ -106,7 +106,7 @@ export function Lab() {
       </section>
 
       <section className="card" aria-labelledby="lab-compare">
-        <h2 id="lab-compare">📊 성과 비교</h2>
+        <h2 id="lab-compare">성과 비교</h2>
         {d.enabled.length === 0 && (
           <p className="muted">아래에서 시나리오를 켜면 여기서 주 계좌와 나란히 비교해요.</p>
         )}
@@ -134,7 +134,7 @@ export function Lab() {
       <MainStrategy data={d} />
 
       <section className="card" aria-labelledby="lab-scen">
-        <h2 id="lab-scen">🧪 동시에 시험할 전략</h2>
+        <h2 id="lab-scen">동시에 시험할 전략</h2>
         <p className="muted">
           켠 전략마다 처음 {money(d.rows[0]?.initial_cash ?? null, cur)} 모의계좌가 생기고, 주 계좌의 리스크
           한도·장외 거래 설정·판단 일정을 그대로 따라요. 판단 세션이 시나리오 수만큼 늘어 LLM 사용량도 그만큼
@@ -383,7 +383,7 @@ function MainStrategy({ data }: { data: LabView }) {
   const dirty = pick !== data.main;
   return (
     <section className="card" aria-labelledby="lab-main">
-      <h2 id="lab-main">🎯 주 계좌 전략</h2>
+      <h2 id="lab-main">주 계좌 전략</h2>
       <p className="muted">
         주 계좌 매니저가 따를 전략이에요. 시나리오 비교를 보고 가장 마음에 드는 전략을 여기서 고르세요. 판단
         원칙과 함께 리스크 한도(손절·익절·최소 보유 기간 등)도 전략마다 달라요.

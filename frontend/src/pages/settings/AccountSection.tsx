@@ -125,7 +125,7 @@ function DataStatus() {
   ];
   return (
     <section className="card">
-      <h2>📡 데이터 연결 상태</h2>
+      <h2>데이터 연결 상태</h2>
       <ul className="status-list" aria-label="데이터 연결 상태">
         {rows.map((r) => (
           <li key={r.label}>
@@ -176,7 +176,7 @@ function Watchlist() {
   return (
     <section className="card">
       <div className="card-head">
-        <h2>⭐ 관심 종목</h2>
+        <h2>관심 종목</h2>
         <small className="muted">
           {MARKET_META[api.market].flag} {list.length}개
         </small>

@@ -47,7 +47,7 @@ export function Costs() {
   if (isError || !data) {
     return (
       <section className="card">
-        <h2>💸 LLM 요금</h2>
+        <h2>LLM 요금</h2>
         <p className="error">불러오지 못했어요: {errorText(error)}</p>
       </section>
     );
@@ -105,7 +105,7 @@ function CostsView({
     <div className={`stack costs-page${stale ? " costs-stale" : ""}`}>
       <section className="card costs-head">
         <div className="card-head">
-          <h2>💸 LLM 요금</h2>
+          <h2>LLM 요금</h2>
           <span className="muted">단가 확인일 {data.checked}</span>
         </div>
         <p className="costs-intro">

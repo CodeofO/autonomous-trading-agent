@@ -84,7 +84,7 @@ describe("⚗️ 전략 실험실", () => {
   it("주 계좌를 맨 위에, 시나리오는 수익률 높은 순으로 비교한다", async () => {
     mockFetch({ "/api/lab": view() });
     renderWithProviders(<Lab />);
-    const list = (await screen.findByRole("heading", { name: "📊 성과 비교" })).closest("section")!;
+    const list = (await screen.findByRole("heading", { name: "성과 비교" })).closest("section")!;
     const names = within(list)
       .getAllByRole("listitem")
       .filter((li) => li.classList.contains("lab-row"))

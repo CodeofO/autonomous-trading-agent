@@ -137,13 +137,13 @@ describe("토스트 — 버튼을 누른 결과", () => {
     const view = renderWithProviders(<KillSwitch status="RUNNING" />);
     fireEvent.click(screen.getByRole("button", { name: "킬 스위치" }));
     fireEvent.click(screen.getByRole("button", { name: "즉시 전체 정지" }));
-    const done = await screen.findByText("⏻ 자동매매를 멈췄어요 · 미체결 주문 2건 취소");
+    const done = await screen.findByText("자동매매를 멈췄어요 · 미체결 주문 2건 취소");
     expect(done).toHaveClass("toast", "ok");
     expect(done.closest("[aria-live]")).toHaveAttribute("aria-live", "polite");
 
     view.rerender(<KillSwitch status="KILLED" />);
     fireEvent.click(screen.getByRole("button", { name: /자동매매 재개/ }));
-    expect(await screen.findByText("▶ 자동매매를 다시 켰어요")).toBeInTheDocument();
+    expect(await screen.findByText("자동매매를 다시 켰어요")).toBeInTheDocument();
   });
 
   it("재개에 실패하면 이유를 오류 토스트로 (바로 읽는 자리)", async () => {

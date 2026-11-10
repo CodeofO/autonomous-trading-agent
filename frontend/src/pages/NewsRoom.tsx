@@ -45,7 +45,7 @@ export function NewsRoomPage() {
     <div className="stack news-room">
       <section className="card news-head" aria-labelledby="news-title">
         <div className="card-head">
-          <h2 id="news-title">📰 뉴스 룸</h2>
+          <h2 id="news-title">뉴스 룸</h2>
           <div className="news-actions">
             {busy && (
               <span className="pill live" role="status" data-testid="news-refreshing">
@@ -208,7 +208,7 @@ function ImpactStrip({ sections }: { sections: NewsSection[] }) {
   return (
     <section className="card news-impact" aria-labelledby={`${id}-title`} data-testid="news-impact">
       <div className="news-impact-head">
-        <h3 id={`${id}-title`}>📊 증시 영향 큰 뉴스</h3>
+        <h3 id={`${id}-title`}>증시 영향 큰 뉴스</h3>
         <small className="muted news-impact-sub">섹션별 3줄</small>
         <button
           type="button"

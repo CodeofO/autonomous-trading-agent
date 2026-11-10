@@ -24,6 +24,7 @@ import { attachSwipe, canGoBack, tick, type SwipeDir } from "../ui/swipe";
 import { usePullToRefresh, type PullState } from "../ui/usePullToRefresh";
 import { llmChipText } from "../utils/llm";
 import { ConnectionBanner } from "./ConnectionBanner";
+import { Icon } from "./Icon";
 import { KillSwitch } from "./KillSwitch";
 import { Loading } from "./Loading";
 import { MarketSwitch } from "./MarketSwitch";
@@ -272,7 +273,7 @@ function SearchButton() {
       aria-keyshortcuts="Meta+K Control+K"
       title={`빠른 이동 · 종목 검색 (${key})`}
     >
-      <span aria-hidden>🔍</span>
+      <Icon name="search" size={16} />
       <span className="top-search-text">검색</span>
       <kbd className="top-search-key">{key}</kbd>
     </button>
@@ -407,7 +408,7 @@ const SideNav = memo(function SideNav({ pathname, view }: { pathname: string; vi
                 {...warmProps(n.to, view)}
               >
                 <span className="nav-icon" aria-hidden>
-                  {n.icon}
+                  <Icon name={n.icon} />
                 </span>{" "}
                 <span className="nav-label">{n.label}</span>
               </Link>
@@ -455,7 +456,7 @@ const TabBar = memo(function TabBar({
           {...warmProps(n.to, view)}
         >
           <span className="nav-icon" aria-hidden>
-            {n.icon}
+            <Icon name={n.icon} />
           </span>
           <span className="nav-short" aria-hidden>
             {n.short}
@@ -472,7 +473,7 @@ const TabBar = memo(function TabBar({
         onClick={onMore}
       >
         <span className="nav-icon" aria-hidden>
-          ☰
+          <Icon name="more" />
         </span>
         <span className="nav-short" aria-hidden>
           더보기
@@ -509,7 +510,7 @@ function MoreSheet({
                 {...warmProps(n.to, view)}
               >
                 <span className="more-icon" aria-hidden>
-                  {n.icon}
+                  <Icon name={n.icon} />
                 </span>
                 <span className="more-text">
                   <b>{n.label}</b>
@@ -550,7 +551,7 @@ function SettingsButton({ active, view }: { active: boolean; view: MarketView })
       title="설정"
       {...warmProps(SETTINGS.to, view)}
     >
-      <span aria-hidden>⚙️</span>
+      <Icon name="settings" size={16} />
       <span className="top-settings-text">설정</span>
     </Link>
   );
@@ -743,7 +744,7 @@ export function KstClock() {
   });
   return (
     <span className="chip" title="한국 표준시(KST)" data-testid="kst-clock">
-      🕒 {text} KST
+      {text} KST
     </span>
   );
 }

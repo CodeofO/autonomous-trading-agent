@@ -77,7 +77,7 @@ export function MemoPage() {
     <div className="stack memo-page">
       <section className="card memo-intro" aria-labelledby="memo-title">
         <div className="card-head">
-          <h2 id="memo-title">📌 메모 카드</h2>
+          <h2 id="memo-title">메모 카드</h2>
           <span className="pill memo-live" data-testid="memo-live-count">
             켜진 카드 {liveCount}개
           </span>
@@ -803,7 +803,7 @@ function TopicMemoryCard({ settings }: { settings: MemoSettings }) {
   return (
     <section className="card memo-settings topic-memory" aria-labelledby="memo-settings-title">
       <div className="card-head">
-        <h3 id="memo-settings-title">🧠 대화에서 기억하기</h3>
+        <h3 id="memo-settings-title">대화에서 기억하기</h3>
         <label className="toggle memo-settings-toggle">
           <input
             type="checkbox"

@@ -57,7 +57,7 @@ function AgentSettings() {
   });
   return (
     <section className="card">
-      <h2>🦉 매니저 캐릭터 · 운용 방침</h2>
+      <h2>매니저 캐릭터 · 운용 방침</h2>
       <p className="muted">
         투자 정책은 매 판단 세션의 시스템 프롬프트에 들어가요. 리스크 한도는 아래 설정이 코드로 강제하므로,
         정책에 뭐라고 써도 한도를 넘을 수 없어요.
@@ -123,7 +123,7 @@ function StrategySettings() {
   });
   return (
     <section className="card">
-      <h2>📏 규칙 전략</h2>
+      <h2>규칙 전략</h2>
       <p className="muted">LLM 이 없을 때 규칙 기반 판단과 백테스트에 쓰는 예시 전략이에요.</p>
       {q.data?.map((s) => (
         <StrategyRow

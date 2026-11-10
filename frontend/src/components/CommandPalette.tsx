@@ -1,3 +1,4 @@
+import { Icon } from "./Icon";
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -279,7 +280,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
                   onClick={() => it.run()}
                 >
                   <span className="palette-icon" aria-hidden>
-                    {it.icon}
+                    <Icon name={it.icon} size={16} />
                   </span>
                   <span className="palette-label">{it.label}</span>
                   {it.hint && <small className="palette-hint muted">{it.hint}</small>}

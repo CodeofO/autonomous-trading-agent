@@ -37,7 +37,7 @@ export function TradingRoom() {
       <section className="card room-main">
         <div className="card-head">
           <h2>
-            💬 트레이딩 룸 <small className="muted">— {persona.emoji} 매니저 · 🛡️ 리스크봇 · 💸 체결봇</small>
+            트레이딩 룸 <small className="muted">— {persona.emoji} 매니저 · 🛡️ 리스크봇 · 💸 체결봇</small>
           </h2>
           <div className="btn-row">
             <label className="toggle">

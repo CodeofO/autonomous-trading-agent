@@ -376,7 +376,7 @@ function SessionTimeline({ codes, markets }: { codes: MarketCode[]; markets: Mar
   return (
     <section className="card ov-timeline" aria-label="오늘 장 시간 (한국 시각)">
       <div className="card-head">
-        <h2>🕒 오늘 장 시간</h2>
+        <h2>오늘 장 시간</h2>
         <small className="muted">한국 시각 · 06:00 → 다음날 06:00</small>
       </div>
       <div className="ov-tl">
@@ -467,7 +467,7 @@ function ActivityFeed({ codes }: { codes: MarketCode[] }) {
   return (
     <section className="card ov-feed" aria-label="두 시장 소식">
       <div className="card-head">
-        <h2>📣 최근 소식</h2>
+        <h2>최근 소식</h2>
         <small className="muted">결정·체결·세션 정리 · 누르면 그 시장 트레이딩 룸으로</small>
       </div>
       {items.length === 0 ? (

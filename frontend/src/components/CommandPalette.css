@@ -17,7 +17,7 @@
   max-height: min(560px, 76vh);
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: var(--r-xl);
   background: var(--panel);
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.3);
   animation: palette-in 0.16s cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -47,17 +47,17 @@
   padding: 6px 0;
   border: 0;
   background: transparent;
-  font-size: 16px;
+  font-size: var(--fs-lg);
 }
 .palette-close {
   flex: none;
   padding: 2px 8px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--r-md);
   background: var(--panel-2);
   color: var(--text-dim);
   font: inherit;
-  font-size: 11.5px;
+  font-size: var(--fs-sm);
   cursor: pointer;
 }
 .palette-list {
@@ -76,7 +76,7 @@
   padding: 8px 10px 4px;
   background: var(--panel);
   color: var(--text-dim);
-  font-size: 11.5px;
+  font-size: var(--fs-sm);
   font-weight: 700;
 }
 .palette-item {
@@ -84,7 +84,7 @@
   align-items: center;
   gap: 10px;
   padding: 9px 10px;
-  border-radius: 10px;
+  border-radius: var(--r-md);
   cursor: pointer;
 }
 .palette-item.hi {
@@ -115,14 +115,14 @@
 .palette-status {
   margin: 0;
   padding: 6px 16px 12px;
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 .palette-foot {
   display: flex;
   gap: 16px;
   padding: 8px 16px;
   border-top: 1px solid var(--border);
-  font-size: 11.5px;
+  font-size: var(--fs-sm);
 }
 .palette-foot kbd {
   margin-right: 2px;
@@ -135,7 +135,7 @@
   }
   .palette {
     max-height: calc(var(--vvh, 100dvh) - 16px - env(safe-area-inset-top));
-    border-radius: 18px;
+    border-radius: var(--r-xl);
   }
   .palette-item {
     min-height: 46px;

@@ -48,7 +48,7 @@ export function ScheduleSettings() {
   return (
     <section className="card schedule-card" aria-labelledby="schedule-title">
       <div className="card-head">
-        <h2 id="schedule-title">⏰ 판단 주기</h2>
+        <h2 id="schedule-title">판단 주기</h2>
         <div className="seg sched-tabs" role="tablist" aria-label="시장">
           {MARKET_TABS.filter((t) => t.key === "KR" || usVisible).map((t) => (
             <button

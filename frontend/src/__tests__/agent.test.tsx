@@ -121,7 +121,7 @@ const MEMORY = {
   use_topics: true,
 };
 
-const memoryCard = () => screen.findByRole("region", { name: "🧠 매니저의 기억" });
+const memoryCard = () => screen.findByRole("region", { name: "매니저의 기억" });
 
 describe("매니저의 기억", () => {
   it("규칙과 지금 기억하는 판단 세션·대화 주제를 보여 준다", async () => {
@@ -212,6 +212,6 @@ describe("매니저의 기억", () => {
     mockFetch({ "/api/agent/structure": STRUCTURE });
     renderWithProviders(<AgentPage />);
     expect(await screen.findByText("알파 매니저")).toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "🧠 매니저의 기억" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "매니저의 기억" })).not.toBeInTheDocument();
   });
 });

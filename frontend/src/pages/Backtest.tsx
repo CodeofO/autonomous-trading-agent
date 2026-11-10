@@ -55,7 +55,7 @@ export function Backtest() {
   return (
     <div className="stack">
       <section className="card">
-        <h2>🧪 백테스트</h2>
+        <h2>백테스트</h2>
         <p className="muted">
           실거래 경로와 같은 전략·리스크·모의 체결 코드를 씁니다. 매일 14:00에 전일까지 공개된 일봉으로
           판단하고 당일 종가로 체결해요(미래 정보 차단). LLM 에이전트는 미래를 알 수 있어 백테스트하지 않아요.

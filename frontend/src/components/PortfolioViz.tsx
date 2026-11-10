@@ -124,7 +124,7 @@ export function CombinedAllocation({ sources, fxNote }: { sources: AllocSource[]
   return (
     <section className="card" aria-label="전체 보유 비중">
       <div className="card-head">
-        <h2>🧭 전체 보유 비중</h2>
+        <h2>전체 보유 비중</h2>
         <ModeSwitch mode={mode} modes={CHART_MODES} onPick={pick} />
       </div>
       {items.length === 0 ? (

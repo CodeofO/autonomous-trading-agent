@@ -11,6 +11,7 @@ export interface NavItem {
   label: string;
   /** 휴대폰 하단 탭바의 짧은 이름 */
   short: string;
+  /** 아이콘 이름 (components/Icon) */
   icon: string;
   /** 이 메뉴가 켜져 보이는 다른 주소 (예: 매니저 = 구조 + 메모 카드) */
   also?: string[];
@@ -22,10 +23,10 @@ export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   {
     title: "매일 보기",
     items: [
-      { to: "/", label: "홈", short: "홈", icon: "🏠" },
-      { to: "/room", label: "트레이딩 룸", short: "채팅", icon: "💬" },
-      { to: "/portfolio", label: "포트폴리오·주문", short: "자산", icon: "📒", also: ["/stock"] },
-      { to: "/news", label: "뉴스 룸", short: "뉴스", icon: "📰" },
+      { to: "/", label: "홈", short: "홈", icon: "home" },
+      { to: "/room", label: "트레이딩 룸", short: "채팅", icon: "chat" },
+      { to: "/portfolio", label: "포트폴리오·주문", short: "자산", icon: "wallet", also: ["/stock"] },
+      { to: "/news", label: "뉴스 룸", short: "뉴스", icon: "news" },
     ],
   },
   {
@@ -35,7 +36,7 @@ export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
         to: "/agent",
         label: "매니저",
         short: "매니저",
-        icon: "🦉",
+        icon: "bot",
         also: ["/memo"],
         hint: "에이전트 구조 · 기억 · 메모 카드",
       },
@@ -43,7 +44,7 @@ export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
         to: "/lab",
         label: "전략 실험실",
         short: "전략",
-        icon: "⚗️",
+        icon: "flask",
         hint: "여러 투자 전략을 모의계좌로 동시에 비교 · 주 계좌 전략 고르기",
       },
       {
@@ -51,17 +52,17 @@ export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
         to: "/settings/schedule",
         label: "판단 일정·장외 거래",
         short: "일정",
-        icon: "⏰",
+        icon: "clock",
         hint: "판단 세션 시간대 · 주기 · 데이·프리·애프터마켓 판단·주문",
       },
       {
         to: "/backtest",
         label: "백테스트",
         short: "백테스트",
-        icon: "🧪",
+        icon: "history",
         hint: "규칙 전략을 과거 시세로 시험",
       },
-      { to: "/logs", label: "이벤트 로그", short: "로그", icon: "📜", hint: "주문·리스크·설정 변경 기록" },
+      { to: "/logs", label: "이벤트 로그", short: "로그", icon: "list", hint: "주문·리스크·설정 변경 기록" },
     ],
   },
 ];
@@ -71,7 +72,7 @@ export const SETTINGS: NavItem = {
   to: "/settings",
   label: "설정",
   short: "설정",
-  icon: "⚙️",
+  icon: "settings",
   also: ["/costs"],
   hint: "LLM 모델 · 알림 · 판단 일정 · 리스크 · 매니저 · 계좌",
 };
@@ -84,7 +85,7 @@ export const TABS: string[] = [...TAB_ITEMS.map((n) => n.to), MORE];
 /** 더보기 시트: 탭바에 없는 화면 + 설정 */
 export const MORE_ITEMS: NavItem[] = [
   ...NAV_GROUPS[1].items,
-  { to: "/costs", label: "LLM 요금", short: "요금", icon: "💸", hint: "모델·토큰별 실제 요금" },
+  { to: "/costs", label: "LLM 요금", short: "요금", icon: "coins", hint: "모델·토큰별 실제 요금" },
   SETTINGS,
 ];
 

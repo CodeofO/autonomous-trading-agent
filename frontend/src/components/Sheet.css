@@ -50,7 +50,7 @@ html.sheet-open .page-scroll {
   width: 40px;
   height: 5px;
   margin: 0 auto 8px;
-  border-radius: 3px;
+  border-radius: var(--r-xs);
   background: var(--border);
 }
 .sheet.danger .sheet-handle {
@@ -59,11 +59,11 @@ html.sheet-open .page-scroll {
 }
 .sheet-title {
   margin: 2px 0 0;
-  font-size: 17px;
+  font-size: var(--fs-xl);
 }
 .sheet-body {
   padding-top: 6px;
-  font-size: 15px;
+  font-size: var(--fs-lg);
 }
 .sheet-body p {
   margin: 0 0 10px;
@@ -77,8 +77,8 @@ html.sheet-open .page-scroll {
 .sheet-actions .btn {
   width: 100%;
   min-height: 50px;
-  font-size: 16px;
-  border-radius: 14px;
+  font-size: var(--fs-lg);
+  border-radius: var(--r-xl);
 }
 /* 큰 창 (size="wide") — 넓은 화면은 가운데 큰 창, 휴대폰은 화면 높이 가득 (주요 지수 차트, D-65) */
 .sheet.wide {
@@ -101,7 +101,7 @@ html.sheet-open .page-scroll {
     padding-left: 20px;
     padding-right: 20px;
     padding-bottom: 20px;
-    border-radius: 20px;
+    border-radius: var(--r-xl);
     animation: fade-in 0.2s ease-out;
   }
   .sheet.wide.closing {
@@ -143,7 +143,7 @@ html.sheet-open .page-scroll {
   min-width: 0;
 }
 .qs-name b {
-  font-size: 18px;
+  font-size: var(--fs-xl);
   overflow-wrap: anywhere;
 }
 .qs-price {
@@ -154,7 +154,7 @@ html.sheet-open .page-scroll {
   gap: 1px;
 }
 .qs-price b {
-  font-size: 24px;
+  font-size: var(--fs-3xl);
   line-height: 1.2;
 }
 .qs-chart {
@@ -178,7 +178,7 @@ html.sheet-open .page-scroll {
 }
 .qs-chart figcaption {
   margin-top: 4px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 .qs-none {
   margin: 0 0 14px;
@@ -186,7 +186,7 @@ html.sheet-open .page-scroll {
 .qs-pos {
   padding: 12px;
   margin-bottom: 14px;
-  border-radius: 12px;
+  border-radius: var(--r-lg);
   background: var(--panel-2);
 }
 .qs-actions {
@@ -200,8 +200,8 @@ html.sheet-open .page-scroll {
   align-items: center;
   justify-content: center;
   text-decoration: none;
-  font-size: 15px;
-  border-radius: 14px;
+  font-size: var(--fs-lg);
+  border-radius: var(--r-xl);
 }
 .qs-actions .btn.primary {
   flex: 2;

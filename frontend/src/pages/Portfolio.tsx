@@ -1,3 +1,4 @@
+import { failedOf, LoadError } from "../components/LoadError";
 import { memo, useMemo, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -66,6 +67,8 @@ function MarketPortfolio() {
   }, [orders.data]);
 
   // 표 다섯 개가 따로 도착하며 아래 표를 밀어내지 않게, 처음에는 모두 받을 때까지 자리 표시 한 번만
+  const failed = failedOf([pf, orders, fills, decisions]);
+  if (failed.length) return <LoadError what="포트폴리오를" queries={failed} />;
   if (pf.isPending || orders.isPending || fills.isPending || decisions.isPending)
     return <SkeletonCards heights={[180, 140, 220, 220, 260]} label="포트폴리오 불러오는 중" />;
 
@@ -359,6 +362,8 @@ function PortfolioAll({ markets }: { markets: MarketCode[] }) {
     return out;
   }, [krPf.data, usPf.data, hasUS, fx]);
 
+  const failed = failedOf([krPf, krOrders, krFills, ...(hasUS ? [usPf, usOrders, usFills] : [])]);
+  if (failed.length) return <LoadError what="포트폴리오를" queries={failed} />;
   if (krPf.isPending || krOrders.isPending || krFills.isPending)
     return <SkeletonCards heights={[120, 180, 180, 140, 220]} label="포트폴리오 불러오는 중" />;
 
@@ -368,7 +373,7 @@ function PortfolioAll({ markets }: { markets: MarketCode[] }) {
     <div className="stack" data-testid="portfolio-all">
       <section className="card pf-all-total" aria-label="전체 자산">
         <div className="pf-all-head">
-          <h2>🧭 전체 자산</h2>
+          <h2>전체 자산</h2>
           <b className="pf-all-sum num">
             {ov?.total_krw.equity != null ? fmtWon(Math.round(ov.total_krw.equity)) : "—"}
           </b>

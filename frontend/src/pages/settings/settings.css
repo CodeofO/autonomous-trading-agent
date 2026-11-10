@@ -14,7 +14,7 @@
 }
 .settings-group-title {
   margin: 0 4px 6px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 700;
   color: var(--text-dim);
 }
@@ -24,7 +24,7 @@
 .settings-group-items {
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--r-xl);
   background: var(--panel);
   box-shadow: var(--shadow);
 }
@@ -61,9 +61,9 @@
   place-items: center;
   width: 32px;
   height: 32px;
-  border-radius: 9px;
+  border-radius: var(--r-md);
   background: var(--panel-2);
-  font-size: 17px;
+  font-size: var(--fs-xl);
 }
 .settings-item.active .settings-icon {
   background: var(--panel);
@@ -84,7 +84,7 @@
   display: none;
   flex: none;
   color: var(--text-dim);
-  font-size: 22px;
+  font-size: var(--fs-2xl);
   line-height: 1;
 }
 .settings-pane {
@@ -107,7 +107,7 @@
 }
 .settings-title {
   margin: 0;
-  font-size: 20px;
+  font-size: var(--fs-2xl);
 }
 .settings-back {
   display: inline-flex;
@@ -119,13 +119,13 @@
   background: none;
   color: var(--accent);
   font: inherit;
-  font-size: 16px;
+  font-size: var(--fs-lg);
   font-weight: 600;
   cursor: pointer;
 }
 .settings-back span {
   margin-top: -3px;
-  font-size: 28px;
+  font-size: var(--fs-3xl);
   line-height: 1;
 }
 /* 어느 시장에 적용되는지 (지금 시장에만 적용되는 주제는 강조) */
@@ -133,10 +133,10 @@
   align-self: flex-start;
   margin: 0;
   padding: 6px 10px;
-  border-radius: 10px;
+  border-radius: var(--r-md);
   background: var(--panel-2);
   color: var(--text-dim);
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
   font-weight: 600;
 }
 .settings-scope.scope-market {
@@ -145,7 +145,7 @@
 }
 .settings-foot {
   margin: 10px 0 0;
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
 }
 /* 데이터 연결 상태 */
 .status-list {
@@ -179,7 +179,7 @@
 .status-label {
   min-width: 96px;
   color: var(--text-dim);
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 .status-value {
   flex: 1;
@@ -235,10 +235,10 @@
     box-shadow: 0 1px 0 var(--border);
   }
   .settings-title {
-    font-size: 17px;
+    font-size: var(--fs-xl);
   }
   .settings-scope {
-    font-size: 12px;
+    font-size: var(--fs-sm);
   }
   .settings .card-head .btn.tiny,
   .watch .link {
@@ -302,15 +302,15 @@ label.toggle.ext-toggle {
   color: var(--text);
 }
 .ext-time {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-dim);
 }
 .pill.ext-now {
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 .ext-note {
   margin: 8px 0 0;
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
 }
 
 /* 리스크 한도: 따르는 전략 (D-64) */
@@ -318,9 +318,9 @@ label.toggle.ext-toggle {
   margin: 8px 0 12px;
   padding: 10px 12px;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--r-lg);
   background: var(--panel-2);
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 .risk-strategy p {
   margin: 0;

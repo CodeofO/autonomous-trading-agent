@@ -7,7 +7,7 @@
 }
 .news-lead {
   margin: 0 0 10px;
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 .news-times {
   display: flex;
@@ -22,13 +22,13 @@
   min-width: 0;
 }
 .news-times dt {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-dim);
   white-space: nowrap;
 }
 .news-times dd {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--fs-md);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -45,8 +45,8 @@
 .news-alert {
   margin: 10px 0 0;
   padding: 8px 12px;
-  border-radius: 10px;
-  font-size: 13px;
+  border-radius: var(--r-md);
+  font-size: var(--fs-base);
 }
 .news-alert.warn {
   background: rgba(255, 159, 10, 0.12);
@@ -58,21 +58,21 @@
   border-left: 3px solid var(--accent);
   background: var(--accent-soft);
   border-radius: 0 10px 10px 0;
-  font-size: 15px;
+  font-size: var(--fs-lg);
   font-weight: 600;
   line-height: 1.5;
 }
 .news-headline-tag {
   display: block;
   margin-bottom: 2px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   color: var(--accent);
   letter-spacing: 0.02em;
 }
 .news-note {
   margin: 8px 0 0;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 
 /* 섹션: 넓은 화면은 2열, 휴대폰은 1열 */
@@ -91,17 +91,17 @@
 }
 .news-section-head h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--fs-lg);
 }
 .news-count {
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 .news-summary {
   margin: 0 0 10px;
   padding: 10px 12px;
   background: var(--panel-2);
-  border-radius: 10px;
-  font-size: 13px;
+  border-radius: var(--r-md);
+  font-size: var(--fs-base);
   line-height: 1.6;
 }
 .news-list {
@@ -122,7 +122,7 @@
   display: block;
   color: var(--text);
   font-weight: 600;
-  font-size: 14px;
+  font-size: var(--fs-md);
   line-height: 1.45;
   text-decoration: none;
   overflow-wrap: anywhere;
@@ -133,7 +133,7 @@ a.news-title:hover {
 }
 .news-desc {
   margin: 3px 0 0;
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
   line-height: 1.5;
   color: var(--text-dim);
   display: -webkit-box;
@@ -148,7 +148,7 @@ a.news-title:hover {
   align-items: center;
   gap: 4px 10px;
   margin-top: 4px;
-  font-size: 11.5px;
+  font-size: var(--fs-sm);
 }
 .news-related {
   margin-left: 0;
@@ -157,12 +157,12 @@ a.news-title:hover {
 }
 .news-none {
   margin: 4px 0;
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 .news-errors {
   display: block;
   margin-top: 6px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 .news-empty p {
   margin: 0 0 6px;
@@ -174,11 +174,11 @@ a.news-title:hover {
   margin: 8px 0 0;
   padding: 0;
   list-style: none;
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 .news-foot {
   margin: 0;
-  font-size: 11.5px;
+  font-size: var(--fs-sm);
 }
 
 /* 📊 증시 영향 3줄 (D-59): 넓은 화면은 격자, 휴대폰은 옆으로 넘기는 카드 */
@@ -190,7 +190,7 @@ a.news-title:hover {
 }
 .news-impact-head h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--fs-lg);
 }
 .news-impact-toggle {
   margin-left: auto;
@@ -207,7 +207,7 @@ a.news-title:hover {
   min-width: 0;
   padding: 12px 14px;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--r-lg);
   background: var(--panel-2);
 }
 .news-impact-card-head {
@@ -216,7 +216,7 @@ a.news-title:hover {
   align-items: center;
   gap: 6px;
   margin-bottom: 6px;
-  font-size: 14px;
+  font-size: var(--fs-md);
 }
 .news-impact-card-head .pill {
   margin-left: 0;
@@ -238,13 +238,13 @@ a.news-title:hover {
   gap: 6px;
 }
 .news-impact-lines li {
-  font-size: 13px;
+  font-size: var(--fs-base);
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
 .news-impact-link {
   margin-left: 6px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   white-space: nowrap;
   color: var(--accent);
   text-decoration: none;
@@ -254,7 +254,7 @@ a.news-title:hover {
 }
 .news-impact-none {
   margin: 4px 0 0;
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 .news-impact-hint {
   display: none;
@@ -281,23 +281,23 @@ a.news-title:hover {
     display: block;
     margin-top: 6px;
     text-align: center;
-    font-size: 11px;
+    font-size: var(--fs-xs);
   }
   .news-head .card-head {
     align-items: flex-start;
   }
   .news-refresh {
     padding: 6px 12px;
-    font-size: 13px;
+    font-size: var(--fs-base);
   }
   .news-times {
     flex-direction: column;
     gap: 6px;
   }
   .news-headline {
-    font-size: 14px;
+    font-size: var(--fs-md);
   }
   .news-title {
-    font-size: 15px; /* 손가락으로 누르기 쉽게 */
+    font-size: var(--fs-lg); /* 손가락으로 누르기 쉽게 */
   }
 }

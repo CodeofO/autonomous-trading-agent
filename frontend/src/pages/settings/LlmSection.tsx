@@ -119,7 +119,7 @@ export function LlmProfileSettings() {
 
   return (
     <section className="card llm-card">
-      <h2>🤖 LLM 모델</h2>
+      <h2>LLM 모델</h2>
       <p className="muted">
         매니저가 판단·대화에 쓰는 모델이에요. 무료는 .env 의 LLM_TEST_*, 유료는 LLM_* 설정을 써요. 바꾸면 다음
         판단·답장부터 적용돼요.
@@ -395,7 +395,7 @@ export function TestEndpointSettings() {
 
   return (
     <div className="llm-test" role="group" aria-label="테스트용(무료) LLM">
-      <h3>🧪 테스트용(무료) LLM</h3>
+      <h3>테스트용(무료) LLM</h3>
       <p className="muted llm-test-help">
         여기서 바꾼 값은 앱에 저장돼 재시작해도 유지돼요. 키는 화면에서 받지 않아요.
       </p>

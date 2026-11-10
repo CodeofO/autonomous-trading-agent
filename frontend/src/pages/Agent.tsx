@@ -84,7 +84,7 @@ export function AgentPage() {
       <div className="agent-grid">
         <section className="card">
           <div className="card-head">
-            <h2>🗺️ 판단 워크플로</h2>
+            <h2>판단 워크플로</h2>
             <span className="muted">세션 한 번이 흘러가는 순서</span>
           </div>
           <ol className="wf" aria-label="판단 워크플로">
@@ -225,7 +225,7 @@ export function AgentPage() {
         <aside className="agent-side">
           <section className="card">
             <div className="card-head">
-              <h2>⚙️ 상시 감시</h2>
+              <h2>상시 감시</h2>
             </div>
             <ul className="loop-list">
               <li>
@@ -252,7 +252,7 @@ export function AgentPage() {
 
           <section className="card">
             <div className="card-head">
-              <h2>🗓️ 오늘의 판단 시각</h2>
+              <h2>오늘의 판단 시각</h2>
               <span className="muted">
                 {times.length}회{api.market === "KR" ? "" : " · 한국 시각"}
               </span>
@@ -274,7 +274,7 @@ export function AgentPage() {
 
           <section className="card">
             <div className="card-head">
-              <h2>🔌 데이터 출처</h2>
+              <h2>데이터 출처</h2>
             </div>
             <ul className="loop-list">
               <li>
@@ -316,7 +316,7 @@ function MemoryCard({ memory }: { memory: AgentMemory }) {
   return (
     <section className="card memory-card" aria-labelledby="memory-title">
       <div className="card-head">
-        <h2 id="memory-title">🧠 매니저의 기억</h2>
+        <h2 id="memory-title">매니저의 기억</h2>
         <Link to="/memo" className="btn tiny mem-memo-link">
           메모 카드 관리 →
         </Link>

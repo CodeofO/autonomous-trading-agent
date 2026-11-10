@@ -130,18 +130,18 @@
   min-width: 0;
 }
 .viz-donut-center small {
-  font-size: 11.5px;
+  font-size: var(--fs-sm);
   color: var(--text-dim);
 }
 .viz-center-name {
-  font-size: 13px;
+  font-size: var(--fs-base);
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .viz-center-big {
-  font-size: 17px;
+  font-size: var(--fs-xl);
 }
 .viz-legend {
   list-style: none;
@@ -157,15 +157,15 @@
   align-items: center;
   gap: 8px;
   padding: 6px 8px;
-  border-radius: 8px;
-  font-size: 13.5px;
+  border-radius: var(--r-md);
+  font-size: var(--fs-base);
 }
 .viz-legend li.on {
   background: var(--panel-2);
 }
 .viz-legend li.sub {
   padding-left: 22px;
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
 }
 .viz-legend li.sub .viz-sw {
   width: 6px;
@@ -186,7 +186,7 @@
 .viz-sw {
   width: 10px;
   height: 10px;
-  border-radius: 3px;
+  border-radius: var(--r-xs);
 }
 .viz-legend-name {
   min-width: 0;
@@ -202,14 +202,14 @@
 }
 .viz-note {
   margin: 10px 0 0;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 
 /* ---------- 모자이크 ---------- */
 .viz-mosaic {
   position: relative;
   height: 340px;
-  border-radius: 12px;
+  border-radius: var(--r-lg);
   overflow: hidden;
 }
 /* 종목이 많으면(전체 보기 등) 칸이 너무 작아지지 않게 더 높게 */
@@ -223,7 +223,7 @@
   justify-content: flex-start;
   gap: 1px;
   padding: 7px 8px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   overflow: hidden;
   color: var(--text);
   text-decoration: none;
@@ -239,18 +239,18 @@ a.viz-tile:focus-visible {
 }
 .viz-tile-name {
   font-weight: 700;
-  font-size: 13px;
+  font-size: var(--fs-base);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .viz-tile-sym {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   opacity: 0.8;
   white-space: nowrap;
 }
 .viz-tile-nums {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -258,13 +258,13 @@ a.viz-tile:focus-visible {
   padding: 4px 6px;
 }
 .viz-tile.md .viz-tile-name {
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 .viz-tile.md .viz-tile-sym {
   display: none;
 }
 .viz-tile.md .viz-tile-nums {
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 .viz-tile.sm > * {
   display: none;
@@ -303,12 +303,12 @@ a.viz-tile:focus-visible {
   align-items: center;
   gap: 4px;
   margin-top: 8px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 .viz-scale-sw {
   width: 18px;
   height: 10px;
-  border-radius: 3px;
+  border-radius: var(--r-xs);
 }
 .viz-scale-sw.pm3 {
   background: var(--viz-pm3);

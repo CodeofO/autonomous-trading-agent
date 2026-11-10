@@ -204,7 +204,7 @@ function DashboardChat() {
   return (
     <section className="card room-mini">
       <div className="card-head">
-        <h2>💬 트레이딩 룸</h2>
+        <h2>트레이딩 룸</h2>
         <div className="btn-row">
           <label className="toggle">
             <input type="checkbox" checked={showTools} onChange={(e) => setShowTools(e.target.checked)} />

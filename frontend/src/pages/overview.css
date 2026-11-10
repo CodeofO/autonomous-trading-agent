@@ -37,7 +37,7 @@
 .ov-skel i {
   display: block;
   height: 14px;
-  border-radius: 7px;
+  border-radius: var(--r-sm);
   background: linear-gradient(90deg, var(--panel-2) 30%, var(--border) 50%, var(--panel-2) 70%) 0 0 / 300%
     100%;
   animation: shimmer 1.4s ease-in-out infinite;
@@ -66,10 +66,10 @@
 }
 .ov-label {
   color: var(--text-dim);
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 .ov-total-value {
-  font-size: 30px;
+  font-size: var(--fs-3xl);
   line-height: 1.2;
   letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
@@ -79,7 +79,7 @@
   font-variant-numeric: tabular-nums;
 }
 .ov-fx {
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 .ov-split {
   flex: 1 1 280px;
@@ -92,7 +92,7 @@
   display: flex;
   gap: 2px;
   height: 12px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   overflow: hidden;
   background: var(--panel-2);
 }
@@ -109,7 +109,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 4px 18px;
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 .ov-split-legend li {
   display: inline-flex;
@@ -158,7 +158,7 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-dim);
 }
 .ov-state.open {
@@ -172,14 +172,14 @@
   gap: 4px 10px;
 }
 .ov-eq b {
-  font-size: 24px;
+  font-size: var(--fs-3xl);
   font-variant-numeric: tabular-nums;
 }
 .ov-figs {
   display: flex;
   flex-wrap: wrap;
   gap: 2px 14px;
-  font-size: 13px;
+  font-size: var(--fs-base);
   font-variant-numeric: tabular-nums;
 }
 .ov-empty {
@@ -198,7 +198,7 @@
   grid-template-columns: minmax(0, 8em) minmax(36px, 1fr) 3.6em 4.8em;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 a.ov-pos-name {
   color: var(--text);
@@ -208,7 +208,7 @@ a.ov-pos-name {
 }
 .ov-bar {
   height: 6px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   overflow: hidden;
   background: var(--panel-2);
 }
@@ -231,7 +231,7 @@ a.ov-pos-name {
   align-items: center;
   flex-wrap: wrap;
   gap: 6px 10px;
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 .ov-manager .pill {
   margin-left: 0;
@@ -239,7 +239,7 @@ a.ov-pos-name {
 a.ov-last {
   display: block;
   padding: 10px 12px;
-  border-radius: 10px;
+  border-radius: var(--r-md);
   background: var(--panel-2);
   color: var(--text);
 }
@@ -249,7 +249,7 @@ a.ov-last:hover {
 }
 .ov-last p {
   margin: 2px 0 0;
-  font-size: 13px;
+  font-size: var(--fs-base);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;
@@ -258,7 +258,7 @@ a.ov-last:hover {
 }
 .ov-last-none {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 .ov-actions {
   margin-top: auto;
@@ -293,19 +293,19 @@ a.ov-last:hover {
   flex-direction: column;
   justify-content: center;
   font-weight: 700;
-  font-size: 13px;
+  font-size: var(--fs-base);
   line-height: 1.2;
   white-space: nowrap;
 }
 .ov-tl-name small {
   font-weight: 500;
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 /* 3시간마다 눈금선 (12.5%) */
 .ov-tl-track {
   position: relative;
   height: 30px;
-  border-radius: 8px;
+  border-radius: var(--r-md);
   background:
     repeating-linear-gradient(90deg, transparent 0 calc(12.5% - 1px), var(--grid) calc(12.5% - 1px) 12.5%),
     var(--panel-2);
@@ -319,9 +319,9 @@ a.ov-last:hover {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   color: #fff;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -351,7 +351,7 @@ a.ov-last:hover {
   right: 0;
   bottom: 0;
   height: 14px;
-  font-size: 10.5px;
+  font-size: var(--fs-xs);
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
 }
@@ -379,7 +379,7 @@ a.ov-last:hover {
   top: -14px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 10px;
+  font-size: var(--fs-xs);
   color: var(--danger);
   white-space: nowrap;
 }
@@ -402,7 +402,7 @@ a.ov-feed-item {
   gap: 8px;
   padding: 9px 4px;
   color: var(--text);
-  border-radius: 8px;
+  border-radius: var(--r-md);
 }
 a.ov-feed-item:hover {
   text-decoration: none;
@@ -416,7 +416,7 @@ a.ov-feed-item:hover {
   flex-direction: column;
   gap: 1px;
   min-width: 0;
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 .ov-feed-text b {
   font-weight: 600;
@@ -431,7 +431,7 @@ a.ov-feed-item:hover {
   overflow: hidden;
 }
 .ov-feed-item time {
-  font-size: 11.5px;
+  font-size: var(--fs-sm);
   line-height: 20px;
   white-space: nowrap;
 }
@@ -442,13 +442,13 @@ a.ov-feed-item:hover {
     gap: 12px;
   }
   .ov-total-value {
-    font-size: 26px;
+    font-size: var(--fs-3xl);
   }
   .ov-split {
     max-width: none;
   }
   .ov-eq b {
-    font-size: 21px;
+    font-size: var(--fs-2xl);
   }
   .ov-pos li {
     grid-template-columns: minmax(0, 1fr) 56px 3.4em 4.6em;

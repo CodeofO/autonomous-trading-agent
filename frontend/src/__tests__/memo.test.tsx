@@ -441,7 +441,7 @@ describe("메모 카드 추가", () => {
 });
 
 describe("대화에서 기억하기 (D-67)", () => {
-  const topicCard = () => screen.findByRole("region", { name: "🧠 대화에서 기억하기" });
+  const topicCard = () => screen.findByRole("region", { name: "대화에서 기억하기" });
 
   it("주제마다 중요도·언급한 날·매니저 판단과 이유·최근 인용을 보여 준다", async () => {
     memoServer();

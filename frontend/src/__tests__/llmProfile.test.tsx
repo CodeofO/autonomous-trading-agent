@@ -69,7 +69,7 @@ describe("LLM 모델 카드 (설정)", () => {
   it("무료·유료 두 설정을 모델 이름·API 방식과 함께 보여준다", async () => {
     mockProfileApi(profiles("free"));
     renderWithProviders(<LlmProfileSettings />);
-    expect(await screen.findByRole("heading", { name: "🤖 LLM 모델" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "LLM 모델" })).toBeInTheDocument();
     const free = await screen.findByRole("button", { name: /무료/ });
     expect(free).toHaveTextContent("free-model-7b");
     expect(free).toHaveTextContent("Chat Completions");

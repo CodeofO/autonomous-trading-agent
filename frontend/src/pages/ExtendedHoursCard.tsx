@@ -22,7 +22,7 @@ export function ExtendedHoursCard() {
   return (
     <section className="card ext-card" aria-labelledby="ext-title">
       <div className="card-head">
-        <h2 id="ext-title">🌙 장외 거래</h2>
+        <h2 id="ext-title">장외 거래</h2>
         <div className="seg sched-tabs" role="tablist" aria-label="시장">
           {MARKET_TABS.filter((t) => t.key === "KR" || usVisible).map((t) => (
             <button

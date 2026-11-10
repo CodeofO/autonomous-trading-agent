@@ -269,13 +269,13 @@ describe("테스트용(무료) LLM 지정 (설정)", () => {
   it("LLM 모델 카드 안에 들어가고, 예전 서버(404)면 숨긴다", async () => {
     mockTestApi(endpoint());
     const { unmount } = renderWithProviders(<LlmProfileSettings />);
-    expect(await screen.findByRole("heading", { name: "🧪 테스트용(무료) LLM" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "테스트용(무료) LLM" })).toBeInTheDocument();
     unmount();
     vi.unstubAllGlobals();
 
     mockFetch({ "/api/system": SYSTEM });
     renderWithProviders(<TestEndpointSettings />);
     await waitFor(() => expect(screen.queryByText("불러오는 중…")).not.toBeInTheDocument());
-    expect(screen.queryByRole("heading", { name: "🧪 테스트용(무료) LLM" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "테스트용(무료) LLM" })).not.toBeInTheDocument();
   });
 });

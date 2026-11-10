@@ -1,6 +1,6 @@
 /* ⚗️ 전략 실험실 (D-62) */
 .lab-intro h2 small {
-  font-size: 13px;
+  font-size: var(--fs-base);
   font-weight: 500;
 }
 .lab-status {
@@ -9,7 +9,7 @@
   align-items: center;
   gap: 8px;
   margin: 8px 0 0;
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 .lab-rows {
   list-style: none;
@@ -25,7 +25,7 @@
   gap: 8px;
   padding: 12px 14px;
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: var(--r-xl);
   background: var(--panel-2);
   min-width: 0;
 }
@@ -39,7 +39,7 @@
   gap: 6px;
 }
 .lab-row-name {
-  font-size: 15px;
+  font-size: var(--fs-lg);
   margin-right: auto;
 }
 .lab-row-nums {
@@ -49,7 +49,7 @@
   gap: 4px 10px;
 }
 .lab-ret {
-  font-size: 22px;
+  font-size: var(--fs-2xl);
   font-variant-numeric: tabular-nums;
 }
 .lab-top {
@@ -61,7 +61,7 @@
   gap: 4px;
 }
 .lab-top .chip {
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 .lab-last,
 .lab-runs li {
@@ -69,7 +69,7 @@
   flex-direction: column;
   gap: 2px;
   margin: 0;
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 .lab-last span {
   display: -webkit-box;
@@ -87,7 +87,7 @@
 }
 .lab-detail h4 {
   margin: 8px 0 4px;
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 .lab-runs {
   list-style: none;
@@ -108,7 +108,7 @@
 .lab-styles li {
   padding: 10px 12px;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--r-lg);
 }
 .lab-styles li.on {
   border-color: var(--accent, #3182f6);
@@ -133,7 +133,7 @@
 }
 .lab-policy summary {
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-dim);
   margin-top: 6px;
 }
@@ -141,13 +141,13 @@
   white-space: pre-wrap;
   word-break: keep-all;
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
   line-height: 1.55;
   margin: 6px 0 0;
 }
 .lab-policy-note {
   margin: 6px 0 0;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 .lab-main-pick {
   display: flex;
@@ -163,10 +163,10 @@
   gap: 6px;
   padding: 8px 14px 8px 12px;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   cursor: pointer;
   min-height: 40px;
-  font-size: 14px;
+  font-size: var(--fs-md);
   color: var(--text);
   white-space: nowrap;
 }
@@ -207,10 +207,10 @@
   color: var(--up);
 }
 .lab-risk {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-dim);
 }
 .lab-main-risk {
   margin: 4px 0 8px;
-  font-size: 13px;
+  font-size: var(--fs-base);
 }

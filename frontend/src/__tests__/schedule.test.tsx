@@ -165,7 +165,7 @@ describe("⏰ 판단 주기 카드", () => {
   it("국장 일정을 미리 보기로 보여 주고, 미장이 꺼져 있으면(404) 미장 탭을 숨긴다", async () => {
     const fetchMock = scheduleServer();
     renderWithProviders(<ScheduleSettings />);
-    expect(await screen.findByRole("heading", { name: "⏰ 판단 주기" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "판단 주기" })).toBeInTheDocument();
     await screen.findByRole("list", { name: "판단 시각" });
     await waitFor(() =>
       expect(fetchMock.mock.calls.some(([u]) => String(u) === "/api/us/schedule")).toBe(true),
@@ -319,9 +319,7 @@ describe("⏰ 판단 주기 카드", () => {
     const fetchMock = scheduleServer({ kr404: true });
     renderWithProviders(<ScheduleSettings />);
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    await waitFor(() =>
-      expect(screen.queryByRole("heading", { name: "⏰ 판단 주기" })).not.toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "판단 주기" })).not.toBeInTheDocument());
     expect(screen.queryByText("불러오는 중…")).not.toBeInTheDocument();
   });
 });
