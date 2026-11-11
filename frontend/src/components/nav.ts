@@ -2,7 +2,7 @@
  * 메뉴 구성 (한 곳에서 정의 — 사이드바·휴대폰 탭바·더보기 시트가 같이 쓴다)
  *
  * - 넓은 화면 사이드바: 자주 보는 화면과 매니저·분석 화면(판단 일정 바로가기 포함), 두 묶음
- * - 설정은 오른쪽 위 ⚙️ (사이드바에 두지 않는다). LLM 요금은 설정 안에서 들어간다
+ * - 설정은 오른쪽 위 ⚙️ (사이드바에 두지 않는다). LLM 요금은 자주 봐서 사이드바에도 둔다 (설정 안에도 있다)
  * - 휴대폰 하단 탭바: 4칸 + '더보기'(나머지 화면·설정·로그아웃을 시트로)
  */
 
@@ -63,17 +63,17 @@ export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
         hint: "규칙 전략을 과거 시세로 시험",
       },
       { to: "/logs", label: "활동 기록", short: "기록", icon: "list", hint: "주문·리스크·설정 변경 기록" },
+      { to: "/costs", label: "LLM 요금", short: "요금", icon: "coins", hint: "모델·토큰별 실제 요금" },
     ],
   },
 ];
 
-/** 설정 (오른쪽 위 ⚙️) — LLM 요금 화면도 설정에 속한다 */
+/** 설정 (오른쪽 위 ⚙️) */
 export const SETTINGS: NavItem = {
   to: "/settings",
   label: "설정",
   short: "설정",
   icon: "settings",
-  also: ["/costs"],
   hint: "LLM 모델 · 알림 · 판단 일정 · 리스크 · 매니저 · 계좌",
 };
 
@@ -83,11 +83,7 @@ export const MORE = "#more";
 export const TABS: string[] = [...TAB_ITEMS.map((n) => n.to), MORE];
 
 /** 더보기 시트: 탭바에 없는 화면 + 설정 */
-export const MORE_ITEMS: NavItem[] = [
-  ...NAV_GROUPS[1].items,
-  { to: "/costs", label: "LLM 요금", short: "요금", icon: "coins", hint: "모델·토큰별 실제 요금" },
-  SETTINGS,
-];
+export const MORE_ITEMS: NavItem[] = [...NAV_GROUPS[1].items, SETTINGS];
 
 const under = (pathname: string, to: string) =>
   to === "/" ? pathname === "/" : pathname === to || pathname.startsWith(`${to}/`);

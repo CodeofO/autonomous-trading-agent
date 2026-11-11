@@ -382,7 +382,7 @@ describe("LLM 요금 화면", () => {
 });
 
 describe("메뉴·설정 링크", () => {
-  it("LLM 요금은 설정에 속한다: 사이드바에는 없고, 요금 화면에서는 오른쪽 위 ⚙️ 설정이 켜져 보인다", () => {
+  it("LLM 요금은 사이드바에서 바로 들어가고, 요금 화면에서는 그 메뉴가 켜져 보인다", () => {
     mockFetch({});
     renderWithProviders(
       <Routes>
@@ -392,9 +392,9 @@ describe("메뉴·설정 링크", () => {
       </Routes>,
       { route: "/costs" },
     );
-    expect(screen.queryByRole("link", { name: "LLM 요금" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "설정" })).toHaveAttribute("aria-current", "page");
-    expect(isActive(SETTINGS, "/costs")).toBe(true);
+    expect(screen.getByRole("link", { name: "LLM 요금" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "설정" })).not.toHaveAttribute("aria-current");
+    expect(isActive(SETTINGS, "/costs")).toBe(false);
   });
 
   it("설정 화면에 LLM 요금 링크가 있다", () => {

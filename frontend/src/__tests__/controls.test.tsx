@@ -78,7 +78,7 @@ describe("레이아웃", () => {
     expect(screen.queryByRole("status", { name: "모의투자 모드" })).not.toBeInTheDocument();
   });
 
-  it("넓은 화면 메뉴는 두 묶음이고(판단 일정 바로가기 포함), 설정·LLM 요금은 사이드바에 두지 않는다", async () => {
+  it("넓은 화면 메뉴는 두 묶음이고(판단 일정 바로가기 포함), 설정은 사이드바에 두지 않는다", async () => {
     mockFetch({});
     renderWithProviders(
       <Routes>
@@ -93,10 +93,9 @@ describe("레이아웃", () => {
         .getAllByRole("link")
         .map((a) => a.getAttribute("href"));
     expect(group("매일 보기")).toEqual(["/", "/room", "/portfolio", "/news"]);
-    expect(group("매니저·분석")).toEqual(["/agent", "/lab", "/settings/schedule", "/backtest", "/logs"]);
+    expect(group("매니저·분석")).toEqual(["/agent", "/lab", "/settings/schedule", "/backtest", "/logs", "/costs"]);
     expect(within(nav).getByRole("link", { name: "홈" })).toHaveAttribute("aria-current", "page");
     expect(within(nav).queryByRole("link", { name: "설정" })).not.toBeInTheDocument();
-    expect(within(nav).queryByRole("link", { name: /LLM 요금/ })).not.toBeInTheDocument();
     expect(screen.getByRole("status", { name: /연결/ })).toBeInTheDocument(); // 모바일 상단 연결 점
   });
 
